@@ -1,0 +1,67 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+*.iml
+.vscode/
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Java / Gradle
+.gradle/
+build/
+out/
+target/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Spring Boot runtime
+spring.log
+
+# Test / coverage reports
+coverage/
+.nyc_output/
+
+# Node / frontend artifacts, in case this repository is later moved to project root
+node_modules/
+dist/
+.vite/
+
+# Docker / local runtime files
+*.pid
+*.seed
+*.sqlite
+*.sqlite3
+
+# =========================================================================
+# Spring Boot & MySQL Extra Configurations
+# =========================================================================
+
+# Database & Application Secrets (Adjust paths based on your project structure)
+src/main/resources/application-local.properties
+src/main/resources/application-local.yml
+src/main/resources/application-dev.properties
+src/main/resources/application-dev.yml
+# src/main/resources/application.yml  <- 만약 이 파일에 DB 패스워드가 직접 들어있다면 주석을 해제하세요.
+
+# Java VM crash logs
+hs_err_pid*
+replay_pid*
+
+# Gradle cache and execution templates
+.gradletasknamecache
+
+# IntelliJ & Eclipse extra
+*.iws
+*.out
+.factorypath

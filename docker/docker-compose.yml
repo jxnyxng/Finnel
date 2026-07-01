@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: krw-watcher-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: krw_watcher
+      MYSQL_USER: krw_watcher
+      MYSQL_PASSWORD: krw_watcher
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - krw-watcher-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  krw-watcher-mysql-data:
