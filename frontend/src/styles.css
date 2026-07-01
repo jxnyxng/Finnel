@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.chart-help-tooltip {
+  left: 0;
+}
+
+@media (max-width: 640px) {
+  .chart-help-tooltip {
+    left: -2.5rem;
+    width: min(18rem, calc(100vw - 2rem));
+  }
+}
+
+.on-air-dot {
+  background: #14b8a6;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.45);
+  height: 10px;
+  width: 10px;
+  animation: on-air-pulse 1.8s ease-out infinite;
+}
+
+.latest-value-core {
+  fill: #0f766e;
+}
+
+.latest-value-halo {
+  fill: rgba(20, 184, 166, 0.28);
+  stroke: rgba(15, 118, 110, 0.7);
+  stroke-width: 1;
+}
+
+.latest-value-pulse {
+  animation: latest-value-pulse 1.8s ease-out infinite;
+  fill: rgba(20, 184, 166, 0.16);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes latest-value-pulse {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.8);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+@keyframes on-air-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.45);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(20, 184, 166, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 6px rgba(20, 184, 166, 0);
+  }
+}
+
+.latest-value-floating-label {
+  align-items: center;
+  background: #0f766e;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.24);
+  color: white;
+  display: flex;
+  font-size: 10px;
+  font-weight: 700;
+  height: 20px;
+  justify-content: center;
+  letter-spacing: 0;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  width: 58px;
+  z-index: 10;
+}
+
+.latest-value-floating-label::before {
+  border-bottom: 5px solid transparent;
+  border-right: 6px solid #0f766e;
+  border-top: 5px solid transparent;
+  content: "";
+  height: 0;
+  left: -6px;
+  position: absolute;
+  top: 5px;
+  width: 0;
+}
