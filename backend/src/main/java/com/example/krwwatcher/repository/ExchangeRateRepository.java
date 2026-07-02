@@ -12,6 +12,8 @@ public interface ExchangeRateRepository extends JpaRepository<ExchangeRate, Long
 
     Optional<ExchangeRate> findTopByCurrencyCodeOrderByBaseDateDesc(String currencyCode);
 
+    Optional<ExchangeRate> findTopByCurrencyCodeAndBaseDateBeforeOrderByBaseDateDesc(String currencyCode, LocalDate baseDate);
+
     Optional<ExchangeRate> findByCurrencyCodeAndBaseDate(String currencyCode, LocalDate baseDate);
 
     List<ExchangeRate> findTop30ByCurrencyCodeOrderByBaseDateDesc(String currencyCode);

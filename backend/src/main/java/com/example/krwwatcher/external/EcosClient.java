@@ -33,7 +33,7 @@ public class EcosClient {
             return List.of();
         }
 
-        return fetchObservations(
+        return fetchRawObservations(
             config.koreanPolicyRateStatCode(),
             "D",
             startDate.format(DateTimeFormatter.BASIC_ISO_DATE),
@@ -53,7 +53,7 @@ public class EcosClient {
             return List.of();
         }
 
-        return fetchObservations(
+        return fetchRawObservations(
             config.foreignReservesStatCode(),
             "M",
             startMonth.format(MONTH_FORMATTER),
@@ -67,7 +67,27 @@ public class EcosClient {
             .toList();
     }
 
-    private List<EcosObservation> fetchObservations(String statCode, String cycle, String start, String end, String itemCode) {
+    public List<EcosObservationPayload> fetchStatisticObservations(String statCode, String cycle, YearMonth startMonth, YearMonth endMonth, String itemCode) {
+        ExternalApiProperties.Ecos config = properties.ecos();
+        if (!StringUtils.hasText(config.apiKey())) {
+            return List.of();
+        }
+
+        return fetchRawObservations(
+            statCode,
+            cycle,
+            startMonth.format(MONTH_FORMATTER),
+            endMonth.format(MONTH_FORMATTER),
+            itemCode
+        ).stream()
+            .map(item -> new EcosObservationPayload(
+                YearMonth.parse(item.time(), MONTH_FORMATTER).atEndOfMonth(),
+                new BigDecimal(item.dataValue())
+            ))
+            .toList();
+    }
+
+    private List<EcosObservation> fetchRawObservations(String statCode, String cycle, String start, String end, String itemCode) {
         EcosStatisticSearchResponse response = restClient.get()
             .uri(uriBuilder -> uriBuilder
                 .path("/StatisticSearch/{apiKey}/json/kr/1/1000/{statCode}/{cycle}/{start}/{end}/{itemCode}")

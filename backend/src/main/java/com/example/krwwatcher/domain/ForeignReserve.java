@@ -52,4 +52,12 @@ public class ForeignReserve {
     public BigDecimal getAmountUsdMillion() {
         return amountUsdMillion;
     }
+
+    public String getSource() {
+        return source;
+    }
+
+    public Instant getFetchedAt() {
+        return fetchedAt;
+    }
 }

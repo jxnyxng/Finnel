@@ -64,4 +64,12 @@ public class ExchangeRate {
     public BigDecimal getDealBasRate() {
         return dealBasRate;
     }
+
+    public String getSource() {
+        return source;
+    }
+
+    public Instant getFetchedAt() {
+        return fetchedAt;
+    }
 }

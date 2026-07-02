@@ -7,7 +7,9 @@ public record ExternalApiProperties(
     Koreaexim koreaexim,
     Ecos ecos,
     Fred fred,
-    TwelveData twelveData
+    TwelveData twelveData,
+    Bis bis,
+    Naver naver
 ) {
 
     public record Koreaexim(String baseUrl, String apiKey) {
@@ -23,9 +25,32 @@ public record ExternalApiProperties(
     ) {
     }
 
-    public record Fred(String baseUrl, String apiKey, String dollarIndexSeriesId, String usPolicyRateSeriesId, String usdKrwSeriesId) {
+    public record Fred(
+        String baseUrl,
+        String apiKey,
+        String dollarIndexSeriesId,
+        String advancedDollarIndexSeriesId,
+        String usPolicyRateSeriesId,
+        String usdKrwSeriesId
+    ) {
     }
 
-    public record TwelveData(String baseUrl, String apiKey, String usdKrwSymbol, String intradayInterval, Integer intradayOutputSize, Integer dailyOutputSize) {
+    public record TwelveData(
+        String baseUrl,
+        String apiKey,
+        String usdKrwSymbol,
+        String intradayInterval,
+        Integer intradayOutputSize
+    ) {
+    }
+
+    public record Bis(String effectiveExchangeRatesBulkUrl) {
+    }
+
+    public record Naver(
+        String baseUrl,
+        String clientId,
+        String clientSecret
+    ) {
     }
 }

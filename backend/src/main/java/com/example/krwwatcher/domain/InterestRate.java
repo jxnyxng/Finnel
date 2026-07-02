@@ -71,4 +71,12 @@ public class InterestRate {
     public BigDecimal getRateValue() {
         return rateValue;
     }
+
+    public String getSource() {
+        return source;
+    }
+
+    public Instant getFetchedAt() {
+        return fetchedAt;
+    }
 }

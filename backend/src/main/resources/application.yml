@@ -1,6 +1,8 @@
 spring:
   config:
-    import: optional:file:.env[.properties]
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:backend/.env[.properties]
   application:
     name: krw-watcher
   datasource:
@@ -37,6 +39,7 @@ app:
       intraday-cron: ${MARKET_DATA_SYNC_INTRADAY_CRON:30 */5 * * * MON-FRI}
       daily-backfill-cooldown: ${MARKET_DATA_SYNC_DAILY_BACKFILL_COOLDOWN:30m}
       daily-backfill-cron: ${MARKET_DATA_SYNC_DAILY_BACKFILL_CRON:0 5 8-18 * * MON-FRI}
+      news-cron: ${NEWS_SYNC_CRON:0 */10 * * * MON-FRI}
   external-apis:
     koreaexim:
       base-url: ${KOREAEXIM_BASE_URL:https://www.koreaexim.go.kr/site/program/financial}
@@ -52,6 +55,7 @@ app:
       base-url: ${FRED_BASE_URL:https://api.stlouisfed.org/fred}
       api-key: ${FRED_API_KEY:}
       dollar-index-series-id: ${FRED_DOLLAR_INDEX_SERIES_ID:DTWEXBGS}
+      advanced-dollar-index-series-id: ${FRED_ADVANCED_DOLLAR_INDEX_SERIES_ID:DTWEXAFEGS}
       us-policy-rate-series-id: ${FRED_US_POLICY_RATE_SERIES_ID:FEDFUNDS}
       usd-krw-series-id: ${FRED_USD_KRW_SERIES_ID:DEXKOUS}
     twelve-data:
@@ -60,4 +64,9 @@ app:
       usd-krw-symbol: ${TWELVE_DATA_USD_KRW_SYMBOL:USD/KRW}
       intraday-interval: ${TWELVE_DATA_INTRADAY_INTERVAL:5min}
       intraday-output-size: ${TWELVE_DATA_INTRADAY_OUTPUT_SIZE:1000}
-      daily-output-size: ${TWELVE_DATA_DAILY_OUTPUT_SIZE:1300}
+    bis:
+      effective-exchange-rates-bulk-url: ${BIS_EER_BULK_URL:https://data.bis.org/static/bulk/WS_EER_csv_flat.zip}
+    naver:
+      base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
+      client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}

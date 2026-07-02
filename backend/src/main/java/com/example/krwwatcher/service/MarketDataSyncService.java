@@ -1,18 +1,22 @@
 package com.example.krwwatcher.service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.Duration;
 import java.time.DayOfWeek;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.example.krwwatcher.config.SyncProperties;
+import com.example.krwwatcher.external.BisClient;
 import com.example.krwwatcher.external.EcosClient;
 import com.example.krwwatcher.external.FredClient;
 import com.example.krwwatcher.external.KoreaeximExchangeClient;
@@ -35,6 +39,7 @@ public class MarketDataSyncService {
     private final EcosClient ecosClient;
     private final FredClient fredClient;
     private final TwelveDataClient twelveDataClient;
+    private final BisClient bisClient;
     private final JdbcTemplate jdbcTemplate;
     private final ReentrantLock syncLock = new ReentrantLock();
     private final ReentrantLock intradaySyncLock = new ReentrantLock();
@@ -47,6 +52,7 @@ public class MarketDataSyncService {
         EcosClient ecosClient,
         FredClient fredClient,
         TwelveDataClient twelveDataClient,
+        BisClient bisClient,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -55,6 +61,7 @@ public class MarketDataSyncService {
         this.ecosClient = ecosClient;
         this.fredClient = fredClient;
         this.twelveDataClient = twelveDataClient;
+        this.bisClient = bisClient;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -209,18 +216,20 @@ public class MarketDataSyncService {
         SyncCounter counter = new SyncCounter();
 
         int exchangeRows = runSource("exchange", counter, this::syncUsdKrw);
-        int dailyBackfillRows = runSource("dailyBackfill", counter, this::syncUsdKrwDailyBackfill);
-        int intradayExchangeRows = runSource("intradayExchange", counter, this::syncUsdKrwIntraday);
-        int dollarIndexRows = runSource("dollarIndex", counter, this::syncDollarIndex);
+        int dailyBackfillRows = runSource("dailyBackfill", counter, this::backfillMissingWeekdaysFromIntraday);
+        int intradayExchangeRows = 0;
+        int dollarIndexRows = runSource("dollarIndex", counter, this::syncDollarIndexes);
+        int currencyStrengthRows = runSource("currencyStrength", counter, this::syncEffectiveExchangeRates);
         int usRateRows = runSource("usRate", counter, this::syncUsPolicyRate);
         int krRateRows = runSource("krRate", counter, this::syncKoreanPolicyRate);
         int foreignReserveRows = runSource("foreignReserve", counter, this::syncForeignReserves);
+        int domesticPolicyRows = runSource("domesticPolicy", counter, this::syncDomesticPolicyIndicators);
 
         String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
-        String message = "exchange=" + exchangeRows + ", dailyBackfill=" + dailyBackfillRows + ", intradayExchange=" + intradayExchangeRows + ", dollarIndex=" + dollarIndexRows + ", usRate=" + usRateRows + ", krRate=" + krRateRows + ", foreignReserve=" + foreignReserveRows + counter.message;
+        String message = "exchange=" + exchangeRows + ", dailyBackfill=" + dailyBackfillRows + ", intradayExchange=" + intradayExchangeRows + ", dollarIndex=" + dollarIndexRows + ", currencyStrength=" + currencyStrengthRows + ", usRate=" + usRateRows + ", krRate=" + krRateRows + ", foreignReserve=" + foreignReserveRows + ", domesticPolicy=" + domesticPolicyRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now());
-        return new SyncResult(exchangeRows + dailyBackfillRows, intradayExchangeRows, dollarIndexRows, usRateRows, krRateRows, foreignReserveRows, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
+        return new SyncResult(exchangeRows + dailyBackfillRows, intradayExchangeRows, dollarIndexRows, currencyStrengthRows, usRateRows, krRateRows, foreignReserveRows, domesticPolicyRows, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
     @Transactional
@@ -235,7 +244,7 @@ public class MarketDataSyncService {
         String message = "intradayExchange=" + intradayExchangeRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), Instant.now());
-        return new SyncResult(0, intradayExchangeRows, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
+        return new SyncResult(0, intradayExchangeRows, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
     @Transactional
@@ -250,7 +259,7 @@ public class MarketDataSyncService {
         String message = "dailyBackfill=" + exchangeRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
-        return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
+        return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
     private int runSource(String sourceName, SyncCounter counter, IntSupplier supplier) {
@@ -282,36 +291,14 @@ public class MarketDataSyncService {
                 "KOREAEXIM",
                     Instant.now()
                 ))
-                .orElseGet(this::syncUsdKrwFromTwelveDataDaily);
+                .orElseGet(this::syncUsdKrwFromFred);
         } catch (RuntimeException exception) {
-            return syncUsdKrwFromTwelveDataDaily();
-        }
-    }
-
-    private int syncUsdKrwFromTwelveDataDaily() {
-        List<TwelveDataClient.DailyExchangePayload> observations = twelveDataClient.fetchUsdKrwDaily();
-        if (observations.isEmpty()) {
             return syncUsdKrwFromFred();
         }
-
-        return upsertDailyUsdKrwFromTwelveData(observations);
     }
 
     private int syncUsdKrwDailyBackfill() {
-        List<TwelveDataClient.DailyExchangePayload> observations = twelveDataClient.fetchUsdKrwDaily();
-        if (!observations.isEmpty()) {
-            int rows = upsertDailyUsdKrwFromTwelveData(observations);
-            return rows + backfillMissingWeekdaysFromIntraday();
-        }
-
-        return syncUsdKrwFromFred();
-    }
-
-    private int upsertDailyUsdKrwFromTwelveData(List<TwelveDataClient.DailyExchangePayload> observations) {
-        return observations.stream()
-            .filter(payload -> isWeekday(payload.baseDate()))
-            .mapToInt(payload -> upsertDailyUsdKrw(payload.baseDate(), payload.closeRate(), "TWELVE_DATA:1day"))
-            .sum();
+        return backfillMissingWeekdaysFromIntraday();
     }
 
     private int backfillMissingWeekdaysFromIntraday() {
@@ -385,7 +372,7 @@ public class MarketDataSyncService {
                 """,
             (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
             "USD"
-        ).stream().findFirst().orElse(null);
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     private List<LocalDate> findDailyUsdKrwDates(LocalDate startDate, LocalDate endDate) {
@@ -424,8 +411,12 @@ public class MarketDataSyncService {
         return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
     }
 
-    private int syncDollarIndex() {
-        String seriesId = properties.fred().dollarIndexSeriesId();
+    private int syncDollarIndexes() {
+        return syncDollarIndex(properties.fred().dollarIndexSeriesId(), "FRED")
+            + syncDollarIndex(properties.fred().advancedDollarIndexSeriesId(), "FRED");
+    }
+
+    private int syncDollarIndex(String seriesId, String source) {
         List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, LocalDate.now().minusYears(5));
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
@@ -439,8 +430,32 @@ public class MarketDataSyncService {
                 payload.baseDate(),
                 seriesId,
                 payload.value(),
-                "FRED",
+                source,
                 Instant.now()
+            ))
+            .sum();
+    }
+
+    private int syncEffectiveExchangeRates() {
+        List<BisClient.EffectiveExchangeRatePayload> observations = bisClient.fetchLatestBroadEffectiveExchangeRates();
+        return observations.stream()
+            .mapToInt(payload -> jdbcTemplate.update("""
+                    INSERT INTO effective_exchange_rates (base_date, area_code, area_name, index_type, basket_type, value, source, fetched_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        area_name = VALUES(area_name),
+                        value = VALUES(value),
+                        source = VALUES(source),
+                        fetched_at = VALUES(fetched_at)
+                    """,
+                payload.baseDate(),
+                payload.areaCode(),
+                payload.areaName(),
+                payload.indexType(),
+                payload.basketType(),
+                payload.value(),
+                "BIS:WS_EER",
+                payload.fetchedAt()
             ))
             .sum();
     }
@@ -528,6 +543,104 @@ public class MarketDataSyncService {
             .sum();
     }
 
+    private int syncDomesticPolicyIndicators() {
+        YearMonth currentMonth = YearMonth.now();
+        YearMonth startMonth = currentMonth.minusYears(3);
+        List<DomesticPolicySpec> specs = List.of(
+            new DomesticPolicySpec("M2", "M2 통화량", "통화 정책", "161Y005", "BBHS00", "KRW_100M", "ECOS:161Y005"),
+            new DomesticPolicySpec("CURRENT_ACCOUNT", "경상수지", "대외 수지", "301Y017", "SA000", "USD_MILLION", "ECOS:301Y017"),
+            new DomesticPolicySpec("GOODS_ACCOUNT", "상품수지", "대외 수지", "301Y017", "SA100", "USD_MILLION", "ECOS:301Y017"),
+            new DomesticPolicySpec("CPI", "소비자물가지수", "물가 압력", "901Y009", "0", "INDEX", "ECOS:901Y009"),
+            new DomesticPolicySpec("PPI", "생산자물가지수", "물가 압력", "404Y014", "*AA", "INDEX", "ECOS:404Y014"),
+            new DomesticPolicySpec("EXPORT_AMOUNT", "수출금액", "달러 유입", "901Y118", "T002", "USD_1000", "ECOS:901Y118"),
+            new DomesticPolicySpec("IMPORT_AMOUNT", "수입금액", "달러 유출", "901Y118", "T004", "USD_1000", "ECOS:901Y118")
+        );
+
+        int rows = 0;
+        List<EcosClient.EcosObservationPayload> exportAmounts = List.of();
+        List<EcosClient.EcosObservationPayload> importAmounts = List.of();
+        for (DomesticPolicySpec spec : specs) {
+            List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchStatisticObservations(
+                spec.statCode(),
+                "M",
+                startMonth,
+                currentMonth,
+                spec.itemCode()
+            );
+            rows += upsertDomesticPolicyIndicators(spec, observations);
+            if ("EXPORT_AMOUNT".equals(spec.code())) {
+                exportAmounts = observations;
+            } else if ("IMPORT_AMOUNT".equals(spec.code())) {
+                importAmounts = observations;
+            }
+        }
+
+        rows += upsertTradeBalance(exportAmounts, importAmounts);
+        return rows;
+    }
+
+    private int upsertDomesticPolicyIndicators(DomesticPolicySpec spec, List<EcosClient.EcosObservationPayload> observations) {
+        return observations.stream()
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                spec.code(),
+                spec.title(),
+                spec.category(),
+                payload.baseDate(),
+                payload.value(),
+                spec.unit(),
+                spec.source()
+            ))
+            .sum();
+    }
+
+    private int upsertTradeBalance(List<EcosClient.EcosObservationPayload> exportAmounts, List<EcosClient.EcosObservationPayload> importAmounts) {
+        List<EcosClient.EcosObservationPayload> balances = new ArrayList<>();
+        for (EcosClient.EcosObservationPayload exportAmount : exportAmounts) {
+            importAmounts.stream()
+                .filter(importAmount -> importAmount.baseDate().equals(exportAmount.baseDate()))
+                .findFirst()
+                .ifPresent(importAmount -> balances.add(new EcosClient.EcosObservationPayload(
+                    exportAmount.baseDate(),
+                    exportAmount.value().subtract(importAmount.value())
+                )));
+        }
+
+        return balances.stream()
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                "TRADE_BALANCE",
+                "무역수지",
+                "달러 수급",
+                payload.baseDate(),
+                payload.value(),
+                "USD_1000",
+                "ECOS:901Y118"
+            ))
+            .sum();
+    }
+
+    private int upsertDomesticPolicyIndicator(String code, String title, String category, LocalDate baseDate, BigDecimal value, String unit, String source) {
+        return jdbcTemplate.update("""
+                INSERT INTO domestic_policy_indicators (indicator_code, title, category, base_date, value, unit, source, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    title = VALUES(title),
+                    category = VALUES(category),
+                    value = VALUES(value),
+                    unit = VALUES(unit),
+                    source = VALUES(source),
+                    fetched_at = VALUES(fetched_at)
+                """,
+            code,
+            title,
+            category,
+            baseDate,
+            value,
+            unit,
+            source,
+            Instant.now()
+        );
+    }
+
     private Long startJob(String jobName, Instant startedAt, SyncTrigger trigger) {
         jdbcTemplate.update(
             "INSERT INTO batch_job_runs (job_name, status, started_at, message) VALUES (?, ?, ?, ?)",
@@ -550,7 +663,7 @@ public class MarketDataSyncService {
     }
 
     private SyncResult skipped(String status, String message, SyncTrigger trigger, SyncWindow syncWindow) {
-        return new SyncResult(0, 0, 0, 0, 0, 0, status, message, trigger.name(), null, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
+        return new SyncResult(0, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), null, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
     private SyncWindow currentSyncWindow(String jobName, Duration cooldown, Instant now) {
@@ -618,13 +731,18 @@ public class MarketDataSyncService {
     private record LatestJob(String status, Instant startedAt, Instant endedAt, String message) {
     }
 
+    private record DomesticPolicySpec(String code, String title, String category, String statCode, String itemCode, String unit, String source) {
+    }
+
     public record SyncResult(
         int exchangeRateRows,
         int intradayExchangeRateRows,
         int dollarIndexRows,
+        int currencyStrengthRows,
         int usPolicyRateRows,
         int krPolicyRateRows,
         int foreignReserveRows,
+        int domesticPolicyRows,
         String status,
         String message,
         String trigger,

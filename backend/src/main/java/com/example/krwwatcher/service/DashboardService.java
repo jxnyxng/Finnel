@@ -2,11 +2,16 @@ package com.example.krwwatcher.service;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.example.krwwatcher.domain.DollarIndex;
@@ -51,9 +56,11 @@ public class DashboardService {
 
     public DailyDashboardResponse daily() {
         DollarIndex latestDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().dollarIndexSeriesId()).orElse(null);
+        DollarIndex latestAdvancedDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().advancedDollarIndexSeriesId()).orElse(null);
         InterestRate latestUsRate = interestRateRepository.findTopByCountryCodeAndRateTypeOrderByBaseDateDesc("US", "POLICY_RATE").orElse(null);
         InterestRate latestKrRate = interestRateRepository.findTopByCountryCodeAndRateTypeOrderByBaseDateDesc("KR", "POLICY_RATE").orElse(null);
         ForeignReserve latestForeignReserve = foreignReserveRepository.findTopByOrderByBaseDateDesc().orElse(null);
+        ExchangeRate latestUsdKrwDaily = exchangeRateRepository.findTopByCurrencyCodeOrderByBaseDateDesc("USD").orElse(null);
 
         List<TimeSeriesPoint> usdKrwDailySeries = exchangeRateRepository
             .findByCurrencyCodeAndBaseDateGreaterThanEqualOrderByBaseDateAsc("USD", LocalDate.now().minusYears(5))
@@ -68,8 +75,15 @@ public class DashboardService {
             .map(item -> new TimeSeriesPoint(item.getBaseDate(), item.getValue()))
             .toList();
 
+        List<TimeSeriesPoint> advancedDollarIndexSeries = dollarIndexRepository
+            .findBySeriesIdAndBaseDateGreaterThanEqualOrderByBaseDateAsc(properties.fred().advancedDollarIndexSeriesId(), LocalDate.now().minusYears(5))
+            .stream()
+            .map(item -> new TimeSeriesPoint(item.getBaseDate(), item.getValue()))
+            .toList();
+
         List<IntradayTimeSeriesPoint> usdKrwIntradaySeries = findLatestIntradaySeries();
         List<TimeSeriesPoint> usdKrwSeries = mergeLatestIntradayPoint(usdKrwDailySeries, usdKrwIntradaySeries);
+        List<CurrencyStrengthRank> currencyStrengthRanks = findCurrencyStrengthRanks();
 
         TimeSeriesPoint latestUsdKrw = usdKrwSeries.isEmpty() ? null : usdKrwSeries.get(usdKrwSeries.size() - 1);
         LocalDate baseDate = latestUsdKrw != null ? latestUsdKrw.baseDate() : LocalDate.now();
@@ -78,6 +92,7 @@ public class DashboardService {
             baseDate,
             List.of(
                 metric("USD/KRW", "원/달러 환율", latestUsdKrw == null ? null : latestUsdKrw.value(), "KRW"),
+                metric("ADVANCED_DOLLAR_INDEX", "선진국 달러 지수", latestAdvancedDollarIndex == null ? null : latestAdvancedDollarIndex.getValue(), "INDEX"),
                 metric("BROAD_DOLLAR_INDEX", "광의 달러 지수", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX"),
                 metric("US_POLICY_RATE", "미국 기준금리", latestUsRate == null ? null : latestUsRate.getRateValue(), "PERCENT"),
                 metric("KR_POLICY_RATE", "한국 기준금리", latestKrRate == null ? null : latestKrRate.getRateValue(), "PERCENT"),
@@ -86,8 +101,292 @@ public class DashboardService {
             ),
             usdKrwSeries,
             usdKrwIntradaySeries,
-            dollarIndexSeries
+            advancedDollarIndexSeries,
+            dollarIndexSeries,
+            currencyStrengthRanks,
+            domesticIndicators(latestUsdKrw, latestUsdKrwDaily, usdKrwIntradaySeries, latestKrRate, latestUsRate, latestForeignReserve, currencyStrengthRanks),
+            dataSourceInfos()
         );
+    }
+
+    private List<DomesticIndicator> domesticIndicators(
+        TimeSeriesPoint latestUsdKrw,
+        ExchangeRate latestUsdKrwDaily,
+        List<IntradayTimeSeriesPoint> usdKrwIntradaySeries,
+        InterestRate latestKrRate,
+        InterestRate latestUsRate,
+        ForeignReserve latestForeignReserve,
+        List<CurrencyStrengthRank> currencyStrengthRanks
+    ) {
+        ExchangeRate previousUsdKrwDaily = latestUsdKrwDaily == null ? null : exchangeRateRepository
+            .findTopByCurrencyCodeAndBaseDateBeforeOrderByBaseDateDesc("USD", latestUsdKrwDaily.getBaseDate())
+            .orElse(null);
+        InterestRate previousKrRate = latestKrRate == null ? null : interestRateRepository
+            .findTopByCountryCodeAndRateTypeAndBaseDateBeforeOrderByBaseDateDesc("KR", "POLICY_RATE", latestKrRate.getBaseDate())
+            .orElse(null);
+        InterestRate previousUsRate = latestUsRate == null ? null : interestRateRepository
+            .findTopByCountryCodeAndRateTypeAndBaseDateBeforeOrderByBaseDateDesc("US", "POLICY_RATE", latestUsRate.getBaseDate())
+            .orElse(null);
+        ForeignReserve previousForeignReserve = latestForeignReserve == null ? null : foreignReserveRepository
+            .findTopByBaseDateBeforeOrderByBaseDateDesc(latestForeignReserve.getBaseDate())
+            .orElse(null);
+        CurrencyStrengthRank krRank = currencyStrengthRanks.stream()
+            .filter(rank -> "KR".equals(rank.areaCode()))
+            .findFirst()
+            .orElse(null);
+        IntradayTimeSeriesPoint latestIntraday = usdKrwIntradaySeries.isEmpty() ? null : usdKrwIntradaySeries.get(usdKrwIntradaySeries.size() - 1);
+
+        BigDecimal rateGap = rateGap(latestUsRate, latestKrRate);
+        BigDecimal previousRateGap = rateGap(previousUsRate, previousKrRate);
+        LocalDate rateGapBaseDate = latestUsRate == null || latestKrRate == null
+            ? null
+            : latestUsRate.getBaseDate().isAfter(latestKrRate.getBaseDate()) ? latestKrRate.getBaseDate() : latestUsRate.getBaseDate();
+        LocalDate previousRateGapBaseDate = previousUsRate == null || previousKrRate == null
+            ? null
+            : previousUsRate.getBaseDate().isAfter(previousKrRate.getBaseDate()) ? previousKrRate.getBaseDate() : previousUsRate.getBaseDate();
+
+        List<DomesticIndicator> indicators = new ArrayList<>();
+        indicators.add(new DomesticIndicator(
+            "USD_KRW",
+            "원/달러 환율",
+            "환율 현재 압력",
+            latestUsdKrw == null ? null : latestUsdKrw.value(),
+            "KRW",
+            latestIntraday == null ? latestUsdKrw == null ? null : latestUsdKrw.baseDate() : latestIntraday.observedAt().toLocalDate(),
+            previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getDealBasRate(),
+            previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getBaseDate(),
+            latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 5min",
+            latestIntraday == null && latestUsdKrwDaily != null ? latestUsdKrwDaily.getFetchedAt() : null,
+            "환율 상승은 같은 1달러를 사기 위해 더 많은 원화가 필요하다는 뜻이어서 원화 약세 압력으로 봅니다.",
+            "Twelve Data 5분봉과 일별 저장 환율을 함께 사용합니다.",
+            statusLabel(latestUsdKrw == null ? null : latestUsdKrw.value())
+        ));
+        indicators.add(new DomesticIndicator(
+            "KR_POLICY_RATE",
+            "한국 기준금리",
+            "통화 정책",
+            latestKrRate == null ? null : latestKrRate.getRateValue(),
+            "PERCENT",
+            latestKrRate == null ? null : latestKrRate.getBaseDate(),
+            previousKrRate == null ? null : previousKrRate.getRateValue(),
+            previousKrRate == null ? null : previousKrRate.getBaseDate(),
+            latestKrRate == null ? "ECOS" : latestKrRate.getSource(),
+            latestKrRate == null ? null : latestKrRate.getFetchedAt(),
+            "한국 금리가 상대적으로 높아지면 원화 보유 유인이 커질 수 있지만, 성장 둔화 우려와 함께 봐야 합니다.",
+            "한국은행 ECOS에서 발표된 기준금리 저장값입니다.",
+            statusLabel(latestKrRate == null ? null : latestKrRate.getRateValue())
+        ));
+        indicators.add(new DomesticIndicator(
+            "US_POLICY_RATE",
+            "미국 기준금리",
+            "대외 금리 압력",
+            latestUsRate == null ? null : latestUsRate.getRateValue(),
+            "PERCENT",
+            latestUsRate == null ? null : latestUsRate.getBaseDate(),
+            previousUsRate == null ? null : previousUsRate.getRateValue(),
+            previousUsRate == null ? null : previousUsRate.getBaseDate(),
+            latestUsRate == null ? "FRED" : latestUsRate.getSource(),
+            latestUsRate == null ? null : latestUsRate.getFetchedAt(),
+            "미국 금리가 높거나 인하 기대가 약하면 달러 선호가 강해져 원화에는 부담이 될 수 있습니다.",
+            "FRED의 미국 정책금리 계열을 저장합니다.",
+            statusLabel(latestUsRate == null ? null : latestUsRate.getRateValue())
+        ));
+        indicators.add(new DomesticIndicator(
+            "KR_US_RATE_GAP",
+            "한미 기준금리차",
+            "대외 금리 압력",
+            rateGap,
+            "PERCENT_POINT",
+            rateGapBaseDate,
+            previousRateGap,
+            previousRateGapBaseDate,
+            "FRED/ECOS",
+            latestUsRate == null ? null : latestUsRate.getFetchedAt(),
+            "값이 플러스면 미국 기준금리가 한국보다 높다는 뜻입니다. 격차 확대는 원화 약세 요인으로 해석될 수 있습니다.",
+            "미국 기준금리에서 한국 기준금리를 뺀 값입니다.",
+            statusLabel(rateGap)
+        ));
+        indicators.add(new DomesticIndicator(
+            "FOREIGN_RESERVES",
+            "외환보유액",
+            "외환 방어력",
+            latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion(),
+            "USD_MILLION",
+            latestForeignReserve == null ? null : latestForeignReserve.getBaseDate(),
+            previousForeignReserve == null ? null : previousForeignReserve.getAmountUsdMillion(),
+            previousForeignReserve == null ? null : previousForeignReserve.getBaseDate(),
+            latestForeignReserve == null ? "ECOS" : latestForeignReserve.getSource(),
+            latestForeignReserve == null ? null : latestForeignReserve.getFetchedAt(),
+            "외환보유액은 급격한 외환시장 변동에 대응할 수 있는 완충 여력으로 봅니다.",
+            "한국은행 ECOS 외환보유액 월별 발표값입니다.",
+            statusLabel(latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion())
+        ));
+        indicators.add(new DomesticIndicator(
+            "KR_NEER_RANK",
+            "원화 명목실효환율 순위",
+            "원화 상대 가치",
+            krRank == null ? null : BigDecimal.valueOf(krRank.neerRank()),
+            "RANK",
+            krRank == null ? null : krRank.baseDate(),
+            null,
+            null,
+            "BIS WS_EER",
+            null,
+            "NEER 순위가 낮을수록 주요 교역상대국 대비 자국 통화가치가 낮은 편입니다.",
+            krRank == null ? "BIS 명목실효환율 최신값이 아직 저장되지 않았습니다." : "BIS broad NEER 기준 " + krRank.totalCount() + "개국 중 낮은 순위입니다.",
+            statusLabel(krRank == null ? null : krRank.neerValue())
+        ));
+
+        indicators.addAll(domesticPolicyIndicators());
+        indicators.add(new DomesticIndicator(
+            "FISCAL_BALANCE",
+            "재정수지·국가채무",
+            "재정 정책",
+            null,
+            "UNAVAILABLE",
+            null,
+            null,
+            null,
+            "기획재정부 열린재정 API",
+            null,
+            "정부 재정 건전성은 국가 신뢰도와 외환시장 심리에 영향을 줄 수 있습니다.",
+            "현재 프로젝트에는 열린재정 API 키가 없어 자동 수집 전입니다.",
+            "연동 필요"
+        ));
+        indicators.add(new DomesticIndicator(
+            "MPC_MINUTES",
+            "금통위 의결문·회의록",
+            "통화정책 방향",
+            null,
+            "TEXT",
+            null,
+            null,
+            null,
+            "공공데이터포털/한국은행 문서 API",
+            null,
+            "향후 금리 방향 문구는 원화 기대심리에 영향을 줄 수 있어 텍스트 분석 대상으로 봅니다.",
+            "현재 프로젝트에는 관련 공공데이터포털 API 키가 없어 자동 수집 전입니다.",
+            "연동 필요"
+        ));
+
+        return indicators;
+    }
+
+    private List<DomesticIndicator> domesticPolicyIndicators() {
+        List<String> codes = List.of(
+            "M2",
+            "CURRENT_ACCOUNT",
+            "GOODS_ACCOUNT",
+            "CPI",
+            "PPI",
+            "EXPORT_AMOUNT",
+            "IMPORT_AMOUNT",
+            "TRADE_BALANCE"
+        );
+        return codes.stream()
+            .map(this::domesticPolicyIndicator)
+            .filter(Objects::nonNull)
+            .toList();
+    }
+
+    private DomesticIndicator domesticPolicyIndicator(String code) {
+        DomesticPolicyIndicatorRow latest = findLatestDomesticPolicyIndicator(code);
+        if (latest == null) {
+            return null;
+        }
+
+        DomesticPolicyIndicatorRow previous = findPreviousDomesticPolicyIndicator(code, latest.baseDate());
+        return new DomesticIndicator(
+            latest.code(),
+            latest.title(),
+            latest.category(),
+            latest.value(),
+            latest.unit(),
+            latest.baseDate(),
+            previous == null ? null : previous.value(),
+            previous == null ? null : previous.baseDate(),
+            latest.source(),
+            latest.fetchedAt(),
+            domesticPolicyImpact(latest.code()),
+            domesticPolicyNote(latest.code()),
+            statusLabel(latest.value())
+        );
+    }
+
+    private DomesticPolicyIndicatorRow findLatestDomesticPolicyIndicator(String code) {
+        return jdbcTemplate.query(
+            """
+                SELECT indicator_code, title, category, base_date, value, unit, source, fetched_at
+                FROM domestic_policy_indicators
+                WHERE indicator_code = ?
+                ORDER BY base_date DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new DomesticPolicyIndicatorRow(
+                rs.getString("indicator_code"),
+                rs.getString("title"),
+                rs.getString("category"),
+                rs.getDate("base_date").toLocalDate(),
+                rs.getBigDecimal("value"),
+                rs.getString("unit"),
+                rs.getString("source"),
+                rs.getTimestamp("fetched_at").toInstant()
+            ),
+            code
+        ).stream().findFirst().orElse(null);
+    }
+
+    private DomesticPolicyIndicatorRow findPreviousDomesticPolicyIndicator(String code, LocalDate baseDate) {
+        return jdbcTemplate.query(
+            """
+                SELECT indicator_code, title, category, base_date, value, unit, source, fetched_at
+                FROM domestic_policy_indicators
+                WHERE indicator_code = ?
+                  AND base_date < ?
+                ORDER BY base_date DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new DomesticPolicyIndicatorRow(
+                rs.getString("indicator_code"),
+                rs.getString("title"),
+                rs.getString("category"),
+                rs.getDate("base_date").toLocalDate(),
+                rs.getBigDecimal("value"),
+                rs.getString("unit"),
+                rs.getString("source"),
+                rs.getTimestamp("fetched_at").toInstant()
+            ),
+            code,
+            baseDate
+        ).stream().findFirst().orElse(null);
+    }
+
+    private String domesticPolicyImpact(String code) {
+        return switch (code) {
+            case "M2" -> "통화량 증가가 빠르면 원화 공급 확대와 인플레이션 기대를 통해 원화 약세 압력이 커질 수 있습니다.";
+            case "CURRENT_ACCOUNT" -> "경상수지 흑자는 달러 유입 기반을 강화해 원화 안정 요인으로 해석됩니다.";
+            case "GOODS_ACCOUNT" -> "상품수지 흑자는 무역을 통한 달러 유입을 늘려 원화에 우호적입니다.";
+            case "CPI" -> "소비자물가 상승은 기준금리 인상 압력을 키울 수 있지만, 실질 구매력 악화와 함께 봐야 합니다.";
+            case "PPI" -> "생산자물가 상승은 수입물가와 기업 비용 부담을 통해 물가와 환율 압력으로 이어질 수 있습니다.";
+            case "EXPORT_AMOUNT" -> "수출 증가는 달러 공급을 늘려 원화 안정에 도움이 될 수 있습니다.";
+            case "IMPORT_AMOUNT" -> "수입 증가는 달러 수요를 늘려 원화 약세 압력으로 작용할 수 있습니다.";
+            case "TRADE_BALANCE" -> "무역수지 흑자는 달러 순유입, 적자는 달러 순유출 압력으로 봅니다.";
+            default -> "환율에 영향을 줄 수 있는 국내 정책·거시경제 지표입니다.";
+        };
+    }
+
+    private String domesticPolicyNote(String code) {
+        return switch (code) {
+            case "M2" -> "ECOS 161Y005, M2 평잔 계절조정계열입니다.";
+            case "CURRENT_ACCOUNT" -> "ECOS 301Y017, 경상수지 계절조정 월별 값입니다.";
+            case "GOODS_ACCOUNT" -> "ECOS 301Y017, 상품수지 계절조정 월별 값입니다.";
+            case "CPI" -> "ECOS 901Y009, 소비자물가지수 총지수입니다.";
+            case "PPI" -> "ECOS 404Y014, 생산자물가지수 총지수입니다.";
+            case "EXPORT_AMOUNT" -> "ECOS 901Y118, 수출금액입니다.";
+            case "IMPORT_AMOUNT" -> "ECOS 901Y118, 수입금액입니다.";
+            case "TRADE_BALANCE" -> "ECOS 901Y118 수출금액에서 수입금액을 뺀 계산값입니다.";
+            default -> "ECOS 저장값 기준입니다.";
+        };
     }
 
     private List<TimeSeriesPoint> mergeLatestIntradayPoint(List<TimeSeriesPoint> dailySeries, List<IntradayTimeSeriesPoint> intradaySeries) {
@@ -127,7 +426,7 @@ public class DashboardService {
                 """,
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
             properties.twelveData().usdKrwSymbol()
-        ).stream().findFirst().orElse(null);
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
 
         if (latestObservedAt == null) {
             return List.of();
@@ -161,6 +460,130 @@ public class DashboardService {
         return new MetricSnapshot(code, label, value, unit, null);
     }
 
+    private String statusLabel(BigDecimal value) {
+        return value == null ? "데이터 없음" : "정상 수집";
+    }
+
+    private List<CurrencyStrengthRank> findCurrencyStrengthRanks() {
+        LocalDate latestNeerDate = jdbcTemplate.query(
+            """
+                SELECT MAX(base_date)
+                FROM effective_exchange_rates
+                WHERE index_type = 'NEER'
+                  AND basket_type = 'BROAD'
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate()
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+
+        if (latestNeerDate == null) {
+            return List.of();
+        }
+
+        LocalDate latestReerDate = jdbcTemplate.query(
+            """
+                SELECT MAX(base_date)
+                FROM effective_exchange_rates
+                WHERE index_type = 'REER'
+                  AND basket_type = 'BROAD'
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate()
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+
+        Map<String, BigDecimal> latestReerByArea = latestReerDate == null ? Map.of() : jdbcTemplate.query(
+            """
+                SELECT area_code, value
+                FROM effective_exchange_rates
+                WHERE index_type = 'REER'
+                  AND basket_type = 'BROAD'
+                  AND base_date = ?
+                """,
+            rs -> {
+                Map<String, BigDecimal> values = new LinkedHashMap<>();
+                while (rs.next()) {
+                    values.put(rs.getString("area_code"), rs.getBigDecimal("value"));
+                }
+                return values;
+            },
+            latestReerDate
+        );
+
+        List<EffectiveExchangeRateRow> rows = jdbcTemplate.query(
+            """
+                SELECT base_date, area_code, area_name, value
+                FROM effective_exchange_rates
+                WHERE index_type = 'NEER'
+                  AND basket_type = 'BROAD'
+                  AND base_date = ?
+                """,
+            (rs, rowNum) -> new EffectiveExchangeRateRow(
+                rs.getDate("base_date").toLocalDate(),
+                rs.getString("area_code"),
+                rs.getString("area_name"),
+                rs.getBigDecimal("value")
+            ),
+            latestNeerDate
+        ).stream()
+            .sorted(Comparator.comparing(EffectiveExchangeRateRow::value))
+            .toList();
+
+        int totalCount = rows.size();
+        List<CurrencyStrengthRank> ranks = new ArrayList<>();
+        for (int index = 0; index < rows.size(); index++) {
+            EffectiveExchangeRateRow row = rows.get(index);
+            ranks.add(new CurrencyStrengthRank(
+                row.baseDate(),
+                row.areaCode(),
+                row.areaName(),
+                row.value(),
+                index + 1,
+                totalCount,
+                latestReerDate,
+                latestReerByArea.get(row.areaCode())
+            ));
+        }
+        return ranks;
+    }
+
+    private List<DataSourceInfo> dataSourceInfos() {
+        return List.of(
+            new DataSourceInfo(
+                "USD_KRW",
+                "USD/KRW 추이",
+                "Twelve Data time_series USD/KRW 5min, 한국수출입은행 현재환율 API, FRED DEXKOUS fallback",
+                "1일 세션은 별도 intraday 수집, 전체 수집은 평일 09:10/15:10",
+                "Twelve Data는 API 제한 보호를 위해 1일 5분봉에만 사용하고, 긴 기간은 Koreaexim/FRED 일별 저장값을 사용합니다."
+            ),
+            new DataSourceInfo(
+                "ADVANCED_DOLLAR_INDEX",
+                "선진국 달러 지수",
+                "FRED DTWEXAFEGS",
+                "전체 시장 데이터 수집 시 FRED daily observations 저장",
+                "미국의 주요 선진국 교역 상대 통화 대비 달러 강도를 보는 FRED 공식 무역가중 지표입니다. 공식 ICE DXY와는 다른 지표입니다."
+            ),
+            new DataSourceInfo(
+                "BROAD_DOLLAR_INDEX",
+                "광의 달러 지수",
+                "FRED DTWEXBGS",
+                "전체 시장 데이터 수집 시 FRED daily observations 저장",
+                "미국의 넓은 교역 상대 통화 대비 달러 강도를 보는 무역가중 지표입니다."
+            ),
+            new DataSourceInfo(
+                "CURRENCY_STRENGTH",
+                "실효환율 통화가치 랭킹",
+                "BIS WS_EER effective exchange rates bulk CSV",
+                "평일 09:10/15:10 KST 전체 시장 데이터 수집 시 broad NEER/REER 최신 발표값 저장",
+                "NEER/REER는 2020=100 지수이며 낮을수록 교역상대국 대비 통화가치가 낮습니다. NEER는 명목, REER는 물가 수준을 반영한 실질 지표입니다."
+            ),
+            new DataSourceInfo(
+                "MACRO",
+                "금리·외환 여건",
+                "FRED FEDFUNDS, ECOS 722Y001/732Y001",
+                "전체 시장 데이터 수집 시 발표된 최신값 저장",
+                "한국 기준금리와 외환보유액은 한국은행 ECOS, 미국 기준금리는 FRED를 사용합니다."
+            )
+        );
+    }
+
     private BigDecimal rateGap(InterestRate latestUsRate, InterestRate latestKrRate) {
         if (latestUsRate == null || latestKrRate == null) {
             return null;
@@ -174,7 +597,11 @@ public class DashboardService {
         List<MetricSnapshot> metrics,
         List<TimeSeriesPoint> usdKrwSeries,
         List<IntradayTimeSeriesPoint> usdKrwIntradaySeries,
-        List<TimeSeriesPoint> dollarIndexSeries
+        List<TimeSeriesPoint> dxyIndexSeries,
+        List<TimeSeriesPoint> dollarIndexSeries,
+        List<CurrencyStrengthRank> currencyStrengthRanks,
+        List<DomesticIndicator> domesticIndicators,
+        List<DataSourceInfo> dataSources
     ) {
     }
 
@@ -196,6 +623,64 @@ public class DashboardService {
     public record IntradayTimeSeriesPoint(
         LocalDateTime observedAt,
         BigDecimal value
+    ) {
+    }
+
+    private record EffectiveExchangeRateRow(
+        LocalDate baseDate,
+        String areaCode,
+        String areaName,
+        BigDecimal value
+    ) {
+    }
+
+    public record CurrencyStrengthRank(
+        LocalDate baseDate,
+        String areaCode,
+        String areaName,
+        BigDecimal neerValue,
+        int neerRank,
+        int totalCount,
+        LocalDate reerBaseDate,
+        BigDecimal reerValue
+    ) {
+    }
+
+    public record DomesticIndicator(
+        String code,
+        String title,
+        String category,
+        BigDecimal value,
+        String unit,
+        LocalDate baseDate,
+        BigDecimal previousValue,
+        LocalDate previousBaseDate,
+        String source,
+        Instant fetchedAt,
+        String krwImpact,
+        String note,
+        String status
+    ) {
+    }
+
+    private record DomesticPolicyIndicatorRow(
+        String code,
+        String title,
+        String category,
+        LocalDate baseDate,
+        BigDecimal value,
+        String unit,
+        String source,
+        Instant fetchedAt
+    ) {
+    }
+
+    public record DataSourceInfo(
+        String code,
+        String title,
+        String api,
+        String updatePolicy,
+        String note
     ) {
     }
 }
