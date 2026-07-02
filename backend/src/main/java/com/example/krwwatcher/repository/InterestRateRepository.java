@@ -11,5 +11,7 @@ public interface InterestRateRepository extends JpaRepository<InterestRate, Long
 
     Optional<InterestRate> findTopByCountryCodeAndRateTypeOrderByBaseDateDesc(String countryCode, String rateType);
 
+    Optional<InterestRate> findTopByCountryCodeAndRateTypeAndBaseDateBeforeOrderByBaseDateDesc(String countryCode, String rateType, LocalDate baseDate);
+
     Optional<InterestRate> findByCountryCodeAndRateTypeAndBaseDate(String countryCode, String rateType, LocalDate baseDate);
 }

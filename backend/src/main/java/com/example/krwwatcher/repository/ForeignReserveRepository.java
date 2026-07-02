@@ -11,5 +11,7 @@ public interface ForeignReserveRepository extends JpaRepository<ForeignReserve, 
 
     Optional<ForeignReserve> findTopByOrderByBaseDateDesc();
 
+    Optional<ForeignReserve> findTopByBaseDateBeforeOrderByBaseDateDesc(LocalDate baseDate);
+
     Optional<ForeignReserve> findByBaseDate(LocalDate baseDate);
 }
