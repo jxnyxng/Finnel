@@ -1,5 +1,6 @@
 import { chartHeightPx } from '../constants';
 import type { ChartHoverState, ChartPoint, RangeKey } from '../types';
+import { formatCrosshairDate } from '../utils/chart';
 import { formatValue } from '../utils/format';
 
 type ChartTooltipPayload = {
@@ -104,6 +105,196 @@ export function LatestValueDot({ cx, cy }: { cx?: number; cy?: number }) {
       <circle className="latest-value-core" cx={cx} cy={cy} r={3} />
     </g>
   );
+}
+
+export function ChartHelpTooltip({
+  ariaLabel,
+  children,
+  title,
+  widthClassName = 'w-72'
+}: {
+  ariaLabel: string;
+  children: React.ReactNode;
+  title: string;
+  widthClassName?: string;
+}) {
+  return (
+    <div className="group relative">
+      <button
+        aria-label={ariaLabel}
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
+        type="button"
+      >
+        i
+      </button>
+      <div className={`chart-help-tooltip pointer-events-none absolute top-7 z-20 hidden ${widthClassName} rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block`}>
+        <p className="font-semibold text-zinc-900">{title}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+type RangeSelectorOption<T extends string> = {
+  key: T;
+  label: string;
+};
+
+export function RangeSelector<T extends string>({
+  columns,
+  onChange,
+  options,
+  value
+}: {
+  columns: 3 | 4;
+  onChange: (value: T) => void;
+  options: Array<RangeSelectorOption<T>>;
+  value: T;
+}) {
+  return (
+    <div className={`grid h-9 shrink-0 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-md border border-zinc-200 bg-zinc-100 p-1`}>
+      {options.map((option) => (
+        <button
+          className={`h-7 min-w-14 px-3 text-xs font-semibold ${
+            value === option.key ? 'rounded bg-white text-teal-700 shadow-sm' : 'text-zinc-500'
+          }`}
+          key={option.key}
+          onClick={() => onChange(option.key)}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function ChartPlotGrid({
+  bottom,
+  left,
+  right,
+  top
+}: {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+}) {
+  return (
+    <div
+      className="chart-plot-grid"
+      style={{
+        bottom,
+        left,
+        right,
+        top
+      }}
+    />
+  );
+}
+
+export function ChartEmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-4 text-center text-sm text-zinc-500">
+      {children}
+    </div>
+  );
+}
+
+export function LatestValueFloatingLabel({
+  topPercent,
+  value
+}: {
+  topPercent: number | null;
+  value: number | null;
+}) {
+  if (value === null || topPercent === null) {
+    return null;
+  }
+
+  return (
+    <div className="latest-value-floating-label" style={{ top: `${topPercent}%` }}>
+      <span>{formatValue(value)}</span>
+    </div>
+  );
+}
+
+export function ChartCrosshairOverlay({
+  bottom,
+  hover,
+  left,
+  range,
+  right,
+  top,
+  yDomain
+}: {
+  bottom: number;
+  hover: ChartHoverState | null;
+  left: number;
+  range: RangeKey;
+  right: number;
+  top: number;
+  yDomain: [number, number] | ['auto', 'auto'];
+}) {
+  if (!hover) {
+    return null;
+  }
+
+  const displayValue = getHoverAxisValue(hover.y, top, bottom, yDomain, hover.point.value);
+
+  return (
+    <>
+      <div
+        className="chart-crosshair-x"
+        style={{
+          bottom,
+          left: hover.x,
+          top
+        }}
+      />
+      <div
+        className="chart-crosshair-y"
+        style={{
+          left,
+          right,
+          top: hover.y
+        }}
+      />
+      <div className="chart-axis-value-label" style={{ top: getAxisValueLabelTop(hover.y) }}>
+        <span>{formatValue(displayValue)}</span>
+      </div>
+      <div className="chart-axis-time-label" style={{ left: getAxisTimeLabelLeft(hover.x) }}>
+        {formatCrosshairDate(hover.point.dateValue, range)}
+      </div>
+    </>
+  );
+}
+
+function getHoverAxisValue(
+  y: number,
+  top: number,
+  bottom: number,
+  domain: [number, number] | ['auto', 'auto'],
+  fallbackValue: number
+) {
+  if (typeof domain[0] !== 'number' || typeof domain[1] !== 'number') {
+    return fallbackValue;
+  }
+
+  const [min, max] = domain;
+  if (max === min) {
+    return fallbackValue;
+  }
+
+  const plotTop = top;
+  const plotBottom = chartHeightPx - bottom;
+  if (plotBottom <= plotTop) {
+    return fallbackValue;
+  }
+
+  const clampedY = Math.min(plotBottom, Math.max(plotTop, y));
+  const ratio = (clampedY - plotTop) / (plotBottom - plotTop);
+  return max - ratio * (max - min);
 }
 
 function TooltipRow({ label, value }: { label: string; value: string }) {
