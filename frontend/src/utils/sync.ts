@@ -121,6 +121,22 @@ export function getSyncSkippedMessage(result: SyncResult) {
   return `API 호출 제한 보호 중입니다. ${formatCooldown(result.remainingCooldownSeconds)} 후 다시 수집할 수 있습니다.`;
 }
 
+export function getServiceUpdateInterval(activeTab: MainTabKey) {
+  if (activeTab === 'dashboard') {
+    return '환율 5분 · 시장 09:10/15:10';
+  }
+
+  if (activeTab === 'koreaStatus') {
+    return '정책·거시 09:10/15:10';
+  }
+
+  if (activeTab === 'ranking') {
+    return '랭킹 09:10/15:10';
+  }
+
+  return '뉴스 10분';
+}
+
 export function getRequestErrorMessage(error: unknown, fallback: string) {
   if (!axios.isAxiosError(error)) {
     return `${fallback} 백엔드 로그를 확인하세요.`;

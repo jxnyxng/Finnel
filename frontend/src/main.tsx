@@ -1,11 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
-import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import './styles.css';
 import {
-  chartBottomMarginPx,
-  chartTopMarginPx,
   dailyXAxisHeightPx,
   intradayXAxisHeightPx,
   longRangeOptions,
@@ -14,13 +11,10 @@ import {
 } from './constants';
 import {
   DollarIndexTooltip,
-  LatestValueDot,
-  UsdKrwTooltip,
-  getActiveChartHover,
-  getAxisTimeLabelLeft,
-  getAxisValueLabelTop
+  UsdKrwTooltip
 } from './components/ChartElements';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
+import { MarketChartSection } from './components/MarketChartSection';
 import { MetricSidePanel as MetricSidePanelView } from './components/MetricSidePanel';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { DeveloperInfoPage as DeveloperInfoPageView } from './pages/DeveloperInfoPage';
@@ -30,7 +24,6 @@ import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePa
 import {
   buildVisibleDailySeries,
   buildVisibleUsdKrwSeries,
-  formatCrosshairDate,
   formatDailyXTick,
   formatUsdKrwXTick,
   getDailyReferenceLabel,
@@ -52,6 +45,7 @@ import {
   getLatestSyncLabel,
   getRequestErrorMessage,
   getServiceStatus,
+  getServiceUpdateInterval,
   getSyncSkippedMessage
 } from './utils/sync';
 import {
@@ -95,6 +89,9 @@ function App() {
   const [isNewsConfigured, setIsNewsConfigured] = React.useState(false);
   const [isNewsLoading, setIsNewsLoading] = React.useState(false);
   const [selectedNewsCategory, setSelectedNewsCategory] = React.useState('all');
+  const [newsPage, setNewsPage] = React.useState(1);
+  const [newsTotalCount, setNewsTotalCount] = React.useState(0);
+  const [newsTotalPages, setNewsTotalPages] = React.useState(0);
   const [newsSyncMessage, setNewsSyncMessage] = React.useState('');
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const lastIntradayRefreshAttemptAt = React.useRef(0);
@@ -146,18 +143,21 @@ function App() {
     }
   }, []);
 
-  const loadNews = React.useCallback(async (category = selectedNewsCategory, showLoading = false) => {
+  const loadNews = React.useCallback(async (category = selectedNewsCategory, page = newsPage, showLoading = false) => {
     if (showLoading) {
       setIsNewsLoading(true);
     }
 
     try {
       const response = await axios.get<NewsResponse>('/api/v1/news', {
-        params: { category, limit: 30 }
+        params: { category, page, pageSize: 10 }
       });
       setNewsArticles(response.data.articles);
       setNewsCategories(response.data.categories);
       setIsNewsConfigured(response.data.configured);
+      setNewsPage(response.data.page);
+      setNewsTotalCount(response.data.totalCount);
+      setNewsTotalPages(response.data.totalPages);
       if (!response.data.configured) {
         setNewsSyncMessage('네이버 뉴스 API 키 설정이 필요합니다.');
       } else if (!newsSyncMessage) {
@@ -171,7 +171,7 @@ function App() {
         setIsNewsLoading(false);
       }
     }
-  }, [newsSyncMessage, selectedNewsCategory]);
+  }, [newsPage, newsSyncMessage, selectedNewsCategory]);
 
   React.useEffect(() => {
     loadDashboard(true);
@@ -199,10 +199,10 @@ function App() {
       return undefined;
     }
 
-    loadNews(selectedNewsCategory, true);
-    const newsTimer = window.setInterval(() => loadNews(selectedNewsCategory), 60_000);
+    loadNews(selectedNewsCategory, newsPage, true);
+    const newsTimer = window.setInterval(() => loadNews(selectedNewsCategory, newsPage), 60_000);
     return () => window.clearInterval(newsTimer);
-  }, [activePage, loadNews, selectedNewsCategory]);
+  }, [activePage, loadNews, newsPage, selectedNewsCategory]);
 
   const metrics = sortMetrics(dashboard?.metrics ?? []);
   const usdKrwMetric = findMetric(metrics, 'USD/KRW');
@@ -260,6 +260,7 @@ function App() {
     seoulTime,
     syncStatus
   });
+  const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
   const intradayStatusLabel = getIntradayStatusLabel(
     isIntradaySyncing,
     latestIntradayDate,
@@ -335,8 +336,14 @@ function App() {
 
   const changeNewsCategory = React.useCallback((category: string) => {
     setSelectedNewsCategory(category);
-    loadNews(category, true);
+    setNewsPage(1);
+    loadNews(category, 1, true);
   }, [loadNews]);
+
+  const changeNewsPage = React.useCallback((page: number) => {
+    setNewsPage(page);
+    loadNews(selectedNewsCategory, page, true);
+  }, [loadNews, selectedNewsCategory]);
 
   React.useEffect(() => {
     if (usdKrwRange !== '1D') {
@@ -462,6 +469,8 @@ function App() {
                 <div className="flex items-center gap-2 font-medium">
                   <span className={`service-status-dot service-status-dot-${activeServiceStatus.tone}`} aria-hidden="true" />
                   {activeServiceStatus.label}
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="font-normal">{activeServiceUpdateInterval}</span>
                 </div>
               </div>
             </div>
@@ -471,168 +480,43 @@ function App() {
         {activePage === 'dashboard' ? (
           <section className="grid gap-4">
             <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <article className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex flex-col gap-3">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold">USD/KRW 추이</h2>
-                    <div className="group relative">
-                      <button
-                        aria-label="USD/KRW 그래프 안내"
-                        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
-                        type="button"
-                      >
-                        i
-                      </button>
-                      <div className="chart-help-tooltip pointer-events-none absolute top-7 z-20 hidden w-72 rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block">
-                        <p className="font-semibold text-zinc-900">USD/KRW 그래프</p>
-                        <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
-                        <p className="mt-1">1일은 5분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-1 flex h-8 flex-col justify-start gap-1">
-                    <p className="text-xs text-zinc-500">{usdKrwRange === '1D' ? '09:00~익일 02:00' : getRangeLabel(usdKrwRange)}</p>
-                    <p className={`text-xs ${usdKrwRange === '1D' ? 'text-teal-700' : 'text-transparent'}`}>
-                      {usdKrwRange === '1D' ? intradayStatusLabel : '상태 영역'}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid h-9 shrink-0 grid-cols-4 rounded-md border border-zinc-200 bg-zinc-100 p-1">
-                  {rangeOptions.map((option) => (
-                    <button
-                      className={`h-7 min-w-14 px-3 text-xs font-semibold ${
-                        usdKrwRange === option.key ? 'rounded bg-white text-teal-700 shadow-sm' : 'text-zinc-500'
-                      }`}
-                      key={option.key}
-                      onClick={() => setUsdKrwRange(option.key)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="chart-grid-surface relative h-80 overflow-hidden rounded-md">
-              <div
-                className="chart-plot-grid"
-                style={{
-                  bottom: chartBottomMarginPx + (usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx),
-                  left: 28,
-                  right: 66,
-                  top: chartTopMarginPx
-                }}
+              <MarketChartSection
+                emptyText={usdKrwRange === '1D'
+                  ? '09:00~다음날 02:00 세션 환율 데이터를 확인 중입니다.'
+                  : '표시할 환율 데이터가 없습니다.'}
+                helpAriaLabel="USD/KRW 그래프 안내"
+                helpContent={(
+                  <>
+                    <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
+                    <p className="mt-1">1일은 5분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
+                  </>
+                )}
+                helpTitle="USD/KRW 그래프"
+                hover={activeUsdKrwHover}
+                latestLabelTop={latestUsdKrwLabelTop}
+                latestValue={latestUsdKrwPoint?.value ?? null}
+                lineStroke="#0f766e"
+                onHoverChange={setActiveUsdKrwHover}
+                onRangeChange={setUsdKrwRange}
+                plotLeft={28}
+                plotRight={66}
+                range={usdKrwRange}
+                rangeColumns={4}
+                rangeOptions={rangeOptions}
+                referenceStroke="#0f766e"
+                series={visibleUsdKrwSeries}
+                statusClassName={usdKrwRange === '1D' ? 'text-teal-700' : 'text-transparent'}
+                statusText={usdKrwRange === '1D' ? intradayStatusLabel : '상태 영역'}
+                subtitle={usdKrwRange === '1D' ? '09:00~익일 02:00' : getRangeLabel(usdKrwRange)}
+                title="USD/KRW 추이"
+                tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
+                xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
+                xAxisPadding={{ left: 0, right: 0 }}
+                xDomain={usdKrwXDomain}
+                xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
+                xTicks={usdKrwXTicks}
+                yDomain={usdKrwDomain}
               />
-              {visibleUsdKrwSeries.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-4 text-center text-sm text-zinc-500">
-                  {usdKrwRange === '1D'
-                    ? '09:00~다음날 02:00 세션 환율 데이터를 확인 중입니다.'
-                    : '표시할 환율 데이터가 없습니다.'}
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={visibleUsdKrwSeries}
-                    margin={{ top: 8, right: 8, bottom: 18, left: 28 }}
-                    onMouseLeave={() => setActiveUsdKrwHover(null)}
-                    onMouseMove={(state) => setActiveUsdKrwHover(getActiveChartHover(state, visibleUsdKrwSeries))}
-                  >
-                    <XAxis
-                      dataKey="x"
-                      type="number"
-                      domain={usdKrwXDomain}
-                      height={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
-                      padding={{ left: 0, right: 0 }}
-                      ticks={usdKrwXTicks}
-                      tickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
-                      tick={{ fontSize: 10, fill: '#71717a' }}
-                      tickLine={false}
-                      axisLine={false}
-                      interval={0}
-                    />
-                    <YAxis
-                      orientation="right"
-                      domain={usdKrwDomain}
-                      tickFormatter={(value) => formatValue(Number(value))}
-                      tick={{ fontSize: 10, fill: '#71717a' }}
-                      tickLine={false}
-                      axisLine={false}
-                      tickCount={8}
-                      width={58}
-                    />
-                    <Tooltip
-                      animationDuration={120}
-                      content={<UsdKrwTooltip range={usdKrwRange} />}
-                      cursor={false}
-                      wrapperStyle={{ outline: 'none', transition: 'opacity 120ms ease-out' }}
-                    />
-                    {latestUsdKrwPoint ? (
-                      <ReferenceLine
-                        y={latestUsdKrwPoint.value}
-                        stroke="#0f766e"
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.45}
-                      />
-                    ) : null}
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#0f766e"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, strokeWidth: 2 }}
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="latestValue"
-                      stroke="transparent"
-                      dot={<LatestValueDot />}
-                      activeDot={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-              {latestUsdKrwPoint && latestUsdKrwLabelTop !== null ? (
-                <div className="latest-value-floating-label" style={{ top: `${latestUsdKrwLabelTop}%` }}>
-                  <span>{formatValue(latestUsdKrwPoint.value)}</span>
-                </div>
-              ) : null}
-              {activeUsdKrwHover ? (
-                <div
-                  className="chart-crosshair-x"
-                  style={{
-                    bottom: chartBottomMarginPx + (usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx),
-                    left: activeUsdKrwHover.x,
-                    top: chartTopMarginPx
-                  }}
-                />
-              ) : null}
-              {activeUsdKrwHover ? (
-                <div
-                  className="chart-crosshair-y"
-                  style={{
-                    left: 28,
-                    right: 66,
-                    top: activeUsdKrwHover.y
-                  }}
-                />
-              ) : null}
-              {activeUsdKrwHover ? (
-                <div className="chart-axis-value-label" style={{ top: getAxisValueLabelTop(activeUsdKrwHover.y) }}>
-                  <span>{formatValue(activeUsdKrwHover.point.value)}</span>
-                </div>
-              ) : null}
-              {activeUsdKrwHover ? (
-                <div className="chart-axis-time-label" style={{ left: getAxisTimeLabelLeft(activeUsdKrwHover.x) }}>
-                  {formatCrosshairDate(activeUsdKrwHover.point.dateValue, usdKrwRange)}
-                </div>
-              ) : null}
-            </div>
-              </article>
               <MetricSidePanelView
                 details={usdKrwPanelDetails}
                 footerText={`기준 ${dashboard?.baseDate ?? '-'}`}
@@ -641,164 +525,42 @@ function App() {
             </section>
 
             <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <article className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex flex-col gap-3">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold">선진국 달러 지수</h2>
-                    <div className="group relative">
-                      <button
-                        aria-label="선진국 달러 지수 안내"
-                        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
-                        type="button"
-                      >
-                        i
-                      </button>
-                      <div className="chart-help-tooltip pointer-events-none absolute top-7 z-20 hidden w-80 rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block">
-                        <p className="font-semibold text-zinc-900">선진국 달러 지수</p>
-                        <p className="mt-1">FRED DTWEXAFEGS 공식 시리즈를 사용합니다. 주요 선진국 통화 대비 달러 강도를 보는 무역가중 지표입니다.</p>
-                        <p className="mt-1">공식 ICE DXY와는 다른 지표이며, 값이 오르면 선진국 통화 대비 달러 강세로 해석합니다.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-1 flex h-8 flex-col justify-start gap-1">
-                    <p className="text-xs text-zinc-500">{getRangeLabel(dxyRange)}</p>
-                    <p className="text-xs text-transparent">상태 영역</p>
-                  </div>
-                </div>
-                <div className="grid h-9 shrink-0 grid-cols-3 rounded-md border border-zinc-200 bg-zinc-100 p-1">
-                  {longRangeOptions.map((option) => (
-                    <button
-                      className={`h-7 min-w-14 px-3 text-xs font-semibold ${
-                        dxyRange === option.key ? 'rounded bg-white text-teal-700 shadow-sm' : 'text-zinc-500'
-                      }`}
-                      key={option.key}
-                      onClick={() => setDxyRange(option.key)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="chart-grid-surface relative h-80 overflow-hidden rounded-md">
-              <div
-                className="chart-plot-grid"
-                style={{
-                  bottom: chartBottomMarginPx + dailyXAxisHeightPx,
-                  left: 18,
-                  right: 66,
-                  top: chartTopMarginPx
-                }}
+              <MarketChartSection
+                emptyText="표시할 선진국 달러 지수 데이터가 없습니다."
+                helpAriaLabel="선진국 달러 지수 안내"
+                helpContent={(
+                  <>
+                    <p className="mt-1">FRED DTWEXAFEGS 공식 시리즈를 사용합니다. 주요 선진국 통화 대비 달러 강도를 보는 무역가중 지표입니다.</p>
+                    <p className="mt-1">공식 ICE DXY와는 다른 지표이며, 값이 오르면 선진국 통화 대비 달러 강세로 해석합니다.</p>
+                  </>
+                )}
+                helpTitle="선진국 달러 지수"
+                helpWidthClassName="w-80"
+                hover={activeAdvancedDollarHover}
+                latestLabelTop={latestDxyIndexLabelTop}
+                latestValue={latestDxyIndexPoint?.value ?? null}
+                lineStroke="#0f766e"
+                onHoverChange={setActiveAdvancedDollarHover}
+                onRangeChange={setDxyRange}
+                plotLeft={18}
+                plotRight={66}
+                range={dxyRange}
+                rangeColumns={3}
+                rangeOptions={longRangeOptions}
+                referenceStroke="#0f766e"
+                series={visibleDxyIndexSeries}
+                statusClassName="text-transparent"
+                statusText="상태 영역"
+                subtitle={getRangeLabel(dxyRange)}
+                title="선진국 달러 지수"
+                tooltipContent={<DollarIndexTooltip title="선진국 달러" />}
+                xAxisHeight={dailyXAxisHeightPx}
+                xAxisPadding={{ left: 16, right: 16 }}
+                xDomain={dxyIndexXDomain}
+                xTickFormatter={(value) => formatDailyXTick(value, dxyRange)}
+                xTicks={dxyIndexXTicks}
+                yDomain={dxyIndexDomain}
               />
-              {visibleDxyIndexSeries.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-4 text-center text-sm text-zinc-500">
-                  표시할 선진국 달러 지수 데이터가 없습니다.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={visibleDxyIndexSeries}
-                    margin={{ top: 8, right: 8, bottom: 18, left: 18 }}
-                    onMouseLeave={() => setActiveAdvancedDollarHover(null)}
-                    onMouseMove={(state) => setActiveAdvancedDollarHover(getActiveChartHover(state, visibleDxyIndexSeries))}
-                  >
-                    <XAxis
-                      dataKey="x"
-                      type="number"
-                      domain={dxyIndexXDomain}
-                      height={dailyXAxisHeightPx}
-                      padding={{ left: 16, right: 16 }}
-                      ticks={dxyIndexXTicks}
-                      tickFormatter={(value) => formatDailyXTick(value, dxyRange)}
-                      tick={{ fontSize: 10, fill: '#71717a' }}
-                      tickLine={false}
-                      axisLine={false}
-                      interval={0}
-                    />
-                    <YAxis
-                      orientation="right"
-                      domain={dxyIndexDomain}
-                      tickFormatter={(value) => formatValue(Number(value))}
-                      tick={{ fontSize: 10, fill: '#71717a' }}
-                      tickLine={false}
-                      axisLine={false}
-                      tickCount={8}
-                      width={58}
-                    />
-                    <Tooltip
-                      animationDuration={120}
-                      content={<DollarIndexTooltip title="선진국 달러" />}
-                      cursor={false}
-                      wrapperStyle={{ outline: 'none', transition: 'opacity 120ms ease-out' }}
-                    />
-                    {latestDxyIndexPoint ? (
-                      <ReferenceLine
-                        y={latestDxyIndexPoint.value}
-                        stroke="#0f766e"
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.45}
-                      />
-                    ) : null}
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#0f766e"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, strokeWidth: 2 }}
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="latestValue"
-                      stroke="transparent"
-                      dot={<LatestValueDot />}
-                      activeDot={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-              {latestDxyIndexPoint && latestDxyIndexLabelTop !== null ? (
-                <div className="latest-value-floating-label" style={{ top: `${latestDxyIndexLabelTop}%` }}>
-                  <span>{formatValue(latestDxyIndexPoint.value)}</span>
-                </div>
-              ) : null}
-              {activeAdvancedDollarHover ? (
-                <div
-                  className="chart-crosshair-x"
-                  style={{
-                    bottom: chartBottomMarginPx + dailyXAxisHeightPx,
-                    left: activeAdvancedDollarHover.x,
-                    top: chartTopMarginPx
-                  }}
-                />
-              ) : null}
-              {activeAdvancedDollarHover ? (
-                <div
-                  className="chart-crosshair-y"
-                  style={{
-                    left: 18,
-                    right: 66,
-                    top: activeAdvancedDollarHover.y
-                  }}
-                />
-              ) : null}
-              {activeAdvancedDollarHover ? (
-                <div className="chart-axis-value-label" style={{ top: getAxisValueLabelTop(activeAdvancedDollarHover.y) }}>
-                  <span>{formatValue(activeAdvancedDollarHover.point.value)}</span>
-                </div>
-              ) : null}
-              {activeAdvancedDollarHover ? (
-                <div className="chart-axis-time-label" style={{ left: getAxisTimeLabelLeft(activeAdvancedDollarHover.x) }}>
-                  {formatCrosshairDate(activeAdvancedDollarHover.point.dateValue, dxyRange)}
-                </div>
-              ) : null}
-            </div>
-              </article>
               <MetricSidePanelView
                 details={dxyPanelDetails}
                 footerText={`최신 계산 ${latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
@@ -807,164 +569,41 @@ function App() {
             </section>
 
             <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <article className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex flex-col gap-3">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-semibold">광의 달러 지수</h2>
-                    <div className="group relative">
-                      <button
-                        aria-label="광의 달러 지수 안내"
-                        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
-                        type="button"
-                      >
-                        i
-                      </button>
-                      <div className="chart-help-tooltip pointer-events-none absolute top-7 z-20 hidden w-72 rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block">
-                        <p className="font-semibold text-zinc-900">광의 달러 지수</p>
-                        <p className="mt-1">여러 교역 상대 통화 대비 달러의 전반적 강도를 보여줍니다. 값이 오르면 글로벌 달러 강세로 해석합니다.</p>
-                        <p className="mt-1">USD/KRW가 오를 때 이 지수도 오르면 달러 전체 강세 영향, 지수가 약한데 USD/KRW만 오르면 원화 고유 약세 가능성을 봅니다.</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-1 flex h-8 flex-col justify-start gap-1">
-                    <p className="text-xs text-zinc-500">{getRangeLabel(dollarIndexRange)}</p>
-                    <p className="text-xs text-transparent">상태 영역</p>
-                  </div>
-                </div>
-                <div className="grid h-9 shrink-0 grid-cols-3 rounded-md border border-zinc-200 bg-zinc-100 p-1">
-                  {longRangeOptions.map((option) => (
-                    <button
-                      className={`h-7 min-w-14 px-3 text-xs font-semibold ${
-                        dollarIndexRange === option.key ? 'rounded bg-white text-teal-700 shadow-sm' : 'text-zinc-500'
-                      }`}
-                      key={option.key}
-                      onClick={() => setDollarIndexRange(option.key)}
-                      type="button"
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="chart-grid-surface relative h-80 overflow-hidden rounded-md">
-              <div
-                className="chart-plot-grid"
-                style={{
-                  bottom: chartBottomMarginPx + dailyXAxisHeightPx,
-                  left: 18,
-                  right: 66,
-                  top: chartTopMarginPx
-                }}
+              <MarketChartSection
+                emptyText="표시할 달러 지수 데이터가 없습니다."
+                helpAriaLabel="광의 달러 지수 안내"
+                helpContent={(
+                  <>
+                    <p className="mt-1">여러 교역 상대 통화 대비 달러의 전반적 강도를 보여줍니다. 값이 오르면 글로벌 달러 강세로 해석합니다.</p>
+                    <p className="mt-1">USD/KRW가 오를 때 이 지수도 오르면 달러 전체 강세 영향, 지수가 약한데 USD/KRW만 오르면 원화 고유 약세 가능성을 봅니다.</p>
+                  </>
+                )}
+                helpTitle="광의 달러 지수"
+                hover={activeBroadDollarHover}
+                latestLabelTop={latestDollarIndexLabelTop}
+                latestValue={latestDollarIndexPoint?.value ?? null}
+                lineStroke="#52525b"
+                onHoverChange={setActiveBroadDollarHover}
+                onRangeChange={setDollarIndexRange}
+                plotLeft={18}
+                plotRight={66}
+                range={dollarIndexRange}
+                rangeColumns={3}
+                rangeOptions={longRangeOptions}
+                referenceStroke="#52525b"
+                series={visibleDollarIndexSeries}
+                statusClassName="text-transparent"
+                statusText="상태 영역"
+                subtitle={getRangeLabel(dollarIndexRange)}
+                title="광의 달러 지수"
+                tooltipContent={<DollarIndexTooltip title="광의 달러" />}
+                xAxisHeight={dailyXAxisHeightPx}
+                xAxisPadding={{ left: 16, right: 16 }}
+                xDomain={dollarIndexXDomain}
+                xTickFormatter={(value) => formatDailyXTick(value, dollarIndexRange)}
+                xTicks={dollarIndexXTicks}
+                yDomain={dollarIndexDomain}
               />
-              {visibleDollarIndexSeries.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-4 text-center text-sm text-zinc-500">
-                  표시할 달러 지수 데이터가 없습니다.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={visibleDollarIndexSeries}
-                    margin={{ top: 8, right: 8, bottom: 18, left: 18 }}
-                    onMouseLeave={() => setActiveBroadDollarHover(null)}
-                    onMouseMove={(state) => setActiveBroadDollarHover(getActiveChartHover(state, visibleDollarIndexSeries))}
-                  >
-                    <XAxis
-                      dataKey="x"
-                      type="number"
-                      domain={dollarIndexXDomain}
-                      height={dailyXAxisHeightPx}
-                      padding={{ left: 16, right: 16 }}
-                      ticks={dollarIndexXTicks}
-                      tickFormatter={(value) => formatDailyXTick(value, dollarIndexRange)}
-                      tick={{ fontSize: 10, fill: '#71717a' }}
-                      tickLine={false}
-                      axisLine={false}
-                      interval={0}
-                    />
-                    <YAxis
-                      orientation="right"
-                      domain={dollarIndexDomain}
-                      tickFormatter={(value) => formatValue(Number(value))}
-                      tick={{ fontSize: 10, fill: '#71717a' }}
-                      tickLine={false}
-                      axisLine={false}
-                      tickCount={8}
-                      width={58}
-                    />
-                    <Tooltip
-                      animationDuration={120}
-                      content={<DollarIndexTooltip title="광의 달러" />}
-                      cursor={false}
-                      wrapperStyle={{ outline: 'none', transition: 'opacity 120ms ease-out' }}
-                    />
-                    {latestDollarIndexPoint ? (
-                      <ReferenceLine
-                        y={latestDollarIndexPoint.value}
-                        stroke="#52525b"
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.45}
-                      />
-                    ) : null}
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#52525b"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4, strokeWidth: 2 }}
-                      isAnimationActive={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="latestValue"
-                      stroke="transparent"
-                      dot={<LatestValueDot />}
-                      activeDot={false}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-              {latestDollarIndexPoint && latestDollarIndexLabelTop !== null ? (
-                <div className="latest-value-floating-label" style={{ top: `${latestDollarIndexLabelTop}%` }}>
-                  <span>{formatValue(latestDollarIndexPoint.value)}</span>
-                </div>
-              ) : null}
-              {activeBroadDollarHover ? (
-                <div
-                  className="chart-crosshair-x"
-                  style={{
-                    bottom: chartBottomMarginPx + dailyXAxisHeightPx,
-                    left: activeBroadDollarHover.x,
-                    top: chartTopMarginPx
-                  }}
-                />
-              ) : null}
-              {activeBroadDollarHover ? (
-                <div
-                  className="chart-crosshair-y"
-                  style={{
-                    left: 18,
-                    right: 66,
-                    top: activeBroadDollarHover.y
-                  }}
-                />
-              ) : null}
-              {activeBroadDollarHover ? (
-                <div className="chart-axis-value-label" style={{ top: getAxisValueLabelTop(activeBroadDollarHover.y) }}>
-                  <span>{formatValue(activeBroadDollarHover.point.value)}</span>
-                </div>
-              ) : null}
-              {activeBroadDollarHover ? (
-                <div className="chart-axis-time-label" style={{ left: getAxisTimeLabelLeft(activeBroadDollarHover.x) }}>
-                  {formatCrosshairDate(activeBroadDollarHover.point.dateValue, dollarIndexRange)}
-                </div>
-              ) : null}
-            </div>
-              </article>
               <MetricSidePanelView
                 details={dollarIndexPanelDetails}
                 footerText={`최신 발표 ${latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
@@ -993,8 +632,12 @@ function App() {
             configured={isNewsConfigured}
             isLoading={isNewsLoading}
             onCategoryChange={changeNewsCategory}
+            onPageChange={changeNewsPage}
+            page={newsPage}
             selectedCategory={selectedNewsCategory}
             syncMessage={newsSyncMessage}
+            totalCount={newsTotalCount}
+            totalPages={newsTotalPages}
           />
         ) : null}
 

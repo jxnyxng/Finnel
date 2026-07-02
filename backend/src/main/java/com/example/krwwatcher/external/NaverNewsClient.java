@@ -28,6 +28,10 @@ public class NaverNewsClient {
     }
 
     public List<NaverNewsItem> search(String query, int display, String sort) {
+        return search(query, display, 1, sort);
+    }
+
+    public List<NaverNewsItem> search(String query, int display, int start, String sort) {
         if (!isConfigured()) {
             return List.of();
         }
@@ -37,7 +41,7 @@ public class NaverNewsClient {
                 .path("/v1/search/news.json")
                 .queryParam("query", query)
                 .queryParam("display", display)
-                .queryParam("start", 1)
+                .queryParam("start", start)
                 .queryParam("sort", sort)
                 .build())
             .header("X-Naver-Client-Id", properties.naver().clientId())

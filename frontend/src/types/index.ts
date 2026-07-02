@@ -114,12 +114,17 @@ export type NewsArticle = {
   aiSummary: string | null;
   marketSentiment: string | null;
   fetchedAt: string;
+  imageUrl: string | null;
 };
 
 export type NewsResponse = {
   configured: boolean;
   categories: NewsCategory[];
   articles: NewsArticle[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
 };
 
 export type ChartPoint = {

@@ -22,9 +22,10 @@ public class NewsController {
     @GetMapping
     public NewsService.NewsResponse latest(
         @RequestParam(defaultValue = "all") String category,
-        @RequestParam(defaultValue = "30") int limit
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "10") int pageSize
     ) {
-        return newsService.latest(category, limit);
+        return newsService.latest(category, page, pageSize);
     }
 
     @PostMapping("/sync")

@@ -160,12 +160,15 @@ Docker Desktop or a compatible Docker daemon must be running before starting the
 - News categories are `원달러 환율`, `외환시장`, `한국은행 기준금리`, `미국 연준 FOMC`, and `외환당국 환율`.
 - News rows reserve nullable `ai_summary` and `market_sentiment` columns for later AI work.
 - News sync is automatic through `NEWS_SYNC_CRON`; the frontend manual news collection button was intentionally removed.
+- News sync stores recent articles in MySQL with a unique article key, prunes articles older than 5 years, backfills paged Naver search results on manual/startup stale sync, and runs lightweight latest-page sync on the scheduler.
 - If Naver returns 403 again, backend should surface `NAVER_API_ERROR · HTTP 403 ...`; first check that backend was restarted after editing `backend/.env`.
 - Frontend legacy local component copies were removed from `frontend/src/main.tsx`. Shared chart elements now live in `frontend/src/components/ChartElements.tsx`, and pure chart/status/time/metric logic lives under `frontend/src/utils/`.
+- Dashboard chart sections were split into `frontend/src/components/MarketChartSection.tsx` so USD/KRW, advanced dollar index, and broad dollar index share the same chart frame and overlay behavior.
 
 ## Next Tasks
 
 - Add a proper FX holiday/business-day calendar beyond simple Monday-Friday checks.
 - Refine frontend loading, empty, and error states.
 - Add real integrations for open finance fiscal data and public-data monetary-policy minutes once API keys are available.
-- Consider splitting the remaining large dashboard chart sections out of `frontend/src/main.tsx` after visual regression checks are available.
+- Refine newsroom deduplication beyond canonical URLs, including Naver redirect variants, similar-title matching, and multi-category article mapping.
+- Improve news representative-image enrichment with per-domain metadata handling, caching, and preservation of enriched fields when duplicate rows are merged.
