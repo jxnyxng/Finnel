@@ -117,6 +117,12 @@ export type NewsArticle = {
   imageUrl: string | null;
 };
 
+export type NewsFilters = {
+  fromDate: string;
+  toDate: string;
+  keyword: string;
+};
+
 export type NewsResponse = {
   configured: boolean;
   categories: NewsCategory[];
