@@ -13,11 +13,11 @@ import {
   DollarIndexTooltip,
   UsdKrwTooltip
 } from './components/ChartElements';
+import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
 import { MetricSidePanel as MetricSidePanelView } from './components/MetricSidePanel';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
-import { DeveloperInfoPage as DeveloperInfoPageView } from './pages/DeveloperInfoPage';
 import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
 import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
 import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
@@ -94,7 +94,6 @@ function App() {
   const [newsPage, setNewsPage] = React.useState(1);
   const [newsTotalCount, setNewsTotalCount] = React.useState(0);
   const [newsTotalPages, setNewsTotalPages] = React.useState(0);
-  const [newsSyncMessage, setNewsSyncMessage] = React.useState('');
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const lastIntradayRefreshAttemptAt = React.useRef(0);
   const attemptedDailyBackfillKey = React.useRef<string | null>(null);
@@ -172,20 +171,14 @@ function App() {
       setNewsPage(response.data.page);
       setNewsTotalCount(response.data.totalCount);
       setNewsTotalPages(response.data.totalPages);
-      if (!response.data.configured) {
-        setNewsSyncMessage('네이버 뉴스 API 키 설정이 필요합니다.');
-      } else if (!newsSyncMessage) {
-        setNewsSyncMessage('저장된 최신 뉴스를 조회합니다.');
-      }
     } catch {
       setNewsArticles([]);
-      setNewsSyncMessage('뉴스 API를 불러오지 못했습니다.');
     } finally {
       if (showLoading) {
         setIsNewsLoading(false);
       }
     }
-  }, [newsFilters, newsPage, newsSyncMessage, selectedNewsCategory]);
+  }, [newsFilters, newsPage, selectedNewsCategory]);
 
   React.useEffect(() => {
     loadDashboard(true);
@@ -275,6 +268,7 @@ function App() {
     syncStatus
   });
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
+  const activePageTitle = getMainPageTitle(activeTab);
   const intradayStatusLabel = getIntradayStatusLabel(
     isIntradaySyncing,
     latestIntradayDate,
@@ -430,7 +424,7 @@ function App() {
             type="button"
           >
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white text-xs font-bold text-teal-700">₩</span>
-            <span className="truncate text-sm font-semibold tracking-normal">KRW Watcher</span>
+            <span className="truncate text-sm font-semibold tracking-normal">코리아원 · 환율 모니터링 서비스</span>
           </button>
           <div className="flex shrink-0 items-center gap-1">
             <button
@@ -442,59 +436,47 @@ function App() {
             >
               서비스 이용 안내
             </button>
-            <button
-              className={`h-7 whitespace-nowrap rounded px-2.5 text-xs font-semibold ${
-                activePage === 'developerInfo' ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600'
-              }`}
-              onClick={() => setActivePage('developerInfo')}
-              type="button"
-            >
-              개발자 정보
-            </button>
           </div>
         </div>
       </div>
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-8">
+      {isMainAppPage ? (
+        <div className="border-b border-zinc-200 bg-white">
+          <nav className="mx-auto flex w-full max-w-6xl gap-1 overflow-x-auto px-5 py-2" aria-label="주요 화면">
+            {mainTabs.map((tab) => (
+              <button
+                className={`h-7 shrink-0 rounded px-3 text-xs font-semibold ${
+                  activePage === tab.key ? 'bg-teal-700 text-white' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
+                }`}
+                key={tab.key}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  setActivePage(tab.key);
+                }}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      ) : null}
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4">
         {isMainAppPage ? (
-          <>
-            <header className="border-b border-zinc-200 pb-3">
-              <div className="flex flex-col gap-1.5">
-                <p className="text-xs font-medium text-teal-700">환율·실효환율·금리 통합 모니터</p>
-                <h1 className="text-2xl font-semibold tracking-normal">원화 가치 흐름 모니터</h1>
-                <p className="max-w-2xl text-xs leading-5 text-zinc-600">
-                  오늘 {todayLabel} · {message}
-                </p>
-              </div>
-            </header>
-
-            <div className="flex flex-col gap-2">
-              <nav className="grid grid-cols-4 rounded-md border border-zinc-200 bg-zinc-100 p-1" aria-label="주요 화면">
-                {mainTabs.map((tab) => (
-                  <button
-                    className={`h-9 rounded text-sm font-semibold ${
-                      activePage === tab.key ? 'bg-white text-teal-700 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'
-                    }`}
-                    key={tab.key}
-                    onClick={() => {
-                      setActiveTab(tab.key);
-                      setActivePage(tab.key);
-                    }}
-                    type="button"
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </nav>
-              <div className="flex min-w-0 text-xs text-zinc-500">
-                <div className="flex items-center gap-2 font-medium">
-                  <span className={`service-status-dot service-status-dot-${activeServiceStatus.tone}`} aria-hidden="true" />
-                  {activeServiceStatus.label}
-                  <span className="text-zinc-300" aria-hidden="true">·</span>
-                  <span className="font-normal">{activeServiceUpdateInterval}</span>
-                </div>
+          <header className="flex flex-col gap-2 border-b border-zinc-200 pb-3 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold tracking-normal">{activePageTitle}</h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:justify-end">
+              <span className="font-medium">오늘 {todayLabel}</span>
+              <span className="hidden text-zinc-300 md:inline" aria-hidden="true">·</span>
+              <div className="flex items-center gap-2 font-medium md:justify-end">
+                <span className={`service-status-dot service-status-dot-${activeServiceStatus.tone}`} aria-hidden="true" />
+                {activeServiceStatus.label}
+                <span className="text-zinc-300" aria-hidden="true">·</span>
+                <span className="font-normal">{activeServiceUpdateInterval}</span>
               </div>
             </div>
-          </>
+          </header>
         ) : null}
 
         {activePage === 'dashboard' ? (
@@ -657,7 +639,6 @@ function App() {
             onPageChange={changeNewsPage}
             page={newsPage}
             selectedCategory={selectedNewsCategory}
-            syncMessage={newsSyncMessage}
             totalCount={newsTotalCount}
             totalPages={newsTotalPages}
           />
@@ -665,8 +646,8 @@ function App() {
 
         {activePage === 'serviceGuide' ? <ServiceGuidePageView /> : null}
 
-        {activePage === 'developerInfo' ? <DeveloperInfoPageView /> : null}
       </section>
+      <AppFooter />
     </main>
   );
 }
@@ -676,3 +657,18 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>
 );
+
+function getMainPageTitle(activeTab: MainTabKey) {
+  switch (activeTab) {
+    case 'dashboard':
+      return '환율 흐름';
+    case 'koreaStatus':
+      return '국내 지표';
+    case 'ranking':
+      return '통화 순위';
+    case 'newsroom':
+      return '시장 뉴스';
+    default:
+      return '환율 흐름';
+  }
+}

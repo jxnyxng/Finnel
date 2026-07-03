@@ -28,8 +28,8 @@ export const specialAreaDisplays: Record<string, { name: string; flag: string }>
 };
 
 export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
-  { key: 'dashboard', label: '대시보드' },
-  { key: 'koreaStatus', label: '국내 현황' },
-  { key: 'ranking', label: '랭킹' },
-  { key: 'newsroom', label: '뉴스룸' }
+  { key: 'dashboard', label: '환율' },
+  { key: 'koreaStatus', label: '국내' },
+  { key: 'ranking', label: '통화' },
+  { key: 'newsroom', label: '뉴스' }
 ];
