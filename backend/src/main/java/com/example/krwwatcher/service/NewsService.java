@@ -1,20 +1,16 @@
 package com.example.krwwatcher.service;
 
-import java.nio.charset.StandardCharsets;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.HexFormat;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.example.krwwatcher.external.NaverNewsClient;
-import com.example.krwwatcher.external.NewsImageClient;
+import com.example.krwwatcher.service.news.NewsArticleMaintenance;
+import com.example.krwwatcher.service.news.NewsArticleSearchCriteria;
+import com.example.krwwatcher.service.news.NewsArticleText;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -23,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.HtmlUtils;
 
 @Service
 public class NewsService {
@@ -45,14 +40,21 @@ public class NewsService {
     );
 
     private final NaverNewsClient naverNewsClient;
-    private final NewsImageClient newsImageClient;
     private final JdbcTemplate jdbcTemplate;
+    private final NewsArticleMaintenance newsArticleMaintenance;
+    private final NewsArticleText newsArticleText;
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
-    public NewsService(NaverNewsClient naverNewsClient, NewsImageClient newsImageClient, JdbcTemplate jdbcTemplate) {
+    public NewsService(
+        NaverNewsClient naverNewsClient,
+        JdbcTemplate jdbcTemplate,
+        NewsArticleMaintenance newsArticleMaintenance,
+        NewsArticleText newsArticleText
+    ) {
         this.naverNewsClient = naverNewsClient;
-        this.newsImageClient = newsImageClient;
         this.jdbcTemplate = jdbcTemplate;
+        this.newsArticleMaintenance = newsArticleMaintenance;
+        this.newsArticleText = newsArticleText;
     }
 
     @Scheduled(cron = "${app.sync.market-data.news-cron}", zone = "${app.sync.market-data.zone}")
@@ -62,9 +64,9 @@ public class NewsService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void syncOnStartupIfStale() {
-        normalizeStoredNewsArticles();
-        deleteDuplicateNewsArticles();
-        hydrateMissingLatestImages();
+        newsArticleMaintenance.normalizeStoredNewsArticles();
+        newsArticleMaintenance.deleteDuplicateNewsArticles();
+        newsArticleMaintenance.hydrateMissingLatestImages();
 
         if (!naverNewsClient.isConfigured()) {
             return;
@@ -103,18 +105,18 @@ public class NewsService {
                 .atStartOfDay(SEOUL_ZONE)
                 .toInstant();
             pruneNewsBefore(cutoff);
-            normalizeStoredNewsArticles();
-            deleteDuplicateNewsArticles();
+            newsArticleMaintenance.normalizeStoredNewsArticles();
+            newsArticleMaintenance.deleteDuplicateNewsArticles();
             for (NewsCategory category : CATEGORIES) {
                 rows += backfill ? syncCategoryBackfill(category, cutoff) : syncCategoryLatest(category);
             }
-            normalizeStoredNewsArticles();
-            deleteDuplicateNewsArticles();
-            hydrateMissingLatestImages();
+            newsArticleMaintenance.normalizeStoredNewsArticles();
+            newsArticleMaintenance.deleteDuplicateNewsArticles();
+            newsArticleMaintenance.hydrateMissingLatestImages();
         } catch (RestClientResponseException exception) {
             return new NewsSyncResult(
                 "NAVER_API_ERROR",
-                "네이버 뉴스 API HTTP " + exception.getStatusCode().value() + ": " + cleanText(exception.getResponseBodyAsString()),
+                "네이버 뉴스 API HTTP " + exception.getStatusCode().value() + ": " + newsArticleText.cleanText(exception.getResponseBodyAsString()),
                 rows,
                 Instant.now()
             );
@@ -125,51 +127,29 @@ public class NewsService {
         return new NewsSyncResult("SUCCESS", "mode=" + mode + ", news=" + rows, rows, Instant.now());
     }
 
-    public NewsResponse latest(String categoryCode, int page, int pageSize) {
+    public NewsResponse latest(String categoryCode, LocalDate fromDate, LocalDate toDate, String keyword, int page, int pageSize) {
+        NewsArticleSearchCriteria criteria = new NewsArticleSearchCriteria(categoryCode, fromDate, toDate, keyword);
         int normalizedPage = Math.max(1, page);
         int normalizedPageSize = Math.max(1, Math.min(pageSize, NEWS_PAGE_SIZE));
         int offset = (normalizedPage - 1) * normalizedPageSize;
-        List<NewsArticle> articles;
-        int totalCount;
-        if (StringUtils.hasText(categoryCode) && !"all".equals(categoryCode)) {
-            totalCount = countArticles(categoryCode);
-            articles = jdbcTemplate.query(
-                """
-                    SELECT n.category_code, n.category_name, n.query_text, n.title, n.description, n.origin_link, n.link, n.publisher, n.published_at, n.ai_summary, n.market_sentiment, n.image_url, n.fetched_at
-                    FROM news_articles n
-                    INNER JOIN (
-                        SELECT MAX(id) AS id
-                        FROM news_articles
-                        WHERE category_code = ?
-                        GROUP BY COALESCE(dedupe_key, article_key)
-                    ) latest ON latest.id = n.id
-                    ORDER BY n.published_at DESC, n.id DESC
-                    LIMIT ? OFFSET ?
-                    """,
-                (rs, rowNum) -> mapArticle(rs),
-                categoryCode,
-                normalizedPageSize,
-                offset
-            );
-        } else {
-            totalCount = countArticles(null);
-            articles = jdbcTemplate.query(
-                """
-                    SELECT n.category_code, n.category_name, n.query_text, n.title, n.description, n.origin_link, n.link, n.publisher, n.published_at, n.ai_summary, n.market_sentiment, n.image_url, n.fetched_at
-                    FROM news_articles n
-                    INNER JOIN (
-                        SELECT MAX(id) AS id
-                        FROM news_articles
-                        GROUP BY COALESCE(dedupe_key, article_key)
-                    ) latest ON latest.id = n.id
-                    ORDER BY n.published_at DESC, n.id DESC
-                    LIMIT ? OFFSET ?
-                    """,
-                (rs, rowNum) -> mapArticle(rs),
-                normalizedPageSize,
-                offset
-            );
-        }
+        int totalCount = countArticles(criteria);
+        List<Object> params = new ArrayList<>();
+        String whereClause = buildArticleWhereClause(criteria, params);
+        String sql = """
+            SELECT n.category_code, n.category_name, n.query_text, n.title, n.description, n.origin_link, n.link, n.publisher, n.published_at, n.ai_summary, n.market_sentiment, n.image_url, n.fetched_at
+            FROM news_articles n
+            INNER JOIN (
+                SELECT MAX(id) AS id
+                FROM news_articles
+                %s
+                GROUP BY COALESCE(dedupe_key, article_key)
+            ) latest ON latest.id = n.id
+            ORDER BY n.published_at DESC, n.id DESC
+            LIMIT ? OFFSET ?
+            """.formatted(whereClause);
+        params.add(normalizedPageSize);
+        params.add(offset);
+        List<NewsArticle> articles = jdbcTemplate.query(sql, (rs, rowNum) -> mapArticle(rs), params.toArray());
 
         int totalPages = totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / normalizedPageSize);
         return new NewsResponse(naverNewsClient.isConfigured(), CATEGORIES, articles, normalizedPage, normalizedPageSize, totalCount, totalPages);
@@ -177,7 +157,7 @@ public class NewsService {
 
     private int syncCategoryLatest(NewsCategory category) {
         return naverNewsClient.search(category.query(), LATEST_DISPLAY_COUNT, 1, "date").stream()
-            .mapToInt(item -> upsertArticle(category, item, false))
+            .mapToInt(item -> upsertArticle(category, item))
             .sum();
     }
 
@@ -197,7 +177,7 @@ public class NewsService {
                     continue;
                 }
 
-                rows += upsertArticle(category, item, false);
+                rows += upsertArticle(category, item);
             }
 
             if (reachedCutoff || items.size() < BACKFILL_DISPLAY_COUNT) {
@@ -208,25 +188,24 @@ public class NewsService {
         return rows;
     }
 
-    private int upsertArticle(NewsCategory category, NaverNewsClient.NaverNewsItem item, boolean fetchImage) {
-        String link = firstText(item.originLink(), item.link());
+    private int upsertArticle(NewsCategory category, NaverNewsClient.NaverNewsItem item) {
+        String link = newsArticleText.firstText(item.originLink(), item.link());
         if (!StringUtils.hasText(link)) {
             return 0;
         }
 
-        String title = cleanText(item.title());
+        String title = newsArticleText.cleanText(item.title());
         if (!StringUtils.hasText(title)) {
             return 0;
         }
 
-        String description = cleanText(item.description());
+        String description = newsArticleText.cleanText(item.description());
         String originLink = StringUtils.hasText(item.originLink()) ? item.originLink() : null;
-        String canonicalUrl = canonicalizeUrl(link);
+        String canonicalUrl = newsArticleText.canonicalizeUrl(link);
         Instant publishedAt = naverNewsClient.parsePublishedAt(item.pubDate());
         Instant fetchedAt = Instant.now();
-        String dedupeKey = buildDedupeKey(canonicalUrl, title, publishedAt);
-        String articleKey = sha256(dedupeKey);
-        String imageUrl = fetchImage ? newsImageClient.fetchRepresentativeImage(link) : null;
+        String dedupeKey = newsArticleText.buildDedupeKey(canonicalUrl, title, publishedAt);
+        String articleKey = newsArticleText.sha256(dedupeKey == null ? link : dedupeKey);
 
         return jdbcTemplate.update(
             """
@@ -259,13 +238,9 @@ public class NewsService {
             canonicalUrl,
             null,
             publishedAt,
-            imageUrl,
+            null,
             fetchedAt
         );
-    }
-
-    private String firstText(String first, String second) {
-        return StringUtils.hasText(first) ? first : second;
     }
 
     private boolean hasNewsFetchedToday() {
@@ -296,122 +271,51 @@ public class NewsService {
         return count != null && count >= MIN_BACKFILL_ARTICLES;
     }
 
-    private int countArticles(String categoryCode) {
-        if (StringUtils.hasText(categoryCode)) {
-            Integer count = jdbcTemplate.queryForObject(
-                """
-                    SELECT COUNT(*)
-                    FROM (
-                        SELECT 1
-                        FROM news_articles
-                        WHERE category_code = ?
-                        GROUP BY COALESCE(dedupe_key, article_key)
-                    ) deduped
-                    """,
-                Integer.class,
-                categoryCode
-            );
-            return count == null ? 0 : count;
-        }
-
+    private int countArticles(NewsArticleSearchCriteria criteria) {
+        List<Object> params = new ArrayList<>();
+        String whereClause = buildArticleWhereClause(criteria, params);
         Integer count = jdbcTemplate.queryForObject(
             """
                 SELECT COUNT(*)
                 FROM (
                     SELECT 1
                     FROM news_articles
+                    %s
                     GROUP BY COALESCE(dedupe_key, article_key)
                 ) deduped
-                """,
-            Integer.class
+                """.formatted(whereClause),
+            Integer.class,
+            params.toArray()
         );
         return count == null ? 0 : count;
     }
 
-    private void normalizeStoredNewsArticles() {
-        List<StoredNewsArticle> articles = jdbcTemplate.query(
-            """
-                SELECT id, title, origin_link, link, published_at
-                FROM news_articles
-                WHERE dedupe_key IS NULL
-                   OR canonical_url IS NULL
-                """,
-            (rs, rowNum) -> new StoredNewsArticle(
-                rs.getLong("id"),
-                rs.getString("title"),
-                rs.getString("origin_link"),
-                rs.getString("link"),
-                rs.getTimestamp("published_at") == null ? null : rs.getTimestamp("published_at").toInstant()
-            )
-        );
-
-        for (StoredNewsArticle article : articles) {
-            String canonicalUrl = canonicalizeUrl(firstText(article.originLink(), article.link()));
-            String dedupeKey = buildDedupeKey(canonicalUrl, article.title(), article.publishedAt());
-            jdbcTemplate.update(
-                """
-                    UPDATE news_articles
-                    SET dedupe_key = ?,
-                        canonical_url = ?
-                    WHERE id = ?
-                    """,
-                dedupeKey,
-                canonicalUrl,
-                article.id()
-            );
+    private String buildArticleWhereClause(NewsArticleSearchCriteria criteria, List<Object> params) {
+        List<String> conditions = new ArrayList<>();
+        if (StringUtils.hasText(criteria.categoryCode()) && !"all".equals(criteria.categoryCode())) {
+            conditions.add("category_code = ?");
+            params.add(criteria.categoryCode());
         }
-    }
-
-    private void deleteDuplicateNewsArticles() {
-        jdbcTemplate.update(
-            """
-                DELETE FROM news_articles
-                WHERE dedupe_key IS NOT NULL
-                  AND id NOT IN (
-                      SELECT keep_id
-                      FROM (
-                          SELECT MAX(id) AS keep_id
-                          FROM news_articles
-                          WHERE dedupe_key IS NOT NULL
-                          GROUP BY dedupe_key
-                      ) keepers
-                  )
-                """
-        );
-    }
-
-    private void hydrateMissingLatestImages() {
-        List<StoredNewsArticle> articles = jdbcTemplate.query(
-            """
-                SELECT id, title, origin_link, link, published_at
-                FROM news_articles
-                WHERE image_url IS NULL
-                ORDER BY published_at DESC, id DESC
-                LIMIT 20
-                """,
-            (rs, rowNum) -> new StoredNewsArticle(
-                rs.getLong("id"),
-                rs.getString("title"),
-                rs.getString("origin_link"),
-                rs.getString("link"),
-                rs.getTimestamp("published_at") == null ? null : rs.getTimestamp("published_at").toInstant()
-            )
-        );
-
-        for (StoredNewsArticle article : articles) {
-            String imageUrl = newsImageClient.fetchRepresentativeImage(firstText(article.originLink(), article.link()));
-            if (StringUtils.hasText(imageUrl)) {
-                jdbcTemplate.update(
-                    """
-                        UPDATE news_articles
-                        SET image_url = ?
-                        WHERE id = ?
-                        """,
-                    imageUrl,
-                    article.id()
-                );
-            }
+        if (criteria.fromDate() != null) {
+            conditions.add("published_at >= ?");
+            params.add(criteria.fromDate().atStartOfDay(SEOUL_ZONE).toInstant());
         }
+        if (criteria.toDate() != null) {
+            conditions.add("published_at < ?");
+            params.add(criteria.toDate().plusDays(1).atStartOfDay(SEOUL_ZONE).toInstant());
+        }
+        if (StringUtils.hasText(criteria.keyword())) {
+            String keywordPattern = "%" + criteria.keyword().trim() + "%";
+            conditions.add("(title LIKE ? OR description LIKE ?)");
+            params.add(keywordPattern);
+            params.add(keywordPattern);
+        }
+
+        if (conditions.isEmpty()) {
+            return "";
+        }
+
+        return "WHERE " + String.join(" AND ", conditions);
     }
 
     private NewsArticle mapArticle(java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -441,78 +345,6 @@ public class NewsService {
                 """,
             cutoff
         );
-    }
-
-    private String buildDedupeKey(String canonicalUrl, String title, Instant publishedAt) {
-        if (StringUtils.hasText(canonicalUrl)) {
-            return sha256("url:" + canonicalUrl);
-        }
-
-        String publishedDate = publishedAt == null ? "" : LocalDate.ofInstant(publishedAt, SEOUL_ZONE).toString();
-        return sha256("title:" + normalizeTitle(title) + ":" + publishedDate);
-    }
-
-    private String canonicalizeUrl(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-
-        try {
-            URI uri = new URI(value.trim());
-            String scheme = uri.getScheme() == null ? "https" : uri.getScheme().toLowerCase(Locale.ROOT);
-            String host = uri.getHost() == null ? null : uri.getHost().toLowerCase(Locale.ROOT);
-            if (!StringUtils.hasText(host)) {
-                return value.trim();
-            }
-
-            if (host.startsWith("www.")) {
-                host = host.substring(4);
-            }
-
-            String path = uri.getRawPath();
-            if (!StringUtils.hasText(path)) {
-                path = "/";
-            }
-            while (path.length() > 1 && path.endsWith("/")) {
-                path = path.substring(0, path.length() - 1);
-            }
-
-            return new URI(scheme, null, host, -1, path, null, null).toString();
-        } catch (URISyntaxException | IllegalArgumentException exception) {
-            return value.trim();
-        }
-    }
-
-    private String normalizeTitle(String value) {
-        String cleaned = cleanText(value);
-        if (!StringUtils.hasText(cleaned)) {
-            return "";
-        }
-
-        return cleaned.toLowerCase(Locale.ROOT)
-            .replaceAll("\\[[^]]*]", " ")
-            .replaceAll("\\([^)]*\\)", " ")
-            .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", " ")
-            .trim()
-            .replaceAll("\\s+", " ");
-    }
-
-    private String cleanText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-
-        String withoutTags = value.replaceAll("<[^>]*>", "");
-        return HtmlUtils.htmlUnescape(withoutTags).trim();
-    }
-
-    private String sha256(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is not available", exception);
-        }
     }
 
     public record NewsCategory(String code, String name, String query) {
@@ -549,6 +381,4 @@ public class NewsService {
     public record NewsSyncResult(String status, String message, int rows, Instant syncedAt) {
     }
 
-    private record StoredNewsArticle(long id, String title, String originLink, String link, Instant publishedAt) {
-    }
 }

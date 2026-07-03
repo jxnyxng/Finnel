@@ -1,5 +1,7 @@
 package com.example.krwwatcher;
 
+import java.time.LocalDate;
+
 import com.example.krwwatcher.service.NewsService;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,10 +24,13 @@ public class NewsController {
     @GetMapping
     public NewsService.NewsResponse latest(
         @RequestParam(defaultValue = "all") String category,
+        @RequestParam(required = false) LocalDate from,
+        @RequestParam(required = false) LocalDate to,
+        @RequestParam(required = false) String keyword,
         @RequestParam(defaultValue = "1") int page,
         @RequestParam(defaultValue = "10") int pageSize
     ) {
-        return newsService.latest(category, page, pageSize);
+        return newsService.latest(category, from, to, keyword, page, pageSize);
     }
 
     @PostMapping("/sync")
