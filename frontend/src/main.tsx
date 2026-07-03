@@ -60,6 +60,7 @@ import type {
   MainTabKey,
   NewsArticle,
   NewsCategory,
+  NewsFilters,
   NewsResponse,
   PageKey,
   RangeKey,
@@ -89,6 +90,7 @@ function App() {
   const [isNewsConfigured, setIsNewsConfigured] = React.useState(false);
   const [isNewsLoading, setIsNewsLoading] = React.useState(false);
   const [selectedNewsCategory, setSelectedNewsCategory] = React.useState('all');
+  const [newsFilters, setNewsFilters] = React.useState<NewsFilters>({ fromDate: '', toDate: '', keyword: '' });
   const [newsPage, setNewsPage] = React.useState(1);
   const [newsTotalCount, setNewsTotalCount] = React.useState(0);
   const [newsTotalPages, setNewsTotalPages] = React.useState(0);
@@ -143,14 +145,26 @@ function App() {
     }
   }, []);
 
-  const loadNews = React.useCallback(async (category = selectedNewsCategory, page = newsPage, showLoading = false) => {
+  const loadNews = React.useCallback(async (
+    category = selectedNewsCategory,
+    page = newsPage,
+    showLoading = false,
+    filters = newsFilters
+  ) => {
     if (showLoading) {
       setIsNewsLoading(true);
     }
 
     try {
       const response = await axios.get<NewsResponse>('/api/v1/news', {
-        params: { category, page, pageSize: 10 }
+        params: {
+          category,
+          from: filters.fromDate || undefined,
+          keyword: filters.keyword || undefined,
+          page,
+          pageSize: 10,
+          to: filters.toDate || undefined
+        }
       });
       setNewsArticles(response.data.articles);
       setNewsCategories(response.data.categories);
@@ -171,7 +185,7 @@ function App() {
         setIsNewsLoading(false);
       }
     }
-  }, [newsPage, newsSyncMessage, selectedNewsCategory]);
+  }, [newsFilters, newsPage, newsSyncMessage, selectedNewsCategory]);
 
   React.useEffect(() => {
     loadDashboard(true);
@@ -337,12 +351,18 @@ function App() {
   const changeNewsCategory = React.useCallback((category: string) => {
     setSelectedNewsCategory(category);
     setNewsPage(1);
-    loadNews(category, 1, true);
-  }, [loadNews]);
+    loadNews(category, 1, true, newsFilters);
+  }, [loadNews, newsFilters]);
 
   const changeNewsPage = React.useCallback((page: number) => {
     setNewsPage(page);
-    loadNews(selectedNewsCategory, page, true);
+    loadNews(selectedNewsCategory, page, true, newsFilters);
+  }, [loadNews, newsFilters, selectedNewsCategory]);
+
+  const applyNewsFilters = React.useCallback((filters: NewsFilters) => {
+    setNewsFilters(filters);
+    setNewsPage(1);
+    loadNews(selectedNewsCategory, 1, true, filters);
   }, [loadNews, selectedNewsCategory]);
 
   React.useEffect(() => {
@@ -630,7 +650,9 @@ function App() {
             articles={newsArticles}
             categories={newsCategories}
             configured={isNewsConfigured}
+            filters={newsFilters}
             isLoading={isNewsLoading}
+            onFiltersApply={applyNewsFilters}
             onCategoryChange={changeNewsCategory}
             onPageChange={changeNewsPage}
             page={newsPage}
