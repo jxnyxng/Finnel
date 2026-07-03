@@ -9,7 +9,6 @@ type NewsroomPageProps = {
   isLoading: boolean;
   page: number;
   selectedCategory: string;
-  syncMessage: string;
   totalCount: number;
   totalPages: number;
   onCategoryChange: (category: string) => void;
@@ -25,7 +24,6 @@ export function NewsroomPage({
   isLoading,
   page,
   selectedCategory,
-  syncMessage,
   totalCount,
   totalPages,
   onCategoryChange,
@@ -54,18 +52,54 @@ export function NewsroomPage({
   };
 
   return (
-    <section className="grid gap-4">
-      <header className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-3">
+    <section className="grid gap-3">
+      <header className="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-teal-700">네이버 뉴스 기반</p>
-            <h2 className="mt-1 text-lg font-semibold text-zinc-950">환율·금리 뉴스룸</h2>
-            <p className="mt-2 max-w-3xl text-xs leading-5 text-zinc-500">
-              원달러 환율, 외환시장, 기준금리, FOMC, 외환당국 관련 뉴스를 카테고리별로 누적 저장합니다.
-            </p>
+            <p className="text-[11px] font-semibold text-teal-700">네이버 뉴스 기반</p>
+            <h2 className="text-base font-semibold text-zinc-950">환율·금리 뉴스</h2>
           </div>
+          <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
+        <form className="mt-2 grid gap-2 border-t border-zinc-100 pt-2 md:grid-cols-[140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
+          <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+            시작일
+            <input
+              className="h-8 rounded-md border border-zinc-200 px-2 text-xs font-medium text-zinc-800 outline-none focus:border-teal-600"
+              max={draftFilters.toDate || undefined}
+              onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
+              type="date"
+              value={draftFilters.fromDate}
+            />
+          </label>
+          <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+            종료일
+            <input
+              className="h-8 rounded-md border border-zinc-200 px-2 text-xs font-medium text-zinc-800 outline-none focus:border-teal-600"
+              min={draftFilters.fromDate || undefined}
+              onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
+              type="date"
+              value={draftFilters.toDate}
+            />
+          </label>
+          <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+            제목
+            <input
+              className="h-8 rounded-md border border-zinc-200 px-2 text-xs font-medium text-zinc-800 outline-none placeholder:text-zinc-400 focus:border-teal-600"
+              onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
+              placeholder="제목 또는 설명 검색"
+              type="search"
+              value={draftFilters.keyword}
+            />
+          </label>
+          <button className="h-8 self-end rounded-md border border-teal-600 bg-teal-600 px-3 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
+            검색
+          </button>
+          <button className="h-8 self-end rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900" onClick={resetFilters} type="button">
+            초기화
+          </button>
+        </form>
+        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-zinc-100 pt-2">
           <CategoryButton active={selectedCategory === 'all'} label="전체" onClick={() => onCategoryChange('all')} />
           {categories.map((category) => (
             <CategoryButton
@@ -76,47 +110,6 @@ export function NewsroomPage({
             />
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-zinc-500">
-          {configured ? syncMessage || '네이버 뉴스 API 설정이 연결되었습니다.' : 'NAVER_CLIENT_ID와 NAVER_CLIENT_SECRET을 backend/.env에 넣으면 작동합니다.'}
-        </p>
-        <form className="mt-3 grid gap-2 border-t border-zinc-100 pt-3 md:grid-cols-[1fr_1fr_minmax(180px,2fr)_auto_auto]" onSubmit={submitFilters}>
-          <label className="grid gap-1 text-[11px] font-semibold text-zinc-500">
-            시작일
-            <input
-              className="h-9 rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-800 outline-none focus:border-teal-600"
-              max={draftFilters.toDate || undefined}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
-              type="date"
-              value={draftFilters.fromDate}
-            />
-          </label>
-          <label className="grid gap-1 text-[11px] font-semibold text-zinc-500">
-            종료일
-            <input
-              className="h-9 rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-800 outline-none focus:border-teal-600"
-              min={draftFilters.fromDate || undefined}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
-              type="date"
-              value={draftFilters.toDate}
-            />
-          </label>
-          <label className="grid gap-1 text-[11px] font-semibold text-zinc-500">
-            키워드
-            <input
-              className="h-9 rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-800 outline-none placeholder:text-zinc-400 focus:border-teal-600"
-              onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
-              placeholder="제목 또는 설명 검색"
-              type="search"
-              value={draftFilters.keyword}
-            />
-          </label>
-          <button className="h-9 self-end rounded-md border border-teal-600 bg-teal-600 px-3 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
-            검색
-          </button>
-          <button className="h-9 self-end rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900" onClick={resetFilters} type="button">
-            초기화
-          </button>
-        </form>
       </header>
 
       {!configured ? (
@@ -125,11 +118,7 @@ export function NewsroomPage({
         </section>
       ) : null}
 
-      <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between border-b border-zinc-100 pb-3">
-          <h3 className="text-sm font-semibold text-zinc-950">저장 기사</h3>
-          <span className="text-xs text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</span>
-        </div>
+      <section className="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
         {isLoading ? (
           <div className="grid min-h-40 place-items-center text-sm text-zinc-400">뉴스를 불러오는 중입니다.</div>
         ) : articles.length === 0 ? (
@@ -152,7 +141,7 @@ export function NewsroomPage({
 function CategoryButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className={`h-8 rounded-md border px-3 text-xs font-semibold ${
+      className={`h-7 rounded-md border px-2.5 text-xs font-semibold ${
         active ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
       }`}
       onClick={onClick}
@@ -164,8 +153,33 @@ function CategoryButton({ active, label, onClick }: { active: boolean; label: st
 }
 
 function NewsArticleCard({ article }: { article: NewsArticle }) {
+  const articleUrl = article.link || article.originLink;
+  const openArticle = () => {
+    if (!articleUrl) {
+      return;
+    }
+
+    const opened = window.open(articleUrl, '_blank', 'noopener,noreferrer');
+    if (opened) {
+      opened.opener = null;
+    }
+  };
+
+  const openArticleWithKeyboard = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openArticle();
+    }
+  };
+
   return (
-    <article className="rounded-md border border-zinc-100 bg-white p-3 shadow-sm">
+    <article
+      className="cursor-pointer rounded-md border border-zinc-100 bg-white p-3 shadow-sm transition hover:border-teal-200 hover:bg-teal-50/30 hover:shadow-md"
+      onClick={openArticle}
+      onKeyDown={openArticleWithKeyboard}
+      role="link"
+      tabIndex={0}
+    >
       <div className="grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)]">
         <NewsThumbnail article={article} />
         <div className="min-w-0">
@@ -176,17 +190,19 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
                 <span>{formatNewsDate(article.publishedAt)}</span>
                 <span>검색어 {article.queryText}</span>
               </div>
+              <span className="mt-2 block text-sm font-semibold leading-5 text-zinc-950">
+                {article.title}
+              </span>
+            </div>
+            {article.originLink ? (
               <a
-                className="mt-2 block text-sm font-semibold leading-5 text-zinc-950 hover:text-teal-700"
-                href={article.link}
+                className="shrink-0 text-xs font-semibold text-zinc-400 hover:text-teal-700"
+                href={article.originLink}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
                 rel="noreferrer"
                 target="_blank"
               >
-                {article.title}
-              </a>
-            </div>
-            {article.originLink ? (
-              <a className="shrink-0 text-xs font-semibold text-zinc-400 hover:text-teal-700" href={article.originLink} rel="noreferrer" target="_blank">
                 원문
               </a>
             ) : null}

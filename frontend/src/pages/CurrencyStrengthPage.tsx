@@ -38,8 +38,14 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
                 const display = getAreaDisplay(rank.areaCode, rank.areaName);
                 const valuePosition = getScalePosition(rank.neerValue, minNeer, maxNeer);
                 const isWeak = rank.neerValue < 100;
+                const isKorea = rank.areaCode === 'KR';
                 return (
-                  <article key={rank.areaCode} className="rounded-md border border-zinc-100 bg-zinc-50 px-3 py-3">
+                  <article
+                    key={rank.areaCode}
+                    className={`rounded-md border px-3 py-3 ${
+                      isKorea ? 'border-teal-200 bg-white shadow-sm' : 'border-zinc-100 bg-zinc-50'
+                    }`}
+                  >
                     <div className="grid gap-3 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)_150px] md:items-center">
                       <div className="flex min-w-0 items-center gap-3">
                         <p className="w-10 shrink-0 text-right text-sm font-semibold text-zinc-500">#{rank.neerRank}</p>
