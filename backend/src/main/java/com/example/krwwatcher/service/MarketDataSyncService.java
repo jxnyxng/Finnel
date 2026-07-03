@@ -576,7 +576,49 @@ public class MarketDataSyncService {
         }
 
         rows += upsertTradeBalance(exportAmounts, importAmounts);
+        rows += syncFredRiskIndicators();
         return rows;
+    }
+
+    private int syncFredRiskIndicators() {
+        LocalDate startDate = LocalDate.now().minusYears(3);
+        return syncFredDomesticPolicyIndicator(
+            "US_10Y_TREASURY",
+            "미국 10년 국채금리",
+            "미국 금융여건",
+            properties.fred().usTenYearTreasurySeriesId(),
+            "PERCENT",
+            startDate
+        ) + syncFredDomesticPolicyIndicator(
+            "VIX",
+            "VIX 변동성 지수",
+            "대외 리스크",
+            properties.fred().vixSeriesId(),
+            "INDEX",
+            startDate
+        ) + syncFredDomesticPolicyIndicator(
+            "WTI_OIL",
+            "WTI 국제유가",
+            "원자재·에너지",
+            properties.fred().wtiOilSeriesId(),
+            "USD",
+            startDate
+        );
+    }
+
+    private int syncFredDomesticPolicyIndicator(String code, String title, String category, String seriesId, String unit, LocalDate startDate) {
+        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, startDate);
+        return observations.stream()
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                code,
+                title,
+                category,
+                payload.baseDate(),
+                payload.value(),
+                unit,
+                "FRED:" + seriesId
+            ))
+            .sum();
     }
 
     private int upsertDomesticPolicyIndicators(DomesticPolicySpec spec, List<EcosClient.EcosObservationPayload> observations) {

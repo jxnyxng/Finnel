@@ -254,6 +254,66 @@ public class DashboardService {
             "연동 필요"
         ));
         indicators.add(new DomesticIndicator(
+            "FOREIGN_STOCK_FLOW",
+            "외국인 주식 순매수",
+            "자본 흐름",
+            null,
+            "KRW_100M",
+            null,
+            null,
+            null,
+            "공공데이터포털/한국거래소",
+            null,
+            "외국인 주식 순매수는 원화 자산 수요와 환전 흐름을 통해 원화에 영향을 줄 수 있습니다.",
+            "기관별 API 활용신청 또는 거래소 데이터 연동이 필요합니다.",
+            "연동 필요"
+        ));
+        indicators.add(new DomesticIndicator(
+            "FOREIGN_BOND_FLOW",
+            "외국인 채권 순투자",
+            "자본 흐름",
+            null,
+            "KRW_100M",
+            null,
+            null,
+            null,
+            "공공데이터포털/금융투자협회",
+            null,
+            "외국인 채권 자금 유입은 금리차와 환헤지 비용 변화에 민감해 원화 수급에 영향을 줄 수 있습니다.",
+            "채권 투자자금 통계 API 또는 파일 데이터 연동이 필요합니다.",
+            "연동 필요"
+        ));
+        indicators.add(new DomesticIndicator(
+            "KOREA_CDS",
+            "한국 CDS 프리미엄",
+            "대외 신용위험",
+            null,
+            "BASIS_POINT",
+            null,
+            null,
+            null,
+            "상용 금융 데이터/공공 대체자료",
+            null,
+            "CDS 프리미엄 상승은 국가 신용위험과 외화 조달 부담 확대 신호로 원화 약세 압력이 될 수 있습니다.",
+            "CDS는 보통 상용 데이터가 필요해 무료 API 대체 가능성을 별도 검토해야 합니다.",
+            "연동 필요"
+        ));
+        indicators.add(new DomesticIndicator(
+            "TERMS_OF_TRADE",
+            "순상품교역조건",
+            "교역조건",
+            null,
+            "INDEX",
+            null,
+            null,
+            null,
+            "ECOS/KOSIS",
+            null,
+            "교역조건 악화는 같은 수출량으로 확보하는 구매력이 낮아지는 신호라 원화 펀더멘털에 부담이 될 수 있습니다.",
+            "ECOS 또는 KOSIS 통계 항목 확인 후 연동이 필요합니다.",
+            "연동 필요"
+        ));
+        indicators.add(new DomesticIndicator(
             "MPC_MINUTES",
             "금통위 의결문·회의록",
             "통화정책 방향",
@@ -281,7 +341,10 @@ public class DashboardService {
             "PPI",
             "EXPORT_AMOUNT",
             "IMPORT_AMOUNT",
-            "TRADE_BALANCE"
+            "TRADE_BALANCE",
+            "US_10Y_TREASURY",
+            "VIX",
+            "WTI_OIL"
         );
         return codes.stream()
             .map(this::domesticPolicyIndicator)
@@ -371,6 +434,9 @@ public class DashboardService {
             case "EXPORT_AMOUNT" -> "수출 증가는 달러 공급을 늘려 원화 안정에 도움이 될 수 있습니다.";
             case "IMPORT_AMOUNT" -> "수입 증가는 달러 수요를 늘려 원화 약세 압력으로 작용할 수 있습니다.";
             case "TRADE_BALANCE" -> "무역수지 흑자는 달러 순유입, 적자는 달러 순유출 압력으로 봅니다.";
+            case "US_10Y_TREASURY" -> "미국 장기금리 상승은 달러 자산 매력을 높여 원화에는 부담이 될 수 있습니다.";
+            case "VIX" -> "VIX 상승은 위험회피 심리 확대로 이어져 신흥국·원화 자산에는 부담이 될 수 있습니다.";
+            case "WTI_OIL" -> "유가 상승은 에너지 수입 부담을 키워 무역수지와 원화 수급에 부정적일 수 있습니다.";
             default -> "환율에 영향을 줄 수 있는 국내 정책·거시경제 지표입니다.";
         };
     }
@@ -385,6 +451,9 @@ public class DashboardService {
             case "EXPORT_AMOUNT" -> "ECOS 901Y118, 수출금액입니다.";
             case "IMPORT_AMOUNT" -> "ECOS 901Y118, 수입금액입니다.";
             case "TRADE_BALANCE" -> "ECOS 901Y118 수출금액에서 수입금액을 뺀 계산값입니다.";
+            case "US_10Y_TREASURY" -> "FRED DGS10, 미국 10년 만기 국채 수익률입니다.";
+            case "VIX" -> "FRED VIXCLS, CBOE VIX 종가 계열입니다.";
+            case "WTI_OIL" -> "FRED DCOILWTICO, WTI 현물 유가 계열입니다.";
             default -> "ECOS 저장값 기준입니다.";
         };
     }
@@ -577,9 +646,9 @@ public class DashboardService {
             new DataSourceInfo(
                 "MACRO",
                 "금리·외환 여건",
-                "FRED FEDFUNDS, ECOS 722Y001/732Y001",
+                "FRED FEDFUNDS/DGS10/VIXCLS/DCOILWTICO, ECOS 722Y001/732Y001",
                 "전체 시장 데이터 수집 시 발표된 최신값 저장",
-                "한국 기준금리와 외환보유액은 한국은행 ECOS, 미국 기준금리는 FRED를 사용합니다."
+                "한국 기준금리와 외환보유액은 한국은행 ECOS, 미국 기준금리·장기금리·VIX·WTI 유가는 FRED를 사용합니다."
             )
         );
     }
