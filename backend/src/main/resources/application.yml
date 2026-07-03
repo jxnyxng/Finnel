@@ -58,6 +58,9 @@ app:
       advanced-dollar-index-series-id: ${FRED_ADVANCED_DOLLAR_INDEX_SERIES_ID:DTWEXAFEGS}
       us-policy-rate-series-id: ${FRED_US_POLICY_RATE_SERIES_ID:FEDFUNDS}
       usd-krw-series-id: ${FRED_USD_KRW_SERIES_ID:DEXKOUS}
+      us-ten-year-treasury-series-id: ${FRED_US_TEN_YEAR_TREASURY_SERIES_ID:DGS10}
+      vix-series-id: ${FRED_VIX_SERIES_ID:VIXCLS}
+      wti-oil-series-id: ${FRED_WTI_OIL_SERIES_ID:DCOILWTICO}
     twelve-data:
       base-url: ${TWELVE_DATA_BASE_URL:https://api.twelvedata.com}
       api-key: ${TWELVE_DATA_API_KEY:}

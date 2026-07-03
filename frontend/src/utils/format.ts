@@ -44,6 +44,14 @@ export function formatMetricUnit(unit: string) {
     return '천 달러';
   }
 
+  if (unit === 'USD') {
+    return '달러';
+  }
+
+  if (unit === 'BASIS_POINT') {
+    return 'bp';
+  }
+
   if (unit === 'KRW_100M') {
     return '억원';
   }

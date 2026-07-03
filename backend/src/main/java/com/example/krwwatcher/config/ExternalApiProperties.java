@@ -31,7 +31,10 @@ public record ExternalApiProperties(
         String dollarIndexSeriesId,
         String advancedDollarIndexSeriesId,
         String usPolicyRateSeriesId,
-        String usdKrwSeriesId
+        String usdKrwSeriesId,
+        String usTenYearTreasurySeriesId,
+        String vixSeriesId,
+        String wtiOilSeriesId
     ) {
     }
 

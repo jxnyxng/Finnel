@@ -1,3 +1,4 @@
+import React from 'react';
 import type { DataSourceInfo, DomesticIndicator } from '../types';
 import { formatMetricUnit, formatValue } from '../utils/format';
 
@@ -10,37 +11,64 @@ type KoreaStatusPageProps = {
 
 const sections = [
   {
+    key: 'policy',
+    label: '정책',
     title: '통화정책 압력',
     description: '기준금리, 금리차, 통화량은 원화 보유 유인과 원화 공급을 바꿉니다.',
     codes: ['KR_POLICY_RATE', 'US_POLICY_RATE', 'KR_US_RATE_GAP', 'M2', 'MPC_MINUTES']
   },
   {
+    key: 'policy',
+    label: '정책',
+    title: '재정 정책 자료',
+    description: '정부 재정 건전성은 국가 신뢰도와 환율 변동성에 영향을 줍니다.',
+    codes: ['FISCAL_BALANCE']
+  },
+  {
+    key: 'external',
+    label: '대외수급',
     title: '외환 방어력',
     description: '외환보유액과 원화 실효가치는 시장 충격을 버틸 여력을 보여줍니다.',
     codes: ['FOREIGN_RESERVES', 'KR_NEER_RANK']
   },
   {
+    key: 'external',
+    label: '대외수급',
     title: '대외수지와 달러 수급',
     description: '경상수지, 상품수지, 수출입은 국내로 들어오고 나가는 달러 흐름입니다.',
     codes: ['CURRENT_ACCOUNT', 'GOODS_ACCOUNT', 'EXPORT_AMOUNT', 'IMPORT_AMOUNT', 'TRADE_BALANCE']
   },
   {
+    key: 'inflation',
+    label: '물가·원자재',
     title: '물가와 금리 결정 압력',
     description: '물가 상승은 금리 정책과 실질 원화 가치에 동시에 영향을 줍니다.',
-    codes: ['CPI', 'PPI']
+    codes: ['CPI', 'PPI', 'WTI_OIL', 'TERMS_OF_TRADE']
   },
   {
-    title: '재정 정책 자료',
-    description: '정부 재정 건전성은 국가 신뢰도와 환율 변동성에 영향을 줍니다.',
-    codes: ['FISCAL_BALANCE']
+    key: 'risk',
+    label: '자본·리스크',
+    title: '자본 흐름과 대외 리스크',
+    description: '외국인 자금, 미국 금리, 변동성, 신용위험은 원화 자산 선호를 바꿉니다.',
+    codes: ['FOREIGN_STOCK_FLOW', 'FOREIGN_BOND_FLOW', 'US_10Y_TREASURY', 'VIX', 'KOREA_CDS']
   }
 ];
 
+const sectionTabs = [
+  { key: 'policy', label: '정책' },
+  { key: 'external', label: '대외수급' },
+  { key: 'inflation', label: '물가·원자재' },
+  { key: 'risk', label: '자본·리스크' },
+  { key: 'sources', label: '데이터' }
+];
+
 export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSyncLabel }: KoreaStatusPageProps) {
+  const [activeSectionKey, setActiveSectionKey] = React.useState(sectionTabs[0].key);
   const indicatorMap = new Map(indicators.map((indicator) => [indicator.code, indicator]));
   const collectedIndicators = indicators.filter((indicator) => indicator.value !== null);
   const pendingIndicators = indicators.filter((indicator) => indicator.status === '연동 필요');
   const ecosCount = collectedIndicators.filter((indicator) => indicator.source.startsWith('ECOS')).length;
+  const visibleSections = sections.filter((section) => section.key === activeSectionKey);
 
   return (
     <section className="grid gap-4">
@@ -49,9 +77,7 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
           <div className="min-w-0">
             <p className="text-xs font-semibold text-teal-700">환율 영향 국내 상황</p>
             <h2 className="mt-1 text-lg font-semibold text-zinc-950">원화 가치에 영향을 주는 국내 정책·거시 지표</h2>
-            <p className="mt-2 max-w-3xl text-xs leading-5 text-zinc-500">
-              한국은행 ECOS에서 수집 가능한 통화정책, 외환보유액, 국제수지, 통화량, 물가, 수출입 데이터를 묶어 원화 강세·약세 압력을 확인합니다.
-            </p>
+            <p className="mt-2 max-w-3xl text-xs leading-5 text-zinc-500">정책, 대외수급, 물가·원자재, 자본 흐름을 나눠 원화 강세·약세 압력을 확인합니다.</p>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <SummaryBox label="수집 지표" value={`${collectedIndicators.length}개`} />
@@ -62,10 +88,25 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
         <p className="mt-3 border-t border-zinc-100 pt-3 text-[11px] text-zinc-500">{latestSyncLabel}</p>
       </header>
 
+      <nav className="flex flex-wrap gap-1.5 rounded-md border border-zinc-200 bg-white p-2 shadow-sm" aria-label="국내 현황 범주">
+        {sectionTabs.map((tab) => (
+          <button
+            className={`h-8 rounded-md px-3 text-xs font-semibold ${
+              activeSectionKey === tab.key ? 'bg-teal-700 text-white' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
+            }`}
+            key={tab.key}
+            onClick={() => setActiveSectionKey(tab.key)}
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
       {isLoading ? (
         <div className="rounded-md border border-zinc-200 bg-white p-6 text-sm text-zinc-500 shadow-sm">국내 정책 지표를 확인 중입니다.</div>
-      ) : (
-        sections.map((section) => {
+      ) : activeSectionKey !== 'sources' ? (
+        visibleSections.map((section) => {
           const sectionIndicators = section.codes
             .map((code) => indicatorMap.get(code))
             .filter((indicator): indicator is DomesticIndicator => Boolean(indicator));
@@ -88,29 +129,35 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
             </section>
           );
         })
-      )}
+      ) : null}
 
-      <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="border-b border-zinc-100 pb-3">
-          <h3 className="text-sm font-semibold text-zinc-950">데이터 확보 경로</h3>
-          <p className="mt-1 text-xs text-zinc-500">실제 수집 중인 API와 추가 연동이 필요한 API를 구분합니다.</p>
-        </div>
-        <div className="mt-3 grid gap-2 md:grid-cols-3">
-          {dataSources
-            .filter((source) => ['USD_KRW', 'MACRO', 'CURRENCY_STRENGTH'].includes(source.code))
-            .map((source) => (
-              <article className="rounded border border-zinc-100 bg-zinc-50 p-3" key={source.code}>
-                <h4 className="text-xs font-semibold text-zinc-900">{source.title}</h4>
-                <p className="mt-2 text-[11px] leading-5 text-zinc-500">{source.api}</p>
-                <p className="mt-2 border-t border-zinc-200 pt-2 text-[11px] leading-5 text-zinc-600">{source.updatePolicy}</p>
-              </article>
-            ))}
-          <article className="rounded border border-amber-200 bg-amber-50 p-3">
-            <h4 className="text-xs font-semibold text-amber-900">추가 키 필요</h4>
-            <p className="mt-2 text-[11px] leading-5 text-amber-800">기획재정부 열린재정, 공공데이터포털 회의록, KOSIS/관세청 API는 별도 인증키를 연결해야 자동 수집할 수 있습니다.</p>
-          </article>
-        </div>
-      </section>
+      {activeSectionKey === 'sources' ? <DataSourceSection dataSources={dataSources} /> : null}
+    </section>
+  );
+}
+
+function DataSourceSection({ dataSources }: { dataSources: DataSourceInfo[] }) {
+  return (
+    <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="border-b border-zinc-100 pb-3">
+        <h3 className="text-sm font-semibold text-zinc-950">데이터 확보 경로</h3>
+        <p className="mt-1 text-xs text-zinc-500">실제 수집 중인 API와 추가 연동이 필요한 API를 구분합니다.</p>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        {dataSources
+          .filter((source) => ['USD_KRW', 'MACRO', 'CURRENCY_STRENGTH'].includes(source.code))
+          .map((source) => (
+            <article className="rounded border border-zinc-100 bg-zinc-50 p-3" key={source.code}>
+              <h4 className="text-xs font-semibold text-zinc-900">{source.title}</h4>
+              <p className="mt-2 text-[11px] leading-5 text-zinc-500">{source.api}</p>
+              <p className="mt-2 border-t border-zinc-200 pt-2 text-[11px] leading-5 text-zinc-600">{source.updatePolicy}</p>
+            </article>
+          ))}
+        <article className="rounded border border-amber-200 bg-amber-50 p-3">
+          <h4 className="text-xs font-semibold text-amber-900">추가 키 필요</h4>
+          <p className="mt-2 text-[11px] leading-5 text-amber-800">기획재정부 열린재정, 공공데이터포털, KOSIS/거래소/금융투자협회 계열 데이터는 별도 인증키나 활용신청이 필요합니다.</p>
+        </article>
+      </div>
     </section>
   );
 }
@@ -176,6 +223,10 @@ function formatIndicatorValue(indicator: DomesticIndicator) {
   }
 
   if (indicator.unit === 'USD_MILLION' || indicator.unit === 'USD_1000' || indicator.unit === 'KRW_100M' || indicator.unit === 'RANK') {
+    return formatValue(indicator.value, 0);
+  }
+
+  if (indicator.unit === 'BASIS_POINT') {
     return formatValue(indicator.value, 0);
   }
 
