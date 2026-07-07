@@ -20,6 +20,10 @@ export function formatMetricValue(metric: MetricSnapshot) {
     return formatValue(metric.value, 0);
   }
 
+  if (metric.unit === 'KRW_TRILLION') {
+    return formatValue(metric.value, 1);
+  }
+
   if (metric.unit === 'RANK') {
     return formatValue(metric.value, 0);
   }
@@ -44,8 +48,20 @@ export function formatMetricUnit(unit: string) {
     return '천 달러';
   }
 
+  if (unit === 'USD') {
+    return '달러';
+  }
+
+  if (unit === 'BASIS_POINT') {
+    return 'bp';
+  }
+
   if (unit === 'KRW_100M') {
     return '억원';
+  }
+
+  if (unit === 'KRW_TRILLION') {
+    return '조원';
   }
 
   if (unit === 'RANK') {
@@ -58,6 +74,10 @@ export function formatMetricUnit(unit: string) {
 
   if (unit === 'TEXT') {
     return '문서';
+  }
+
+  if (unit === 'DOCUMENT') {
+    return '건';
   }
 
   return unit;

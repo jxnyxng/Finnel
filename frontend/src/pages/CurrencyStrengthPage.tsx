@@ -29,7 +29,7 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
       ) : (
         <div className="mt-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
-            <p>전체 {ranks.length}개 지역 · 낮은 순위일수록 통화가치 약세</p>
+            <p>전체 {ranks.length}개 지역 · 1위에 가까울수록 NEER가 낮아 통화가치 약세</p>
             <p>범위 {formatValue(minNeer, 2)} ~ {formatValue(maxNeer, 2)} · 기준선 100</p>
           </div>
           <div className="max-h-[68vh] overflow-y-auto pr-1">

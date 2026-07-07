@@ -9,7 +9,9 @@ public record ExternalApiProperties(
     Fred fred,
     TwelveData twelveData,
     Bis bis,
-    Naver naver
+    Naver naver,
+    OpenFiscal openFiscal,
+    Bok bok
 ) {
 
     public record Koreaexim(String baseUrl, String apiKey) {
@@ -31,7 +33,11 @@ public record ExternalApiProperties(
         String dollarIndexSeriesId,
         String advancedDollarIndexSeriesId,
         String usPolicyRateSeriesId,
-        String usdKrwSeriesId
+        String usdKrwSeriesId,
+        String usTenYearTreasurySeriesId,
+        String vixSeriesId,
+        String wtiOilSeriesId,
+        String creditSpreadProxySeriesId
     ) {
     }
 
@@ -51,6 +57,18 @@ public record ExternalApiProperties(
         String baseUrl,
         String clientId,
         String clientSecret
+    ) {
+    }
+
+    public record OpenFiscal(
+        String baseUrl,
+        String apiKey
+    ) {
+    }
+
+    public record Bok(
+        String baseUrl,
+        String mpcMinutesPath
     ) {
     }
 }
