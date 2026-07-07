@@ -46,16 +46,19 @@
 | 광의 달러 지수 | FRED | `DTWEXBGS` Nominal Broad U.S. Dollar Index | 1일 1회 배치 저장 |
 | 실효환율 통화가치 랭킹 | BIS | `WS_EER` effective exchange rates, broad NEER/REER | 전체 시장 데이터 수집 시 최신 발표값 저장 |
 | 미국 기준금리 | FRED | `FEDFUNDS` 또는 정책금리 target range series | 1일 1회 체크, 변경분 저장 |
+| 미국 금융여건·리스크 | FRED | 10년 국채금리 `DGS10`, VIX `VIXCLS`, WTI `DCOILWTICO`, 신용스프레드 프록시 `BAMLH0A0HYM2` | 전체 시장 데이터 수집 시 최신 발표값 저장 |
 | 한국 기준금리 | 한국은행 ECOS | `722Y001` item `0101000` | 1일 1회 체크, 변경분 저장 |
 | 외환보유액 | 한국은행 ECOS | `732Y001` item `99` | 월 1회 이상 체크, 변경분 저장 |
-| 국내 정책·거시 지표 | 한국은행 ECOS | M2 `161Y005`, 경상/상품수지 `301Y017`, CPI `901Y009`, PPI `404Y014`, 수출입 `901Y118` | 전체 시장 데이터 수집 시 최신 발표값 저장 |
+| 국내 정책·거시 지표 | 한국은행 ECOS | M2 `161Y005`, 경상/상품수지 `301Y017`, CPI `901Y009`, PPI `404Y014`, 수출입 `901Y118`, 순상품교역조건 `403Y005` | 전체 시장 데이터 수집 시 최신 발표값 저장 |
+| 재정 정책 | 열린재정 Open API | `BudgetBalance` 재정수지, `GovernmentDebtMonth` 월별 중앙정부 국가채무 | `OPENFISCAL_API_KEY` 설정 후 전체 시장 데이터 수집 시 최근 3년 월별 저장 |
+| 자본 흐름·신용위험 | 한국은행 ECOS, FRED, 한국은행 홈페이지 | 외국인 주식 순매수 `901Y055`, 국외 채권 보유잔액 `282Y006`, 신용스프레드 프록시 `BAMLH0A0HYM2`, 금통위 의사록 공식 목록 | 전체 시장 데이터 수집 시 최신 발표값 저장 |
 | 환율·금리 뉴스 | 네이버 뉴스 검색 API | `원달러 환율`, `외환시장`, `한국은행 기준금리`, `미국 연준 FOMC`, `외환당국 환율` | `NEWS_SYNC_CRON` 스케줄 저장 |
 
 `DTWEXBGS`는 ICE가 산출하는 전통적인 DXY와 동일한 지표가 아닙니다. MVP에서는 FRED에서 안정적으로 받을 수 있는 광의 무역가중 달러 지수로 달러 강세를 대체 측정합니다.
 
 선진국 달러 지수는 FRED `DTWEXAFEGS` 공식 시리즈를 사용합니다. 주요 선진국 교역 상대 통화 대비 달러 강도를 보는 무역가중 지표이며, 공식 ICE DXY와는 다른 지표입니다.
 
-BIS 실효환율 통화가치 랭킹은 broad NEER를 기본 기준으로 사용합니다. NEER/REER는 2020=100 지수이며, 낮을수록 교역상대국 대비 통화가치가 낮다는 뜻입니다. NEER는 명목 지표이고, REER는 물가 수준을 반영한 실질 지표입니다.
+BIS 실효환율 통화가치 랭킹은 broad NEER를 기본 기준으로 사용합니다. NEER/REER는 2020=100 지수이며, 낮을수록 교역상대국 대비 통화가치가 낮다는 뜻입니다. 화면의 순위는 낮은 NEER부터 매긴 저평가 순위라 1위에 가까울수록 통화가치가 낮은 편입니다. NEER는 명목 지표이고, REER는 물가 수준을 반영한 실질 지표입니다.
 
 한국수출입은행 API가 응답하지 않으면 FRED `DEXKOUS`를 fallback으로 사용합니다. `DEXKOUS`는 FRED의 “South Korean Won to U.S. Dollar Spot Exchange Rate” 일별 시리즈지만 업데이트 지연이 있을 수 있습니다. Twelve Data는 API 제한 보호를 위해 USD/KRW 1일 intraday 차트에만 사용합니다.
 
@@ -154,8 +157,9 @@ Docker Desktop or a compatible Docker daemon must be running before starting the
 - USD/KRW 1-day chart must use real Twelve Data intraday rows only. Do not fabricate flat projected points for missing intraday data.
 - Backend loads both `.env` and `backend/.env` from `application.yml`; this matters when running from IntelliJ project root.
 - Domestic status tab is intended to show domestic policy and macro conditions that influence KRW, not just a generic metric dashboard.
-- ECOS-backed domestic policy indicators are stored in `domestic_policy_indicators` via Flyway V5. Current collected indicators include M2, current account, goods account, CPI, PPI, export amount, import amount, and calculated trade balance.
-- Ministry of Economy and Finance open finance data and public-data BOK minutes are shown as "연동 필요" until their API keys are added. Do not fake those values.
+- ECOS-backed domestic policy indicators are stored in `domestic_policy_indicators` via Flyway V5. Current collected indicators include M2, current account, goods account, CPI, PPI, export amount, import amount, calculated trade balance, terms of trade, foreign stock net buying, and foreign bond holdings.
+- OpenFiscal fiscal policy data uses `OPENFISCAL_API_KEY` for fiscal balance and central-government debt.
+- Free official Korea CDS API was not identified. The dashboard uses FRED `BAMLH0A0HYM2` as a clearly labeled global credit-spread proxy, not an actual Korea CDS series.
 - Newsroom is backed by Naver News Search API via Flyway V6 `news_articles`. Required env keys are `NAVER_CLIENT_ID` and `NAVER_CLIENT_SECRET`.
 - News categories are `원달러 환율`, `외환시장`, `한국은행 기준금리`, `미국 연준 FOMC`, and `외환당국 환율`.
 - News rows reserve nullable `ai_summary` and `market_sentiment` columns for later AI work.

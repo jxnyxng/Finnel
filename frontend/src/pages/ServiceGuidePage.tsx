@@ -26,7 +26,7 @@ export function ServiceGuidePage() {
               <InfoBlock title="투자 판단" text="실제 환전, 투자, 대출, 송금 판단은 본인의 책임으로 별도 확인이 필요합니다." />
               <InfoBlock title="데이터 지연" text="실시간 체결가가 아니며 발표 지연, 휴일, API 장애가 반영될 수 있습니다." />
               <InfoBlock title="환율 표시" text="USD/KRW 1일 차트는 Twelve Data 5분봉, 긴 기간은 Koreaexim/FRED 일별 저장값을 사용합니다." />
-              <InfoBlock title="랭킹 기준" text="통화가치 랭킹은 BIS broad NEER 낮은 값 순이며, REER는 보조 실질 지표로 표시합니다." />
+              <InfoBlock title="랭킹 기준" text="통화가치 랭킹은 BIS broad NEER가 낮은 통화부터 매긴 저평가 순위입니다. 1위에 가까울수록 교역상대국 대비 통화가치가 낮은 편입니다." />
             </div>
           </div>
         </div>
