@@ -62,6 +62,48 @@ public class TwelveDataClient {
             .toList();
     }
 
+    public List<IntradayExchangePayload> fetchUsdKrwIntradayBetween(LocalDateTime startInclusive, LocalDateTime endInclusive) {
+        ExternalApiProperties.TwelveData config = properties.twelveData();
+        if (!StringUtils.hasText(config.apiKey())) {
+            return List.of();
+        }
+
+        TwelveDataTimeSeriesResponse response = restClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/time_series")
+                .queryParam("symbol", config.usdKrwSymbol())
+                .queryParam("interval", config.intradayInterval())
+                .queryParam("outputsize", config.intradayOutputSize())
+                .queryParam("timezone", "Asia/Seoul")
+                .queryParam("start_date", startInclusive.format(DATE_TIME_FORMATTER))
+                .queryParam("end_date", endInclusive.format(DATE_TIME_FORMATTER))
+                .queryParam("order", "ASC")
+                .queryParam("apikey", config.apiKey())
+                .build())
+            .retrieve()
+            .body(TwelveDataTimeSeriesResponse.class);
+
+        if (response == null) {
+            return List.of();
+        }
+
+        if ("error".equalsIgnoreCase(response.status())) {
+            throw new IllegalStateException("Twelve Data error: " + response.message());
+        }
+
+        if (response.values() == null) {
+            return List.of();
+        }
+
+        return response.values().stream()
+            .map(value -> new IntradayExchangePayload(
+                LocalDateTime.parse(value.datetime(), DATE_TIME_FORMATTER),
+                config.usdKrwSymbol(),
+                new BigDecimal(value.close())
+            ))
+            .toList();
+    }
+
     public record IntradayExchangePayload(LocalDateTime observedAt, String currencyPair, BigDecimal closeRate) {
     }
 
