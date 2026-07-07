@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -30,12 +31,14 @@ public class DashboardService {
 
     private static final LocalTime INTRADAY_SESSION_START = LocalTime.of(9, 0);
     private static final LocalTime INTRADAY_SESSION_END = LocalTime.of(2, 0);
+    private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
 
     private final ExternalApiProperties properties;
     private final ExchangeRateRepository exchangeRateRepository;
     private final DollarIndexRepository dollarIndexRepository;
     private final InterestRateRepository interestRateRepository;
     private final ForeignReserveRepository foreignReserveRepository;
+    private final MarketDataSyncService marketDataSyncService;
     private final JdbcTemplate jdbcTemplate;
 
     public DashboardService(
@@ -44,6 +47,7 @@ public class DashboardService {
         DollarIndexRepository dollarIndexRepository,
         InterestRateRepository interestRateRepository,
         ForeignReserveRepository foreignReserveRepository,
+        MarketDataSyncService marketDataSyncService,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -51,10 +55,13 @@ public class DashboardService {
         this.dollarIndexRepository = dollarIndexRepository;
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
+        this.marketDataSyncService = marketDataSyncService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
     public DailyDashboardResponse daily() {
+        marketDataSyncService.ensureIntradayForDisplay();
+
         DollarIndex latestDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().dollarIndexSeriesId()).orElse(null);
         DollarIndex latestAdvancedDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().advancedDollarIndexSeriesId()).orElse(null);
         InterestRate latestUsRate = interestRateRepository.findTopByCountryCodeAndRateTypeOrderByBaseDateDesc("US", "POLICY_RATE").orElse(null);
@@ -223,7 +230,7 @@ public class DashboardService {
         ));
         indicators.add(new DomesticIndicator(
             "KR_NEER_RANK",
-            "원화 명목실효환율 순위",
+            "원화 명목실효환율 저평가 순위",
             "원화 상대 가치",
             krRank == null ? null : BigDecimal.valueOf(krRank.neerRank()),
             "RANK",
@@ -232,103 +239,12 @@ public class DashboardService {
             null,
             "BIS WS_EER",
             null,
-            "NEER 순위가 낮을수록 주요 교역상대국 대비 자국 통화가치가 낮은 편입니다.",
-            krRank == null ? "BIS 명목실효환율 최신값이 아직 저장되지 않았습니다." : "BIS broad NEER 기준 " + krRank.totalCount() + "개국 중 낮은 순위입니다.",
+            "이 순위는 NEER 값이 낮은 통화부터 매긴 저평가 순위입니다. 1위에 가까울수록 주요 교역상대국 대비 통화가치가 낮은 편입니다.",
+            krRank == null ? "BIS 명목실효환율 최신값이 아직 저장되지 않았습니다." : "BIS broad NEER 기준 " + krRank.totalCount() + "개국 중 원화 저평가 순위입니다.",
             statusLabel(krRank == null ? null : krRank.neerValue())
         ));
 
         indicators.addAll(domesticPolicyIndicators());
-        indicators.add(new DomesticIndicator(
-            "FISCAL_BALANCE",
-            "재정수지·국가채무",
-            "재정 정책",
-            null,
-            "UNAVAILABLE",
-            null,
-            null,
-            null,
-            "기획재정부 열린재정 API",
-            null,
-            "정부 재정 건전성은 국가 신뢰도와 외환시장 심리에 영향을 줄 수 있습니다.",
-            "현재 프로젝트에는 열린재정 API 키가 없어 자동 수집 전입니다.",
-            "연동 필요"
-        ));
-        indicators.add(new DomesticIndicator(
-            "FOREIGN_STOCK_FLOW",
-            "외국인 주식 순매수",
-            "자본 흐름",
-            null,
-            "KRW_100M",
-            null,
-            null,
-            null,
-            "공공데이터포털/한국거래소",
-            null,
-            "외국인 주식 순매수는 원화 자산 수요와 환전 흐름을 통해 원화에 영향을 줄 수 있습니다.",
-            "기관별 API 활용신청 또는 거래소 데이터 연동이 필요합니다.",
-            "연동 필요"
-        ));
-        indicators.add(new DomesticIndicator(
-            "FOREIGN_BOND_FLOW",
-            "외국인 채권 순투자",
-            "자본 흐름",
-            null,
-            "KRW_100M",
-            null,
-            null,
-            null,
-            "공공데이터포털/금융투자협회",
-            null,
-            "외국인 채권 자금 유입은 금리차와 환헤지 비용 변화에 민감해 원화 수급에 영향을 줄 수 있습니다.",
-            "채권 투자자금 통계 API 또는 파일 데이터 연동이 필요합니다.",
-            "연동 필요"
-        ));
-        indicators.add(new DomesticIndicator(
-            "KOREA_CDS",
-            "한국 CDS 프리미엄",
-            "대외 신용위험",
-            null,
-            "BASIS_POINT",
-            null,
-            null,
-            null,
-            "상용 금융 데이터/공공 대체자료",
-            null,
-            "CDS 프리미엄 상승은 국가 신용위험과 외화 조달 부담 확대 신호로 원화 약세 압력이 될 수 있습니다.",
-            "CDS는 보통 상용 데이터가 필요해 무료 API 대체 가능성을 별도 검토해야 합니다.",
-            "연동 필요"
-        ));
-        indicators.add(new DomesticIndicator(
-            "TERMS_OF_TRADE",
-            "순상품교역조건",
-            "교역조건",
-            null,
-            "INDEX",
-            null,
-            null,
-            null,
-            "ECOS/KOSIS",
-            null,
-            "교역조건 악화는 같은 수출량으로 확보하는 구매력이 낮아지는 신호라 원화 펀더멘털에 부담이 될 수 있습니다.",
-            "ECOS 또는 KOSIS 통계 항목 확인 후 연동이 필요합니다.",
-            "연동 필요"
-        ));
-        indicators.add(new DomesticIndicator(
-            "MPC_MINUTES",
-            "금통위 의결문·회의록",
-            "통화정책 방향",
-            null,
-            "TEXT",
-            null,
-            null,
-            null,
-            "공공데이터포털/한국은행 문서 API",
-            null,
-            "향후 금리 방향 문구는 원화 기대심리에 영향을 줄 수 있어 텍스트 분석 대상으로 봅니다.",
-            "현재 프로젝트에는 관련 공공데이터포털 API 키가 없어 자동 수집 전입니다.",
-            "연동 필요"
-        ));
-
         return indicators;
     }
 
@@ -342,9 +258,16 @@ public class DashboardService {
             "EXPORT_AMOUNT",
             "IMPORT_AMOUNT",
             "TRADE_BALANCE",
+            "FISCAL_BALANCE",
+            "GOVERNMENT_DEBT",
+            "FOREIGN_STOCK_FLOW",
+            "FOREIGN_BOND_FLOW",
+            "TERMS_OF_TRADE",
+            "MPC_MINUTES",
             "US_10Y_TREASURY",
             "VIX",
-            "WTI_OIL"
+            "WTI_OIL",
+            "KOREA_CDS"
         );
         return codes.stream()
             .map(this::domesticPolicyIndicator)
@@ -355,7 +278,7 @@ public class DashboardService {
     private DomesticIndicator domesticPolicyIndicator(String code) {
         DomesticPolicyIndicatorRow latest = findLatestDomesticPolicyIndicator(code);
         if (latest == null) {
-            return null;
+            return pendingDomesticPolicyIndicator(code);
         }
 
         DomesticPolicyIndicatorRow previous = findPreviousDomesticPolicyIndicator(code, latest.baseDate());
@@ -373,6 +296,56 @@ public class DashboardService {
             domesticPolicyImpact(latest.code()),
             domesticPolicyNote(latest.code()),
             statusLabel(latest.value())
+        );
+    }
+
+    private DomesticIndicator pendingDomesticPolicyIndicator(String code) {
+        return switch (code) {
+            case "FISCAL_BALANCE" -> pendingIndicator(
+                "FISCAL_BALANCE",
+                "재정수지",
+                "재정 정책",
+                "KRW_TRILLION",
+                "OPENFISCAL:BudgetBalance",
+                "재정수지 악화는 정부 재정 건전성 우려와 국채 수급 부담을 통해 원화 신뢰도에 부담이 될 수 있습니다.",
+                "열린재정 Open API 키가 설정되면 월별 관리재정수지 값을 저장합니다."
+            );
+            case "GOVERNMENT_DEBT" -> pendingIndicator(
+                "GOVERNMENT_DEBT",
+                "중앙정부 국가채무",
+                "재정 정책",
+                "KRW_TRILLION",
+                "OPENFISCAL:GovernmentDebtMonth",
+                "국가채무 증가는 중장기 재정 여력과 국가 신용위험 평가에 영향을 줄 수 있어 환율 리스크와 함께 봅니다.",
+                "열린재정 Open API 키가 설정되면 월별 중앙정부 국가채무 총액을 저장합니다."
+            );
+            default -> null;
+        };
+    }
+
+    private DomesticIndicator pendingIndicator(
+        String code,
+        String title,
+        String category,
+        String unit,
+        String source,
+        String krwImpact,
+        String note
+    ) {
+        return new DomesticIndicator(
+            code,
+            title,
+            category,
+            null,
+            unit,
+            null,
+            null,
+            null,
+            source,
+            null,
+            krwImpact,
+            note,
+            "연동 필요"
         );
     }
 
@@ -434,9 +407,16 @@ public class DashboardService {
             case "EXPORT_AMOUNT" -> "수출 증가는 달러 공급을 늘려 원화 안정에 도움이 될 수 있습니다.";
             case "IMPORT_AMOUNT" -> "수입 증가는 달러 수요를 늘려 원화 약세 압력으로 작용할 수 있습니다.";
             case "TRADE_BALANCE" -> "무역수지 흑자는 달러 순유입, 적자는 달러 순유출 압력으로 봅니다.";
+            case "FISCAL_BALANCE" -> "재정수지 악화는 정부 재정 건전성 우려와 국채 수급 부담을 통해 원화 신뢰도에 부담이 될 수 있습니다.";
+            case "GOVERNMENT_DEBT" -> "중앙정부 국가채무 증가는 재정 여력과 국가 신용위험 평가에 영향을 줄 수 있어 중장기 환율 리스크와 함께 봅니다.";
+            case "FOREIGN_STOCK_FLOW" -> "외국인 주식 순매수는 원화 자산 수요와 환전 흐름을 통해 원화에 영향을 줄 수 있습니다.";
+            case "FOREIGN_BOND_FLOW" -> "외국인 채권 보유잔액 증가는 중장기 원화채 수요를 보여주지만, 환헤지 비용과 금리차를 함께 봐야 합니다.";
+            case "TERMS_OF_TRADE" -> "교역조건 악화는 같은 수출량으로 확보하는 구매력이 낮아지는 신호라 원화 펀더멘털에 부담이 될 수 있습니다.";
+            case "MPC_MINUTES" -> "금통위 의사록과 의결문은 향후 금리 방향에 대한 기대를 바꿔 원화 심리에 영향을 줄 수 있습니다.";
             case "US_10Y_TREASURY" -> "미국 장기금리 상승은 달러 자산 매력을 높여 원화에는 부담이 될 수 있습니다.";
             case "VIX" -> "VIX 상승은 위험회피 심리 확대로 이어져 신흥국·원화 자산에는 부담이 될 수 있습니다.";
             case "WTI_OIL" -> "유가 상승은 에너지 수입 부담을 키워 무역수지와 원화 수급에 부정적일 수 있습니다.";
+            case "KOREA_CDS" -> "무료 공식 한국 CDS API가 없어 FRED 미국 하이일드 신용스프레드를 대외 신용위험 프록시로 사용합니다.";
             default -> "환율에 영향을 줄 수 있는 국내 정책·거시경제 지표입니다.";
         };
     }
@@ -451,9 +431,16 @@ public class DashboardService {
             case "EXPORT_AMOUNT" -> "ECOS 901Y118, 수출금액입니다.";
             case "IMPORT_AMOUNT" -> "ECOS 901Y118, 수입금액입니다.";
             case "TRADE_BALANCE" -> "ECOS 901Y118 수출금액에서 수입금액을 뺀 계산값입니다.";
+            case "FISCAL_BALANCE" -> "열린재정 BudgetBalance, 월별 관리재정수지 조원 단위 저장값입니다.";
+            case "GOVERNMENT_DEBT" -> "열린재정 GovernmentDebtMonth, 월별 중앙정부 국가채무 총액 조원 단위 저장값입니다.";
+            case "FOREIGN_STOCK_FLOW" -> "ECOS 901Y055, 외국인 순매수 거래대금 월별 값이며 백만원을 억원으로 환산했습니다.";
+            case "FOREIGN_BOND_FLOW" -> "ECOS 282Y006, 채권발행-보유관계표의 발행총계 중 국외 보유잔액 분기값이며 십억원을 조원으로 환산했습니다.";
+            case "TERMS_OF_TRADE" -> "ECOS 403Y005, 순상품교역조건지수 월별 값입니다.";
+            case "MPC_MINUTES" -> "한국은행 금융통화위원회 의사록 공식 목록 페이지 접근 상태를 저장합니다. 문서 본문 감성 분석은 별도 단계입니다.";
             case "US_10Y_TREASURY" -> "FRED DGS10, 미국 10년 만기 국채 수익률입니다.";
             case "VIX" -> "FRED VIXCLS, CBOE VIX 종가 계열입니다.";
             case "WTI_OIL" -> "FRED DCOILWTICO, WTI 현물 유가 계열입니다.";
+            case "KOREA_CDS" -> "FRED BAMLH0A0HYM2, ICE BofA 미국 하이일드 옵션조정스프레드입니다. 한국 CDS가 아니라 신용위험 프록시입니다.";
             default -> "ECOS 저장값 기준입니다.";
         };
     }
@@ -487,42 +474,108 @@ public class DashboardService {
     }
 
     private List<IntradayTimeSeriesPoint> findLatestIntradaySeries() {
-        LocalDateTime latestObservedAt = jdbcTemplate.query(
+        LocalDate currentDisplaySessionStartDate = currentDisplaySessionStartDate();
+        LocalDateTime latestObservedAt = findLatestIntradayObservedAt(null);
+        while (latestObservedAt != null) {
+            LocalDate sessionStartDate = latestObservedAt.toLocalTime().isBefore(INTRADAY_SESSION_START)
+                ? latestObservedAt.toLocalDate().minusDays(1)
+                : latestObservedAt.toLocalDate();
+            if (isWeekday(sessionStartDate)) {
+                LocalDateTime sessionStart = LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START);
+                LocalDateTime sessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END);
+                List<IntradayTimeSeriesPoint> sessionSeries = jdbcTemplate.query(
+                    """
+                        SELECT observed_at, close_rate
+                        FROM intraday_exchange_rates
+                        WHERE currency_pair = ?
+                          AND observed_at BETWEEN ? AND ?
+                        ORDER BY observed_at ASC
+                        """,
+                    (rs, rowNum) -> new IntradayTimeSeriesPoint(
+                        rs.getTimestamp("observed_at").toLocalDateTime(),
+                        rs.getBigDecimal("close_rate")
+                    ),
+                    properties.twelveData().usdKrwSymbol(),
+                    sessionStart,
+                    sessionEnd
+                );
+                if (isDisplayableIntradaySession(sessionStartDate, currentDisplaySessionStartDate, sessionSeries)) {
+                    return sessionSeries;
+                }
+            }
+
+            latestObservedAt = findLatestIntradayObservedAt(LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START));
+        }
+        return List.of();
+    }
+
+    private boolean isDisplayableIntradaySession(
+        LocalDate sessionStartDate,
+        LocalDate currentDisplaySessionStartDate,
+        List<IntradayTimeSeriesPoint> sessionSeries
+    ) {
+        if (sessionSeries.isEmpty()) {
+            return false;
+        }
+
+        long distinctCloseRates = sessionSeries.stream()
+            .map(IntradayTimeSeriesPoint::value)
+            .distinct()
+            .limit(2)
+            .count();
+        if (distinctCloseRates > 1) {
+            return true;
+        }
+
+        return sessionStartDate.isEqual(currentDisplaySessionStartDate) && sessionSeries.size() < 3;
+    }
+
+    private LocalDate currentDisplaySessionStartDate() {
+        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+        LocalDate sessionStartDate;
+        if (now.toLocalTime().isBefore(INTRADAY_SESSION_END)) {
+            sessionStartDate = now.toLocalDate().minusDays(1);
+        } else if (now.toLocalTime().isBefore(INTRADAY_SESSION_START)) {
+            sessionStartDate = previousWeekday(now.toLocalDate());
+        } else {
+            sessionStartDate = now.toLocalDate();
+        }
+
+        return isWeekday(sessionStartDate) ? sessionStartDate : previousWeekday(sessionStartDate.plusDays(1));
+    }
+
+    private LocalDate previousWeekday(LocalDate date) {
+        LocalDate candidate = date.minusDays(1);
+        while (!isWeekday(candidate)) {
+            candidate = candidate.minusDays(1);
+        }
+        return candidate;
+    }
+
+    private LocalDateTime findLatestIntradayObservedAt(LocalDateTime beforeExclusive) {
+        if (beforeExclusive == null) {
+            return jdbcTemplate.query(
+                """
+                    SELECT MAX(observed_at)
+                    FROM intraday_exchange_rates
+                    WHERE currency_pair = ?
+                    """,
+                (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
+                properties.twelveData().usdKrwSymbol()
+            ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        }
+
+        return jdbcTemplate.query(
             """
                 SELECT MAX(observed_at)
                 FROM intraday_exchange_rates
                 WHERE currency_pair = ?
+                  AND observed_at < ?
                 """,
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
-            properties.twelveData().usdKrwSymbol()
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
-
-        if (latestObservedAt == null) {
-            return List.of();
-        }
-
-        LocalDate sessionStartDate = latestObservedAt.toLocalTime().isBefore(INTRADAY_SESSION_START)
-            ? latestObservedAt.toLocalDate().minusDays(1)
-            : latestObservedAt.toLocalDate();
-        LocalDateTime sessionStart = LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START);
-        LocalDateTime sessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END);
-
-        return jdbcTemplate.query(
-            """
-                SELECT observed_at, close_rate
-                FROM intraday_exchange_rates
-                WHERE currency_pair = ?
-                  AND observed_at BETWEEN ? AND ?
-                ORDER BY observed_at ASC
-                """,
-            (rs, rowNum) -> new IntradayTimeSeriesPoint(
-                rs.getTimestamp("observed_at").toLocalDateTime(),
-                rs.getBigDecimal("close_rate")
-            ),
             properties.twelveData().usdKrwSymbol(),
-            sessionStart,
-            sessionEnd
-        );
+            beforeExclusive
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     private MetricSnapshot metric(String code, String label, BigDecimal value, String unit) {
@@ -641,7 +694,7 @@ public class DashboardService {
                 "실효환율 통화가치 랭킹",
                 "BIS WS_EER effective exchange rates bulk CSV",
                 "평일 09:10/15:10 KST 전체 시장 데이터 수집 시 broad NEER/REER 최신 발표값 저장",
-                "NEER/REER는 2020=100 지수이며 낮을수록 교역상대국 대비 통화가치가 낮습니다. NEER는 명목, REER는 물가 수준을 반영한 실질 지표입니다."
+                "NEER/REER는 2020=100 지수이며 낮을수록 교역상대국 대비 통화가치가 낮습니다. 랭킹은 낮은 NEER부터 매긴 저평가 순위입니다."
             ),
             new DataSourceInfo(
                 "MACRO",
@@ -649,6 +702,20 @@ public class DashboardService {
                 "FRED FEDFUNDS/DGS10/VIXCLS/DCOILWTICO, ECOS 722Y001/732Y001",
                 "전체 시장 데이터 수집 시 발표된 최신값 저장",
                 "한국 기준금리와 외환보유액은 한국은행 ECOS, 미국 기준금리·장기금리·VIX·WTI 유가는 FRED를 사용합니다."
+            ),
+            new DataSourceInfo(
+                "FISCAL_POLICY",
+                "재정 정책",
+                "열린재정 Open API BudgetBalance/GovernmentDebtMonth",
+                "전체 시장 데이터 수집 시 최근 3년 월별 재정수지와 중앙정부 국가채무 저장",
+                "재정수지는 관리재정수지, 국가채무는 중앙정부 국가채무 총액을 조원 단위로 저장합니다."
+            ),
+            new DataSourceInfo(
+                "CAPITAL_FLOW",
+                "자본 흐름·신용위험",
+                "ECOS 901Y055/282Y006, FRED BAMLH0A0HYM2, 한국은행 금통위 의사록 목록",
+                "전체 시장 데이터 수집 시 발표된 최신 월별·분기별·일별 값을 저장",
+                "외국인 주식은 순매수 거래대금, 채권은 국외 보유잔액입니다. 한국 CDS는 무료 공식 API가 없어 글로벌 신용스프레드 프록시로 표시합니다."
             )
         );
     }

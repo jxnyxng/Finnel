@@ -22,7 +22,7 @@ const sections = [
     label: '정책',
     title: '재정 정책 자료',
     description: '정부 재정 건전성은 국가 신뢰도와 환율 변동성에 영향을 줍니다.',
-    codes: ['FISCAL_BALANCE']
+    codes: ['FISCAL_BALANCE', 'GOVERNMENT_DEBT']
   },
   {
     key: 'external',
@@ -66,26 +66,21 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
   const [activeSectionKey, setActiveSectionKey] = React.useState(sectionTabs[0].key);
   const indicatorMap = new Map(indicators.map((indicator) => [indicator.code, indicator]));
   const collectedIndicators = indicators.filter((indicator) => indicator.value !== null);
-  const pendingIndicators = indicators.filter((indicator) => indicator.status === '연동 필요');
-  const ecosCount = collectedIndicators.filter((indicator) => indicator.source.startsWith('ECOS')).length;
   const visibleSections = sections.filter((section) => section.key === activeSectionKey);
 
   return (
     <section className="grid gap-4">
-      <header className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-teal-700">환율 영향 국내 상황</p>
-            <h2 className="mt-1 text-lg font-semibold text-zinc-950">원화 가치에 영향을 주는 국내 정책·거시 지표</h2>
-            <p className="mt-2 max-w-3xl text-xs leading-5 text-zinc-500">정책, 대외수급, 물가·원자재, 자본 흐름을 나눠 원화 강세·약세 압력을 확인합니다.</p>
+      <header className="rounded-md border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 leading-tight">
+            <p className="text-[11px] font-semibold text-teal-700">국내 상황</p>
+            <h2 className="mt-0.5 text-base font-semibold text-zinc-950">원화 영향 정책·거시 지표</h2>
+            <p className="mt-1 truncate text-[11px] text-zinc-500">{latestSyncLabel}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="shrink-0">
             <SummaryBox label="수집 지표" value={`${collectedIndicators.length}개`} />
-            <SummaryBox label="ECOS 연동" value={`${ecosCount}개`} />
-            <SummaryBox label="추가 연동" value={`${pendingIndicators.length}개`} />
           </div>
         </div>
-        <p className="mt-3 border-t border-zinc-100 pt-3 text-[11px] text-zinc-500">{latestSyncLabel}</p>
       </header>
 
       <nav className="flex flex-wrap gap-1.5 rounded-md border border-zinc-200 bg-white p-2 shadow-sm" aria-label="국내 현황 범주">
@@ -145,7 +140,7 @@ function DataSourceSection({ dataSources }: { dataSources: DataSourceInfo[] }) {
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-3">
         {dataSources
-          .filter((source) => ['USD_KRW', 'MACRO', 'CURRENCY_STRENGTH'].includes(source.code))
+          .filter((source) => ['USD_KRW', 'MACRO', 'FISCAL_POLICY', 'CURRENCY_STRENGTH', 'CAPITAL_FLOW'].includes(source.code))
           .map((source) => (
             <article className="rounded border border-zinc-100 bg-zinc-50 p-3" key={source.code}>
               <h4 className="text-xs font-semibold text-zinc-900">{source.title}</h4>
@@ -153,9 +148,9 @@ function DataSourceSection({ dataSources }: { dataSources: DataSourceInfo[] }) {
               <p className="mt-2 border-t border-zinc-200 pt-2 text-[11px] leading-5 text-zinc-600">{source.updatePolicy}</p>
             </article>
           ))}
-        <article className="rounded border border-amber-200 bg-amber-50 p-3">
-          <h4 className="text-xs font-semibold text-amber-900">추가 키 필요</h4>
-          <p className="mt-2 text-[11px] leading-5 text-amber-800">기획재정부 열린재정, 공공데이터포털, KOSIS/거래소/금융투자협회 계열 데이터는 별도 인증키나 활용신청이 필요합니다.</p>
+        <article className="rounded border border-teal-100 bg-teal-50 p-3">
+          <h4 className="text-xs font-semibold text-teal-900">무료 공개 소스 사용</h4>
+          <p className="mt-2 text-[11px] leading-5 text-teal-800">남은 지표는 ECOS, FRED, 한국은행 공식 페이지 기반으로 수집합니다. 한국 CDS는 무료 공식 API가 없어 신용스프레드 프록시로 표시합니다.</p>
         </article>
       </div>
     </section>
@@ -164,9 +159,9 @@ function DataSourceSection({ dataSources }: { dataSources: DataSourceInfo[] }) {
 
 function SummaryBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-zinc-100 bg-zinc-50 px-3 py-2">
+    <div className="inline-block rounded border border-zinc-100 bg-zinc-50 px-3 py-1.5 text-right">
       <div className="text-[10px] font-medium text-zinc-500">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold text-zinc-950">{value}</div>
+      <div className="text-sm font-semibold text-zinc-950">{value}</div>
     </div>
   );
 }
@@ -226,7 +221,11 @@ function formatIndicatorValue(indicator: DomesticIndicator) {
     return formatValue(indicator.value, 0);
   }
 
-  if (indicator.unit === 'BASIS_POINT') {
+  if (indicator.unit === 'KRW_TRILLION') {
+    return formatValue(indicator.value, 1);
+  }
+
+  if (indicator.unit === 'BASIS_POINT' || indicator.unit === 'DOCUMENT') {
     return formatValue(indicator.value, 0);
   }
 
@@ -244,7 +243,9 @@ function getDelta(indicator: DomesticIndicator) {
   }
 
   const sign = delta > 0 ? '+' : '';
-  const digits = indicator.unit === 'PERCENT' || indicator.unit === 'PERCENT_POINT' || indicator.unit === 'INDEX' ? 2 : 0;
+  const digits = indicator.unit === 'PERCENT' || indicator.unit === 'PERCENT_POINT' || indicator.unit === 'INDEX'
+    ? 2
+    : indicator.unit === 'KRW_TRILLION' ? 1 : 0;
   return {
     label: `전 기준 대비 ${sign}${formatValue(delta, digits)}`,
     tone: delta > 0 ? 'text-red-600' : 'text-blue-600'

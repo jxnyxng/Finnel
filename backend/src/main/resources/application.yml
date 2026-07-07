@@ -61,6 +61,7 @@ app:
       us-ten-year-treasury-series-id: ${FRED_US_TEN_YEAR_TREASURY_SERIES_ID:DGS10}
       vix-series-id: ${FRED_VIX_SERIES_ID:VIXCLS}
       wti-oil-series-id: ${FRED_WTI_OIL_SERIES_ID:DCOILWTICO}
+      credit-spread-proxy-series-id: ${FRED_CREDIT_SPREAD_PROXY_SERIES_ID:BAMLH0A0HYM2}
     twelve-data:
       base-url: ${TWELVE_DATA_BASE_URL:https://api.twelvedata.com}
       api-key: ${TWELVE_DATA_API_KEY:}
@@ -73,3 +74,9 @@ app:
       base-url: ${NAVER_NEWS_BASE_URL:https://openapi.naver.com}
       client-id: ${NAVER_CLIENT_ID:}
       client-secret: ${NAVER_CLIENT_SECRET:}
+    open-fiscal:
+      base-url: ${OPENFISCAL_BASE_URL:https://www.openfiscaldata.go.kr}
+      api-key: ${OPENFISCAL_API_KEY:}
+    bok:
+      base-url: ${BOK_PORTAL_BASE_URL:https://www.bok.or.kr}
+      mpc-minutes-path: ${BOK_MPC_MINUTES_PATH:/portal/singl/newsData/list.do?pageIndex=1&targetDepth=3&menuNo=200789}

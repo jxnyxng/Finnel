@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
@@ -67,7 +68,17 @@ public class EcosClient {
             .toList();
     }
 
-    public List<EcosObservationPayload> fetchStatisticObservations(String statCode, String cycle, YearMonth startMonth, YearMonth endMonth, String itemCode) {
+    public List<EcosObservationPayload> fetchStatisticObservations(String statCode, String cycle, YearMonth startMonth, YearMonth endMonth, String... itemCodes) {
+        return fetchStatisticObservations(
+            statCode,
+            cycle,
+            startMonth.format(MONTH_FORMATTER),
+            endMonth.format(MONTH_FORMATTER),
+            itemCodes
+        );
+    }
+
+    public List<EcosObservationPayload> fetchStatisticObservations(String statCode, String cycle, String start, String end, String... itemCodes) {
         ExternalApiProperties.Ecos config = properties.ecos();
         if (!StringUtils.hasText(config.apiKey())) {
             return List.of();
@@ -76,22 +87,29 @@ public class EcosClient {
         return fetchRawObservations(
             statCode,
             cycle,
-            startMonth.format(MONTH_FORMATTER),
-            endMonth.format(MONTH_FORMATTER),
-            itemCode
+            start,
+            end,
+            itemCodes
         ).stream()
             .map(item -> new EcosObservationPayload(
-                YearMonth.parse(item.time(), MONTH_FORMATTER).atEndOfMonth(),
+                parseBaseDate(item.time(), cycle),
                 new BigDecimal(item.dataValue())
             ))
             .toList();
     }
 
-    private List<EcosObservation> fetchRawObservations(String statCode, String cycle, String start, String end, String itemCode) {
+    private List<EcosObservation> fetchRawObservations(String statCode, String cycle, String start, String end, String... itemCodes) {
         EcosStatisticSearchResponse response = restClient.get()
             .uri(uriBuilder -> uriBuilder
-                .path("/StatisticSearch/{apiKey}/json/kr/1/1000/{statCode}/{cycle}/{start}/{end}/{itemCode}")
-                .build(properties.ecos().apiKey(), statCode, cycle, start, end, itemCode))
+                .path("/StatisticSearch/{apiKey}/json/kr/1/1000/{statCode}/{cycle}/{start}/{end}")
+                .path(itemPath(itemCodes))
+                .build(
+                    properties.ecos().apiKey(),
+                    statCode,
+                    cycle,
+                    start,
+                    end
+                ))
             .retrieve()
             .body(EcosStatisticSearchResponse.class);
 
@@ -103,6 +121,34 @@ public class EcosClient {
             .filter(item -> StringUtils.hasText(item.time()))
             .filter(item -> StringUtils.hasText(item.dataValue()))
             .toList();
+    }
+
+    private String itemPath(String... itemCodes) {
+        if (itemCodes == null || itemCodes.length == 0) {
+            return "";
+        }
+
+        return "/" + String.join("/", Arrays.stream(itemCodes)
+            .filter(StringUtils::hasText)
+            .toList());
+    }
+
+    private LocalDate parseBaseDate(String time, String cycle) {
+        if ("Q".equals(cycle)) {
+            int year = Integer.parseInt(time.substring(0, 4));
+            int quarter = Integer.parseInt(time.substring(5, 6));
+            return YearMonth.of(year, quarter * 3).atEndOfMonth();
+        }
+
+        if ("A".equals(cycle)) {
+            return LocalDate.of(Integer.parseInt(time), 12, 31);
+        }
+
+        if ("D".equals(cycle)) {
+            return LocalDate.parse(time, DateTimeFormatter.BASIC_ISO_DATE);
+        }
+
+        return YearMonth.parse(time, MONTH_FORMATTER).atEndOfMonth();
     }
 
     public record EcosObservationPayload(LocalDate baseDate, BigDecimal value) {
