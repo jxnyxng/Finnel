@@ -9,6 +9,8 @@ import {
 } from '../constants';
 import type { ChartPoint, IntradayTimeSeriesPoint, RangeKey, TimeSeriesPoint } from '../types';
 
+const intradayPointIntervalMinutes = 1;
+
 export function getRangeLabel(range: RangeKey | Exclude<RangeKey, '1D'>) {
   return rangeOptions.find((option) => option.key === range)?.label
     ?? longRangeOptions.find((option) => option.key === range)?.label
@@ -51,9 +53,9 @@ export function buildVisibleUsdKrwSeries(
   if (range === '1D') {
     const sessionStartDate = getIntradaySessionStartDate(intradaySeries[0].observedAt);
     const points = intradaySeries.map((point) => ({
-      label: addMinutesToDateTime(point.observedAt, 5).slice(11, 16),
-      dateValue: addMinutesToDateTime(point.observedAt, 5),
-      x: getSessionMinute(addMinutesToDateTime(point.observedAt, 5), sessionStartDate),
+      label: addMinutesToDateTime(point.observedAt, intradayPointIntervalMinutes).slice(11, 16),
+      dateValue: addMinutesToDateTime(point.observedAt, intradayPointIntervalMinutes),
+      x: getSessionMinute(addMinutesToDateTime(point.observedAt, intradayPointIntervalMinutes), sessionStartDate),
       value: point.value,
     })).filter((point) => point.x >= intradaySessionStartMinutes && point.x <= intradaySessionEndMinutes);
 
@@ -211,7 +213,7 @@ export function formatIntradayObservedAt(dateTime: string | null) {
     return '-';
   }
 
-  const displayDateTime = addMinutesToDateTime(dateTime, 5);
+  const displayDateTime = addMinutesToDateTime(dateTime, intradayPointIntervalMinutes);
   return `${displayDateTime.slice(0, 10)} ${displayDateTime.slice(11, 16)}`;
 }
 
@@ -288,5 +290,5 @@ function addMinutesToDateTime(dateTime: string, minutes: number) {
 function formatIntradaySessionLabel(series: ChartPoint[]) {
   const first = series[0].dateValue;
   const sessionStartDate = getIntradaySessionStartDate(first);
-  return `${sessionStartDate} 세션 · 09:00~익일 02:00 · 5분`;
+  return `${sessionStartDate} 세션 · 09:00~익일 02:00 · 1분`;
 }
