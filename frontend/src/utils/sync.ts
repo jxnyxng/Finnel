@@ -123,7 +123,7 @@ export function getSyncSkippedMessage(result: SyncResult) {
 
 export function getServiceUpdateInterval(activeTab: MainTabKey) {
   if (activeTab === 'dashboard') {
-    return '환율 5분 · 시장 09:10/15:10';
+    return '환율 1분봉 · 5분마다 확인';
   }
 
   if (activeTab === 'koreaStatus') {

@@ -86,3 +86,4 @@ cd frontend && npm run build
 - Add an FX holiday calendar.
 - Improve MPC document parsing/sentiment only after a stable official feed is confirmed.
 - Keep README and CODEX concise; move long PR notes or investigations out of permanent docs.
+
