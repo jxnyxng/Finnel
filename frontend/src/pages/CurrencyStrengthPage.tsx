@@ -14,7 +14,7 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
     <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-1 border-b border-zinc-100 pb-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-base font-semibold">자국 화폐가치 약세 순위</h2>
+          <h2 className="text-base font-semibold">약세 랭킹</h2>
           <p className="mt-1 text-xs text-zinc-500">BIS broad NEER 약세 순위 · 2020=100, 낮을수록 교역상대국 대비 약세입니다.</p>
           <p className="mt-1 text-xs text-zinc-500">BIS 발표: NEER 주중, REER 월중 · 앱 자동 확인: 평일 09:10/15:10 KST</p>
         </div>
@@ -42,8 +42,8 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
                 return (
                   <article
                     key={rank.areaCode}
-                    className={`rounded-md border px-3 py-3 ${
-                      isKorea ? 'border-teal-200 bg-white shadow-sm' : 'border-zinc-100 bg-zinc-50'
+                    className={`rounded-md border border-zinc-100 px-3 py-3 ${
+                      isKorea ? 'relative z-10 bg-teal-50/60 shadow-sm' : 'scale-[0.985] bg-zinc-50'
                     }`}
                   >
                     <div className="grid gap-3 md:grid-cols-[minmax(180px,240px)_minmax(0,1fr)_150px] md:items-center">
