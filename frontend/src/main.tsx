@@ -548,14 +548,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 function getMainPageTitle(activeTab: MainTabKey) {
   switch (activeTab) {
     case 'dashboard':
-      return '환율 흐름';
+      return '환율 현황';
     case 'koreaStatus':
-      return '국내 지표';
+      return '관련 지표';
     case 'ranking':
-      return '통화 순위';
+      return '약세 랭킹';
     case 'newsroom':
-      return '시장 뉴스';
+      return '최신 뉴스';
     default:
-      return '환율 흐름';
+      return '환율 현황';
   }
 }
