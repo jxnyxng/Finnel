@@ -57,7 +57,7 @@ export function NewsroomPage({
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-teal-700">네이버 뉴스 기반</p>
-            <h2 className="text-base font-semibold text-zinc-950">환율·금리 뉴스</h2>
+            <h2 className="text-base font-semibold text-zinc-950">최신 뉴스</h2>
           </div>
           <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
         </div>
@@ -174,13 +174,13 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
   return (
     <article
-      className="cursor-pointer rounded-md border border-zinc-100 bg-white p-3 shadow-sm transition hover:border-teal-200 hover:bg-teal-50/30 hover:shadow-md"
+      className="group/card cursor-pointer rounded-md border border-zinc-100 bg-white p-3 shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
       onClick={openArticle}
       onKeyDown={openArticleWithKeyboard}
       role="link"
       tabIndex={0}
     >
-      <div className="grid gap-3 sm:grid-cols-[96px_minmax(0,1fr)]">
+      <div className="grid gap-3 transition-transform duration-150 ease-out group-hover/card:scale-[1.01] sm:grid-cols-[96px_minmax(0,1fr)] motion-reduce:transform-none motion-reduce:transition-none">
         <NewsThumbnail article={article} />
         <div className="min-w-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
