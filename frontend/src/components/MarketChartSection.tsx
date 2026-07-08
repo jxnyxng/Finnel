@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   chartBottomMarginPx,
+  chartHeightPx,
   chartTopMarginPx
 } from '../constants';
 import type { ChartHoverState, ChartPoint, RangeKey } from '../types';
@@ -87,6 +88,7 @@ export function MarketChartSection<T extends RangeKey>({
 }: MarketChartSectionProps<T>) {
   const latestPoint = series[series.length - 1] ?? null;
   const chartBottom = chartBottomMarginPx + xAxisHeight;
+  const plotBottom = chartHeightPx - chartBottom;
 
   return (
     <article className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
@@ -118,7 +120,11 @@ export function MarketChartSection<T extends RangeKey>({
               data={series}
               margin={{ top: 8, right: 8, bottom: 18, left: plotLeft }}
               onMouseLeave={() => onHoverChange(null)}
-              onMouseMove={(state) => onHoverChange(getActiveChartHover(state, series))}
+              onMouseMove={(state) => onHoverChange(getActiveChartHover(state, series, {
+                plotBottom,
+                plotLeft,
+                plotTop: chartTopMarginPx
+              }))}
             >
               <XAxis
                 dataKey="x"

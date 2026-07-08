@@ -66,8 +66,8 @@ app:
       base-url: ${TWELVE_DATA_BASE_URL:https://api.twelvedata.com}
       api-key: ${TWELVE_DATA_API_KEY:}
       usd-krw-symbol: ${TWELVE_DATA_USD_KRW_SYMBOL:USD/KRW}
-      intraday-interval: ${TWELVE_DATA_INTRADAY_INTERVAL:5min}
-      intraday-output-size: ${TWELVE_DATA_INTRADAY_OUTPUT_SIZE:1000}
+      intraday-interval: ${TWELVE_DATA_INTRADAY_INTERVAL:1min}
+      intraday-output-size: ${TWELVE_DATA_INTRADAY_OUTPUT_SIZE:5000}
     bis:
       effective-exchange-rates-bulk-url: ${BIS_EER_BULK_URL:https://data.bis.org/static/bulk/WS_EER_csv_flat.zip}
     naver:
