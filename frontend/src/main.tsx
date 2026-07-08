@@ -43,16 +43,13 @@ import { findMetric, sortMetrics } from './utils/metrics';
 import {
   getIntradayStatusLabel,
   getLatestSyncLabel,
-  getRequestErrorMessage,
   getServiceStatus,
-  getServiceUpdateInterval,
-  getSyncSkippedMessage
+  getServiceUpdateInterval
 } from './utils/sync';
 import {
   getRemainingCooldownSeconds,
   getSeoulDateString,
-  getSeoulTimeString,
-  hasMissingRecentWeekday
+  getSeoulTimeString
 } from './utils/time';
 import type {
   ChartHoverState,
@@ -64,7 +61,6 @@ import type {
   NewsResponse,
   PageKey,
   RangeKey,
-  SyncResult,
   SyncStatus
 } from './types';
 
@@ -72,10 +68,7 @@ function App() {
   const [dashboard, setDashboard] = React.useState<DailyDashboardResponse | null>(null);
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus | null>(null);
   const [intradayStatus, setIntradayStatus] = React.useState<SyncStatus | null>(null);
-  const [dailyBackfillStatus, setDailyBackfillStatus] = React.useState<SyncStatus | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isIntradaySyncing, setIsIntradaySyncing] = React.useState(false);
-  const [isDailyBackfilling, setIsDailyBackfilling] = React.useState(false);
   const [message, setMessage] = React.useState('DB에 저장된 최신 데이터를 조회합니다.');
   const [usdKrwRange, setUsdKrwRange] = React.useState<RangeKey>('1D');
   const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
@@ -95,8 +88,6 @@ function App() {
   const [newsTotalCount, setNewsTotalCount] = React.useState(0);
   const [newsTotalPages, setNewsTotalPages] = React.useState(0);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
-  const lastIntradayRefreshAttemptAt = React.useRef(0);
-  const attemptedDailyBackfillKey = React.useRef<string | null>(null);
   const isMainAppPage = activePage === 'dashboard' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom';
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
@@ -132,15 +123,6 @@ function App() {
       setIntradayStatus(response.data);
     } catch {
       setIntradayStatus(null);
-    }
-  }, []);
-
-  const loadDailyBackfillStatus = React.useCallback(async () => {
-    try {
-      const response = await axios.get<SyncStatus>('/api/v1/sync/daily-exchange/backfill/status');
-      setDailyBackfillStatus(response.data);
-    } catch {
-      setDailyBackfillStatus(null);
     }
   }, []);
 
@@ -184,22 +166,19 @@ function App() {
     loadDashboard(true);
     loadSyncStatus();
     loadIntradayStatus();
-    loadDailyBackfillStatus();
 
     const dashboardTimer = window.setInterval(loadDashboard, 15_000);
     const statusTimer = window.setInterval(loadSyncStatus, 15_000);
     const intradayStatusTimer = window.setInterval(loadIntradayStatus, 15_000);
-    const dailyBackfillStatusTimer = window.setInterval(loadDailyBackfillStatus, 30_000);
     const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1_000);
 
     return () => {
       window.clearInterval(dashboardTimer);
       window.clearInterval(statusTimer);
       window.clearInterval(intradayStatusTimer);
-      window.clearInterval(dailyBackfillStatusTimer);
       window.clearInterval(clockTimer);
     };
-  }, [loadDashboard, loadSyncStatus, loadIntradayStatus, loadDailyBackfillStatus]);
+  }, [loadDashboard, loadSyncStatus, loadIntradayStatus]);
 
   React.useEffect(() => {
     if (activePage !== 'newsroom') {
@@ -252,8 +231,6 @@ function App() {
   const usdKrwReferenceLabel = getUsdKrwReferenceLabel(usdKrwRange, visibleUsdKrwSeries, dashboard?.baseDate);
   const remainingCooldownSeconds = getRemainingCooldownSeconds(syncStatus, nowMs);
   const remainingIntradayCooldownSeconds = getRemainingCooldownSeconds(intradayStatus, nowMs);
-  const remainingDailyBackfillCooldownSeconds = getRemainingCooldownSeconds(dailyBackfillStatus, nowMs);
-  const hasRecentDailyGap = hasMissingRecentWeekday(usdKrwSeries, seoulToday);
   const latestSyncLabel = getLatestSyncLabel(syncStatus, remainingCooldownSeconds);
   const activeServiceStatus = getServiceStatus({
     activeTab,
@@ -270,7 +247,7 @@ function App() {
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
   const activePageTitle = getMainPageTitle(activeTab);
   const intradayStatusLabel = getIntradayStatusLabel(
-    isIntradaySyncing,
+    false,
     latestIntradayDate,
     usdKrwIntradaySeries.length,
     usdKrwIntradaySeries[usdKrwIntradaySeries.length - 1]?.observedAt ?? null,
@@ -285,7 +262,7 @@ function App() {
     { label: usdKrwRange === '1D' ? '세션' : '기간', value: getUsdKrwPanelReferenceLabel(usdKrwRange, visibleUsdKrwSeries) },
     { label: '의미', value: '1달러 가격' },
     { label: '해석', value: '상승하면 원화 약세' },
-    { label: '출처', value: usdKrwRange === '1D' ? 'Twelve Data 5분봉' : 'Koreaexim/FRED 일별' }
+    { label: '출처', value: usdKrwRange === '1D' ? 'Twelve Data 1분봉' : 'Koreaexim/FRED 일별' }
   ];
   const dollarIndexPanelDetails = [
     { label: '범위', value: getRangeLabel(dollarIndexRange) },
@@ -304,44 +281,6 @@ function App() {
     { label: '출처', value: 'FRED DTWEXAFEGS' }
   ];
 
-  const refreshIntraday = React.useCallback(async () => {
-    setIsIntradaySyncing(true);
-    setMessage('1일 환율 데이터를 최신 상태로 확인 중입니다.');
-    try {
-      const response = await axios.post<SyncResult>('/api/v1/sync/intraday-exchange');
-      await loadIntradayStatus();
-      if (!response.data.status.startsWith('SKIPPED')) {
-        await loadDashboard();
-        setMessage('오늘 1일 환율 데이터를 다시 확인했습니다.');
-      } else {
-        setMessage(getSyncSkippedMessage(response.data));
-      }
-    } catch (error) {
-      setMessage(getRequestErrorMessage(error, '1일 환율 데이터 확인에 실패했습니다.'));
-    } finally {
-      setIsIntradaySyncing(false);
-    }
-  }, [loadDashboard, loadIntradayStatus]);
-
-  const backfillDailyExchange = React.useCallback(async () => {
-    setIsDailyBackfilling(true);
-    setMessage('누락된 영업일 환율 데이터를 확인 중입니다.');
-    try {
-      const response = await axios.post<SyncResult>('/api/v1/sync/daily-exchange/backfill');
-      await loadDailyBackfillStatus();
-      if (!response.data.status.startsWith('SKIPPED')) {
-        await loadDashboard();
-        setMessage('누락된 영업일 환율 데이터를 다시 확인했습니다.');
-      } else {
-        setMessage(getSyncSkippedMessage(response.data));
-      }
-    } catch (error) {
-      setMessage(getRequestErrorMessage(error, '누락된 영업일 환율 데이터 확인에 실패했습니다.'));
-    } finally {
-      setIsDailyBackfilling(false);
-    }
-  }, [loadDashboard, loadDailyBackfillStatus]);
-
   const changeNewsCategory = React.useCallback((category: string) => {
     setSelectedNewsCategory(category);
     setNewsPage(1);
@@ -358,58 +297,6 @@ function App() {
     setNewsPage(1);
     loadNews(selectedNewsCategory, 1, true, filters);
   }, [loadNews, selectedNewsCategory]);
-
-  React.useEffect(() => {
-    if (usdKrwRange !== '1D') {
-      return;
-    }
-
-    if (usdKrwIntradaySeries.length > 0) {
-      return;
-    }
-
-    if (isIntradaySyncing || remainingIntradayCooldownSeconds > 0) {
-      return;
-    }
-
-    if (nowMs - lastIntradayRefreshAttemptAt.current < 60_000) {
-      return;
-    }
-
-    lastIntradayRefreshAttemptAt.current = nowMs;
-    refreshIntraday();
-  }, [
-    isIntradaySyncing,
-    nowMs,
-    refreshIntraday,
-    remainingIntradayCooldownSeconds,
-    seoulToday,
-    usdKrwIntradaySeries.length,
-    usdKrwRange
-  ]);
-
-  React.useEffect(() => {
-    if (!hasRecentDailyGap) {
-      return;
-    }
-
-    if (isDailyBackfilling || remainingDailyBackfillCooldownSeconds > 0) {
-      return;
-    }
-
-    if (attemptedDailyBackfillKey.current === seoulToday) {
-      return;
-    }
-
-    attemptedDailyBackfillKey.current = seoulToday;
-    backfillDailyExchange();
-  }, [
-    backfillDailyExchange,
-    hasRecentDailyGap,
-    isDailyBackfilling,
-    remainingDailyBackfillCooldownSeconds,
-    seoulToday
-  ]);
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -490,7 +377,7 @@ function App() {
                 helpContent={(
                   <>
                     <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
-                    <p className="mt-1">1일은 5분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
+                    <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
                   </>
                 )}
                 helpTitle="USD/KRW 그래프"

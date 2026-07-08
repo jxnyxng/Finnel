@@ -3,6 +3,8 @@ import type { ChartHoverState, ChartPoint, RangeKey } from '../types';
 import { formatCrosshairDate } from '../utils/chart';
 import { formatValue } from '../utils/format';
 
+const firstPointHoverTolerancePx = 24;
+
 type ChartTooltipPayload = {
   payload?: ChartPoint;
   value?: number | string;
@@ -23,7 +25,11 @@ type RechartsMouseState = {
   };
 };
 
-export function getActiveChartHover(state: unknown, series: ChartPoint[]): ChartHoverState | null {
+export function getActiveChartHover(
+  state: unknown,
+  series: ChartPoint[],
+  bounds: { plotLeft: number; plotTop: number; plotBottom: number }
+): ChartHoverState | null {
   const typedState = state as RechartsMouseState | null;
   const activeIndex = typedState?.activeIndex ?? typedState?.activeTooltipIndex;
   const numericIndex = Number(activeIndex);
@@ -33,6 +39,14 @@ export function getActiveChartHover(state: unknown, series: ChartPoint[]): Chart
   const y = typedState?.activeCoordinate?.y;
 
   if (!point || typeof x !== 'number' || typeof y !== 'number') {
+    return null;
+  }
+
+  if (x < bounds.plotLeft || y < bounds.plotTop || y > bounds.plotBottom) {
+    return null;
+  }
+
+  if (point === series[0] && x > bounds.plotLeft + firstPointHoverTolerancePx) {
     return null;
   }
 

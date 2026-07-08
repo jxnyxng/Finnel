@@ -41,7 +41,7 @@
 | Metric | Source | API/Series | Update Policy |
 | --- | --- | --- | --- |
 | USD/KRW | 한국수출입은행 오픈API, FRED fallback | 현재환율 API USD `deal_bas_r`, FRED `DEXKOUS` | 1일 1회 배치 저장 |
-| USD/KRW intraday | Twelve Data | `time_series`, `USD/KRW`, `5min` | 1일 차트용, 제한 내 배치 저장 |
+| USD/KRW intraday | Twelve Data | `time_series`, `USD/KRW`, `1min` | 1일 차트용, 제한 내 배치 저장 |
 | 선진국 달러 지수 | FRED | `DTWEXAFEGS` Nominal Advanced Foreign Economies U.S. Dollar Index | 1일 1회 배치 저장 |
 | 광의 달러 지수 | FRED | `DTWEXBGS` Nominal Broad U.S. Dollar Index | 1일 1회 배치 저장 |
 | 실효환율 통화가치 랭킹 | BIS | `WS_EER` effective exchange rates, broad NEER/REER | 전체 시장 데이터 수집 시 최신 발표값 저장 |
@@ -150,11 +150,23 @@ Docker Desktop or a compatible Docker daemon must be running before starting the
 
 ## Work Memory
 
+### 2026-07-08
+
+- `feat/8-api-check-auto-update` branch is focused on verifying automatic API update cadence and avoiding unnecessary external calls.
+- Dashboard/newsroom display requests should read stored DB data only. Frontend auto POST sync triggers and backend display-time intraday sync were removed.
+- Market data sync now uses `fetched_at` freshness gates: daily series are checked at most once per Seoul day when already current, while monthly/quarterly/BIS/OpenFiscal-style indicators are skipped after a successful check in the current Seoul month.
+- USD/KRW daily collection is also guarded by same-day `fetched_at`, so a missing current weekday row does not repeatedly trigger Koreaexim/FRED fallback in the same Seoul day.
+- FRED-backed daily series now request only a recent window after bootstrap instead of re-upserting 3-5 years on each daily check.
+- Twelve Data `5min` returned the 2026-07-08 USD/KRW session only from 11:25 even with explicit `start_date`, while `1min` returned the same session from 09:00. Intraday defaults were changed to `1min`/`5000` so the 1-day chart can store and display the current business session from 09:00.
+- The 1-day chart must show the current display session only. Do not fall back to the previous day just because today's session is partial; fix collection instead.
+- Backend startup now triggers one intraday sync attempt on business days, guarded by the intraday cooldown, so a server started after 09:00 can immediately backfill the current session from Twelve Data instead of waiting for the next cron tick.
+- Verified on local test server `8081`: `POST /api/v1/sync/intraday-exchange` stored 385 real rows for 2026-07-08 from 09:00 to 15:24, and `/api/v1/dashboard/daily` returned baseDate `2026-07-08` with first intraday point `2026-07-08T09:00:00`.
+
 ### 2026-07-02
 
 - Frontend tab structure currently has Dashboard, 국내 현황, Ranking, Newsroom, plus separate service guide and developer info pages.
 - Dashboard charts use Recharts with custom crosshair overlays. Position transitions were removed from crosshair/axis labels so cursor tracking does not lag.
-- USD/KRW 1-day chart must use real Twelve Data intraday rows only. Do not fabricate flat projected points for missing intraday data.
+- USD/KRW 1-day chart must use real Twelve Data intraday rows only. Do not fabricate flat projected points for missing intraday data and do not substitute the previous day's chart for a current business day.
 - Backend loads both `.env` and `backend/.env` from `application.yml`; this matters when running from IntelliJ project root.
 - Domestic status tab is intended to show domestic policy and macro conditions that influence KRW, not just a generic metric dashboard.
 - ECOS-backed domestic policy indicators are stored in `domestic_policy_indicators` via Flyway V5. Current collected indicators include M2, current account, goods account, CPI, PPI, export amount, import amount, calculated trade balance, terms of trade, foreign stock net buying, and foreign bond holdings.

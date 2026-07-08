@@ -27,6 +27,8 @@ import com.example.krwwatcher.external.FredClient;
 import com.example.krwwatcher.external.KoreaeximExchangeClient;
 import com.example.krwwatcher.external.OpenFiscalClient;
 import com.example.krwwatcher.external.TwelveDataClient;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -103,15 +105,6 @@ public class MarketDataSyncService {
         return syncIntradayNow(SyncTrigger.INTRADAY);
     }
 
-    public SyncResult ensureIntradayForDisplay() {
-        if (!shouldRefreshIntradayForDisplay()) {
-            SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), Instant.now());
-            return skipped("SKIPPED_DISPLAY_CURRENT", "Display intraday session is already current", SyncTrigger.INTRADAY, syncWindow);
-        }
-
-        return requestIntradayRefresh();
-    }
-
     public SyncResult requestDailyBackfill() {
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), now);
@@ -136,6 +129,21 @@ public class MarketDataSyncService {
 
     @Scheduled(cron = "${app.sync.market-data.intraday-cron}", zone = "${app.sync.market-data.zone}")
     public void scheduledIntradaySync() {
+        if (!syncProperties.marketData().enabled()) {
+            return;
+        }
+        if (!isBusinessDayNow()) {
+            return;
+        }
+
+        Instant now = Instant.now();
+        if (currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), now).canSync()) {
+            syncIntradayNow(SyncTrigger.SCHEDULED_INTRADAY);
+        }
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void syncIntradayOnStartup() {
         if (!syncProperties.marketData().enabled()) {
             return;
         }
@@ -303,8 +311,17 @@ public class MarketDataSyncService {
     }
 
     private int syncUsdKrw() {
+        LocalDate targetDate = LocalDate.now(SEOUL_ZONE);
+        if (hasRecentDailyUsdKrwFetch(startOfTodayInSeoul())) {
+            return 0;
+        }
+
+        if (isWeekday(targetDate) && hasDailyUsdKrwForDate(targetDate)) {
+            return 0;
+        }
+
         try {
-            return koreaeximExchangeClient.fetchLatestUsdKrw(LocalDate.now())
+            return koreaeximExchangeClient.fetchLatestUsdKrw(targetDate)
                 .map(payload -> jdbcTemplate.update("""
                     INSERT INTO exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, fetched_at)
                     VALUES (?, ?, ?, ?, ?, ?)
@@ -372,7 +389,13 @@ public class MarketDataSyncService {
 
     private int syncUsdKrwFromFred() {
         String seriesId = properties.fred().usdKrwSeriesId();
-        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, LocalDate.now().minusYears(5));
+        LocalDate observationStart = findLatestDailyUsdKrwDate();
+        if (observationStart == null) {
+            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(5);
+        } else {
+            observationStart = observationStart.minusDays(7);
+        }
+        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
                     INSERT INTO exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, fetched_at)
@@ -436,6 +459,44 @@ public class MarketDataSyncService {
         ).stream().findFirst();
     }
 
+    private LocalDate findLatestDollarIndexDate(String seriesId) {
+        return jdbcTemplate.query(
+            """
+                SELECT MAX(base_date)
+                FROM dollar_indexes
+                WHERE series_id = ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            seriesId
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private LocalDate findLatestInterestRateDate(String countryCode, String rateType) {
+        return jdbcTemplate.query(
+            """
+                SELECT MAX(base_date)
+                FROM interest_rates
+                WHERE country_code = ?
+                  AND rate_type = ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            countryCode,
+            rateType
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private LocalDate findLatestDomesticPolicyDate(String indicatorCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT MAX(base_date)
+                FROM domestic_policy_indicators
+                WHERE indicator_code = ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            indicatorCode
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
     private boolean isWeekday(LocalDate date) {
         DayOfWeek dayOfWeek = date.getDayOfWeek();
         return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
@@ -447,7 +508,17 @@ public class MarketDataSyncService {
     }
 
     private int syncDollarIndex(String seriesId, String source) {
-        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, LocalDate.now().minusYears(5));
+        if (hasRecentDollarIndexFetch(seriesId, startOfTodayInSeoul())) {
+            return 0;
+        }
+
+        LocalDate observationStart = findLatestDollarIndexDate(seriesId);
+        if (observationStart == null) {
+            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(5);
+        } else {
+            observationStart = observationStart.minusDays(14);
+        }
+        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
                     INSERT INTO dollar_indexes (base_date, series_id, value, source, fetched_at)
@@ -467,6 +538,10 @@ public class MarketDataSyncService {
     }
 
     private int syncEffectiveExchangeRates() {
+        if (hasRecentTableFetch("effective_exchange_rates", startOfCurrentMonthInSeoul())) {
+            return 0;
+        }
+
         List<BisClient.EffectiveExchangeRatePayload> observations = bisClient.fetchLatestBroadEffectiveExchangeRates();
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
@@ -495,9 +570,37 @@ public class MarketDataSyncService {
         if (!isBusinessDayNow() && needsPreviousBusinessSessionBackfill()) {
             observations = fetchPreviousBusinessSessionFromTwelveData();
         } else {
-            observations = twelveDataClient.fetchUsdKrwIntraday();
+            observations = fetchCurrentBusinessSessionFromTwelveData();
         }
         return upsertIntradayExchangeRates(observations);
+    }
+
+    private List<TwelveDataClient.IntradayExchangePayload> fetchCurrentBusinessSessionFromTwelveData() {
+        LocalDate sessionStartDate = currentBusinessSessionStartDate();
+        LocalDateTime sessionStart = LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START);
+        LocalDateTime sessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END);
+        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+        if (now.isAfter(sessionStart) && now.isBefore(sessionEnd)) {
+            sessionEnd = now;
+        }
+
+        LocalDateTime sessionEndInclusive = sessionEnd;
+        return twelveDataClient.fetchUsdKrwIntradayBetween(sessionStart, sessionEnd).stream()
+            .filter(payload -> !payload.observedAt().isBefore(sessionStart) && !payload.observedAt().isAfter(sessionEndInclusive))
+            .toList();
+    }
+
+    private LocalDate currentBusinessSessionStartDate() {
+        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+        if (now.toLocalTime().isBefore(INTRADAY_SESSION_END)) {
+            return previousBusinessDay(now.toLocalDate());
+        }
+
+        if (now.toLocalTime().isBefore(INTRADAY_SESSION_START)) {
+            return previousBusinessDay(now.toLocalDate());
+        }
+
+        return isWeekday(now.toLocalDate()) ? now.toLocalDate() : previousBusinessDay(now.toLocalDate().plusDays(1));
     }
 
     private List<TwelveDataClient.IntradayExchangePayload> fetchPreviousBusinessSessionFromTwelveData() {
@@ -551,8 +654,18 @@ public class MarketDataSyncService {
     }
 
     private int syncUsPolicyRate() {
+        if (hasRecentInterestRateFetch("US", "POLICY_RATE", startOfTodayInSeoul())) {
+            return 0;
+        }
+
         String seriesId = properties.fred().usPolicyRateSeriesId();
-        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, LocalDate.now().minusYears(1));
+        LocalDate observationStart = findLatestInterestRateDate("US", "POLICY_RATE");
+        if (observationStart == null) {
+            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(1);
+        } else {
+            observationStart = observationStart.minusMonths(3);
+        }
+        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
                     INSERT INTO interest_rates (base_date, country_code, rate_type, rate_value, source, fetched_at)
@@ -573,7 +686,17 @@ public class MarketDataSyncService {
     }
 
     private int syncKoreanPolicyRate() {
-        List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchKoreanPolicyRates(LocalDate.now().minusYears(1), LocalDate.now());
+        if (hasRecentInterestRateFetch("KR", "POLICY_RATE", startOfTodayInSeoul())) {
+            return 0;
+        }
+
+        LocalDate observationStart = findLatestInterestRateDate("KR", "POLICY_RATE");
+        if (observationStart == null) {
+            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(1);
+        } else {
+            observationStart = observationStart.minusMonths(3);
+        }
+        List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchKoreanPolicyRates(observationStart, LocalDate.now(SEOUL_ZONE));
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
                     INSERT INTO interest_rates (base_date, country_code, rate_type, rate_value, source, fetched_at)
@@ -594,6 +717,10 @@ public class MarketDataSyncService {
     }
 
     private int syncForeignReserves() {
+        if (hasRecentTableFetch("foreign_reserves", startOfCurrentMonthInSeoul())) {
+            return 0;
+        }
+
         YearMonth currentMonth = YearMonth.now();
         List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchForeignReserves(currentMonth.minusYears(5), currentMonth);
         return observations.stream()
@@ -631,6 +758,10 @@ public class MarketDataSyncService {
         List<EcosClient.EcosObservationPayload> exportAmounts = List.of();
         List<EcosClient.EcosObservationPayload> importAmounts = List.of();
         for (DomesticPolicySpec spec : specs) {
+            if (hasRecentDomesticPolicyFetch(spec.code(), startOfCurrentMonthInSeoul())) {
+                continue;
+            }
+
             List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchStatisticObservations(
                 spec.statCode(),
                 "M",
@@ -655,44 +786,53 @@ public class MarketDataSyncService {
     }
 
     private int syncForeignCapitalFlowIndicators(YearMonth currentMonth, YearMonth startMonth) {
+        Instant threshold = startOfCurrentMonthInSeoul();
         int rows = 0;
-        rows += ecosClient.fetchStatisticObservations("901Y055", "M", startMonth, currentMonth, "S22CC", "VA").stream()
-            .map(payload -> new EcosClient.EcosObservationPayload(
-                payload.baseDate(),
-                payload.value().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
-            ))
-            .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                "FOREIGN_STOCK_FLOW",
-                "외국인 주식 순매수",
-                "자본 흐름",
-                payload.baseDate(),
-                payload.value(),
-                "KRW_100M",
-                "ECOS:901Y055"
-            ))
-            .sum();
+        if (!hasRecentDomesticPolicyFetch("FOREIGN_STOCK_FLOW", threshold)) {
+            rows += ecosClient.fetchStatisticObservations("901Y055", "M", startMonth, currentMonth, "S22CC", "VA").stream()
+                .map(payload -> new EcosClient.EcosObservationPayload(
+                    payload.baseDate(),
+                    payload.value().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+                ))
+                .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                    "FOREIGN_STOCK_FLOW",
+                    "외국인 주식 순매수",
+                    "자본 흐름",
+                    payload.baseDate(),
+                    payload.value(),
+                    "KRW_100M",
+                    "ECOS:901Y055"
+                ))
+                .sum();
+        }
 
         String startQuarter = toEcosQuarter(startMonth.minusMonths(2));
         String endQuarter = toEcosQuarter(currentMonth);
-        rows += ecosClient.fetchStatisticObservations("282Y006", "Q", startQuarter, endQuarter, "ITOT", "HA02").stream()
-            .map(payload -> new EcosClient.EcosObservationPayload(
-                payload.baseDate(),
-                payload.value().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP)
-            ))
-            .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                "FOREIGN_BOND_FLOW",
-                "외국인 채권 보유잔액",
-                "자본 흐름",
-                payload.baseDate(),
-                payload.value(),
-                "KRW_TRILLION",
-                "ECOS:282Y006"
-            ))
-            .sum();
+        if (!hasRecentDomesticPolicyFetch("FOREIGN_BOND_FLOW", threshold)) {
+            rows += ecosClient.fetchStatisticObservations("282Y006", "Q", startQuarter, endQuarter, "ITOT", "HA02").stream()
+                .map(payload -> new EcosClient.EcosObservationPayload(
+                    payload.baseDate(),
+                    payload.value().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP)
+                ))
+                .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                    "FOREIGN_BOND_FLOW",
+                    "외국인 채권 보유잔액",
+                    "자본 흐름",
+                    payload.baseDate(),
+                    payload.value(),
+                    "KRW_TRILLION",
+                    "ECOS:282Y006"
+                ))
+                .sum();
+        }
         return rows;
     }
 
     private int syncMpcMinutesIndicator() {
+        if (hasRecentDomesticPolicyFetch("MPC_MINUTES", startOfTodayInSeoul())) {
+            return 0;
+        }
+
         return bokPortalClient.fetchLatestMpcMinutesSignal()
             .map(payload -> upsertDomesticPolicyIndicator(
                 "MPC_MINUTES",
@@ -707,30 +847,43 @@ public class MarketDataSyncService {
     }
 
     private int syncOpenFiscalIndicators() {
+        Instant threshold = startOfCurrentMonthInSeoul();
+        boolean hasBudgetBalance = hasRecentDomesticPolicyFetch("FISCAL_BALANCE", threshold);
+        boolean hasGovernmentDebt = hasRecentDomesticPolicyFetch("GOVERNMENT_DEBT", threshold);
+        if (hasBudgetBalance && hasGovernmentDebt) {
+            return 0;
+        }
+
         int startYear = LocalDate.now().minusYears(3).getYear();
         int endYear = LocalDate.now().getYear();
-        return openFiscalClient.fetchBudgetBalances(startYear, endYear).stream()
-            .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                "FISCAL_BALANCE",
-                "재정수지",
-                "재정 정책",
-                payload.baseDate(),
-                payload.value(),
-                "KRW_TRILLION",
-                "OPENFISCAL:BudgetBalance"
-            ))
-            .sum()
-            + openFiscalClient.fetchGovernmentDebtMonths(startYear, endYear).stream()
-            .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                "GOVERNMENT_DEBT",
-                "중앙정부 국가채무",
-                "재정 정책",
-                payload.baseDate(),
-                payload.value(),
-                "KRW_TRILLION",
-                "OPENFISCAL:GovernmentDebtMonth"
-            ))
-            .sum();
+        int rows = 0;
+        if (!hasBudgetBalance) {
+            rows += openFiscalClient.fetchBudgetBalances(startYear, endYear).stream()
+                .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                    "FISCAL_BALANCE",
+                    "재정수지",
+                    "재정 정책",
+                    payload.baseDate(),
+                    payload.value(),
+                    "KRW_TRILLION",
+                    "OPENFISCAL:BudgetBalance"
+                ))
+                .sum();
+        }
+        if (!hasGovernmentDebt) {
+            rows += openFiscalClient.fetchGovernmentDebtMonths(startYear, endYear).stream()
+                .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                    "GOVERNMENT_DEBT",
+                    "중앙정부 국가채무",
+                    "재정 정책",
+                    payload.baseDate(),
+                    payload.value(),
+                    "KRW_TRILLION",
+                    "OPENFISCAL:GovernmentDebtMonth"
+                ))
+                .sum();
+        }
+        return rows;
     }
 
     private int syncFredRiskIndicators() {
@@ -767,7 +920,17 @@ public class MarketDataSyncService {
     }
 
     private int syncFredDomesticPolicyIndicator(String code, String title, String category, String seriesId, String unit, LocalDate startDate) {
-        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, startDate);
+        if (hasRecentDomesticPolicyFetch(code, startOfTodayInSeoul())) {
+            return 0;
+        }
+
+        LocalDate observationStart = findLatestDomesticPolicyDate(code);
+        if (observationStart == null) {
+            observationStart = startDate;
+        } else {
+            observationStart = observationStart.minusDays(14);
+        }
+        List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
         return observations.stream()
             .mapToInt(payload -> upsertDomesticPolicyIndicator(
                 code,
@@ -873,23 +1036,6 @@ public class MarketDataSyncService {
         return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
     }
 
-    private boolean shouldRefreshIntradayForDisplay() {
-        LocalDate targetSessionStartDate = currentDisplaySessionStartDate();
-        LocalDateTime latestForTargetSession = findLatestIntradayObservedAt(targetSessionStartDate);
-        if (latestForTargetSession == null) {
-            return true;
-        }
-
-        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
-        LocalDateTime targetSessionEnd = LocalDateTime.of(targetSessionStartDate.plusDays(1), INTRADAY_SESSION_END).minusMinutes(5);
-        if (!now.isBefore(targetSessionEnd)) {
-            return isSessionIncomplete(targetSessionStartDate, latestForTargetSession);
-        }
-
-        return targetSessionStartDate.isEqual(currentTradingSessionStartDate(now))
-            && latestForTargetSession.isBefore(now.minusMinutes(10));
-    }
-
     private boolean needsPreviousBusinessSessionBackfill() {
         LocalDate targetSessionStartDate = previousBusinessDay(LocalDate.now(SEOUL_ZONE));
         LocalDateTime latestObservedAt = findLatestIntradayObservedAt(targetSessionStartDate);
@@ -903,32 +1049,6 @@ public class MarketDataSyncService {
     private boolean isSessionIncomplete(LocalDate sessionStartDate, LocalDateTime latestObservedAt) {
         LocalDateTime expectedSessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END).minusMinutes(5);
         return latestObservedAt.isBefore(expectedSessionEnd);
-    }
-
-    private LocalDate currentDisplaySessionStartDate() {
-        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
-        LocalDate sessionStartDate;
-        if (now.toLocalTime().isBefore(INTRADAY_SESSION_END)) {
-            sessionStartDate = now.toLocalDate().minusDays(1);
-        } else if (now.toLocalTime().isBefore(INTRADAY_SESSION_START)) {
-            sessionStartDate = previousBusinessDay(now.toLocalDate());
-        } else {
-            sessionStartDate = now.toLocalDate();
-        }
-
-        return isWeekday(sessionStartDate) ? sessionStartDate : previousBusinessDay(sessionStartDate.plusDays(1));
-    }
-
-    private LocalDate currentTradingSessionStartDate(LocalDateTime now) {
-        if (now.toLocalTime().isBefore(INTRADAY_SESSION_END)) {
-            return now.toLocalDate().minusDays(1);
-        }
-
-        if (now.toLocalTime().isBefore(INTRADAY_SESSION_START)) {
-            return null;
-        }
-
-        return isWeekday(now.toLocalDate()) ? now.toLocalDate() : null;
     }
 
     private LocalDateTime findLatestIntradayObservedAt() {
@@ -1003,6 +1123,96 @@ public class MarketDataSyncService {
             ),
             jobName
         ).stream().findFirst().orElse(null);
+    }
+
+    private Instant startOfTodayInSeoul() {
+        return LocalDate.now(SEOUL_ZONE).atStartOfDay(SEOUL_ZONE).toInstant();
+    }
+
+    private Instant startOfCurrentMonthInSeoul() {
+        return YearMonth.now(SEOUL_ZONE).atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
+    }
+
+    private boolean hasDailyUsdKrwForDate(LocalDate baseDate) {
+        Integer count = jdbcTemplate.queryForObject(
+            """
+                SELECT COUNT(*)
+                FROM exchange_rates
+                WHERE currency_code = ?
+                  AND base_date = ?
+                """,
+            Integer.class,
+            "USD",
+            baseDate
+        );
+        return count != null && count > 0;
+    }
+
+    private boolean hasRecentDailyUsdKrwFetch(Instant threshold) {
+        return hasRecentFetch(
+            """
+                SELECT COUNT(*)
+                FROM exchange_rates
+                WHERE currency_code = ?
+                  AND fetched_at >= ?
+                """,
+            "USD",
+            threshold
+        );
+    }
+
+    private boolean hasRecentDollarIndexFetch(String seriesId, Instant threshold) {
+        return hasRecentFetch(
+            """
+                SELECT COUNT(*)
+                FROM dollar_indexes
+                WHERE series_id = ?
+                  AND fetched_at >= ?
+                """,
+            seriesId,
+            threshold
+        );
+    }
+
+    private boolean hasRecentInterestRateFetch(String countryCode, String rateType, Instant threshold) {
+        return hasRecentFetch(
+            """
+                SELECT COUNT(*)
+                FROM interest_rates
+                WHERE country_code = ?
+                  AND rate_type = ?
+                  AND fetched_at >= ?
+                """,
+            countryCode,
+            rateType,
+            threshold
+        );
+    }
+
+    private boolean hasRecentDomesticPolicyFetch(String indicatorCode, Instant threshold) {
+        return hasRecentFetch(
+            """
+                SELECT COUNT(*)
+                FROM domestic_policy_indicators
+                WHERE indicator_code = ?
+                  AND fetched_at >= ?
+                """,
+            indicatorCode,
+            threshold
+        );
+    }
+
+    private boolean hasRecentTableFetch(String tableName, Instant threshold) {
+        if (!Set.of("effective_exchange_rates", "foreign_reserves").contains(tableName)) {
+            throw new IllegalArgumentException("Unsupported freshness table: " + tableName);
+        }
+
+        return hasRecentFetch("SELECT COUNT(*) FROM " + tableName + " WHERE fetched_at >= ?", threshold);
+    }
+
+    private boolean hasRecentFetch(String sql, Object... params) {
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, params);
+        return count != null && count > 0;
     }
 
     private static class SyncCounter {

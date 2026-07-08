@@ -38,7 +38,6 @@ public class DashboardService {
     private final DollarIndexRepository dollarIndexRepository;
     private final InterestRateRepository interestRateRepository;
     private final ForeignReserveRepository foreignReserveRepository;
-    private final MarketDataSyncService marketDataSyncService;
     private final JdbcTemplate jdbcTemplate;
 
     public DashboardService(
@@ -47,7 +46,6 @@ public class DashboardService {
         DollarIndexRepository dollarIndexRepository,
         InterestRateRepository interestRateRepository,
         ForeignReserveRepository foreignReserveRepository,
-        MarketDataSyncService marketDataSyncService,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -55,13 +53,10 @@ public class DashboardService {
         this.dollarIndexRepository = dollarIndexRepository;
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
-        this.marketDataSyncService = marketDataSyncService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
     public DailyDashboardResponse daily() {
-        marketDataSyncService.ensureIntradayForDisplay();
-
         DollarIndex latestDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().dollarIndexSeriesId()).orElse(null);
         DollarIndex latestAdvancedDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().advancedDollarIndexSeriesId()).orElse(null);
         InterestRate latestUsRate = interestRateRepository.findTopByCountryCodeAndRateTypeOrderByBaseDateDesc("US", "POLICY_RATE").orElse(null);
@@ -162,10 +157,10 @@ public class DashboardService {
             latestIntraday == null ? latestUsdKrw == null ? null : latestUsdKrw.baseDate() : latestIntraday.observedAt().toLocalDate(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getDealBasRate(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getBaseDate(),
-            latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 5min",
+            latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min",
             latestIntraday == null && latestUsdKrwDaily != null ? latestUsdKrwDaily.getFetchedAt() : null,
             "환율 상승은 같은 1달러를 사기 위해 더 많은 원화가 필요하다는 뜻이어서 원화 약세 압력으로 봅니다.",
-            "Twelve Data 5분봉과 일별 저장 환율을 함께 사용합니다.",
+            "Twelve Data 1분봉과 일별 저장 환율을 함께 사용합니다.",
             statusLabel(latestUsdKrw == null ? null : latestUsdKrw.value())
         ));
         indicators.add(new DomesticIndicator(
@@ -475,59 +470,24 @@ public class DashboardService {
 
     private List<IntradayTimeSeriesPoint> findLatestIntradaySeries() {
         LocalDate currentDisplaySessionStartDate = currentDisplaySessionStartDate();
-        LocalDateTime latestObservedAt = findLatestIntradayObservedAt(null);
-        while (latestObservedAt != null) {
-            LocalDate sessionStartDate = latestObservedAt.toLocalTime().isBefore(INTRADAY_SESSION_START)
-                ? latestObservedAt.toLocalDate().minusDays(1)
-                : latestObservedAt.toLocalDate();
-            if (isWeekday(sessionStartDate)) {
-                LocalDateTime sessionStart = LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START);
-                LocalDateTime sessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END);
-                List<IntradayTimeSeriesPoint> sessionSeries = jdbcTemplate.query(
-                    """
-                        SELECT observed_at, close_rate
-                        FROM intraday_exchange_rates
-                        WHERE currency_pair = ?
-                          AND observed_at BETWEEN ? AND ?
-                        ORDER BY observed_at ASC
-                        """,
-                    (rs, rowNum) -> new IntradayTimeSeriesPoint(
-                        rs.getTimestamp("observed_at").toLocalDateTime(),
-                        rs.getBigDecimal("close_rate")
-                    ),
-                    properties.twelveData().usdKrwSymbol(),
-                    sessionStart,
-                    sessionEnd
-                );
-                if (isDisplayableIntradaySession(sessionStartDate, currentDisplaySessionStartDate, sessionSeries)) {
-                    return sessionSeries;
-                }
-            }
-
-            latestObservedAt = findLatestIntradayObservedAt(LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START));
-        }
-        return List.of();
-    }
-
-    private boolean isDisplayableIntradaySession(
-        LocalDate sessionStartDate,
-        LocalDate currentDisplaySessionStartDate,
-        List<IntradayTimeSeriesPoint> sessionSeries
-    ) {
-        if (sessionSeries.isEmpty()) {
-            return false;
-        }
-
-        long distinctCloseRates = sessionSeries.stream()
-            .map(IntradayTimeSeriesPoint::value)
-            .distinct()
-            .limit(2)
-            .count();
-        if (distinctCloseRates > 1) {
-            return true;
-        }
-
-        return sessionStartDate.isEqual(currentDisplaySessionStartDate) && sessionSeries.size() < 3;
+        LocalDateTime sessionStart = LocalDateTime.of(currentDisplaySessionStartDate, INTRADAY_SESSION_START);
+        LocalDateTime sessionEnd = LocalDateTime.of(currentDisplaySessionStartDate.plusDays(1), INTRADAY_SESSION_END);
+        return jdbcTemplate.query(
+            """
+                SELECT observed_at, close_rate
+                FROM intraday_exchange_rates
+                WHERE currency_pair = ?
+                  AND observed_at BETWEEN ? AND ?
+                ORDER BY observed_at ASC
+                """,
+            (rs, rowNum) -> new IntradayTimeSeriesPoint(
+                rs.getTimestamp("observed_at").toLocalDateTime(),
+                rs.getBigDecimal("close_rate")
+            ),
+            properties.twelveData().usdKrwSymbol(),
+            sessionStart,
+            sessionEnd
+        );
     }
 
     private LocalDate currentDisplaySessionStartDate() {
@@ -550,32 +510,6 @@ public class DashboardService {
             candidate = candidate.minusDays(1);
         }
         return candidate;
-    }
-
-    private LocalDateTime findLatestIntradayObservedAt(LocalDateTime beforeExclusive) {
-        if (beforeExclusive == null) {
-            return jdbcTemplate.query(
-                """
-                    SELECT MAX(observed_at)
-                    FROM intraday_exchange_rates
-                    WHERE currency_pair = ?
-                    """,
-                (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
-                properties.twelveData().usdKrwSymbol()
-            ).stream().filter(Objects::nonNull).findFirst().orElse(null);
-        }
-
-        return jdbcTemplate.query(
-            """
-                SELECT MAX(observed_at)
-                FROM intraday_exchange_rates
-                WHERE currency_pair = ?
-                  AND observed_at < ?
-                """,
-            (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
-            properties.twelveData().usdKrwSymbol(),
-            beforeExclusive
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     private MetricSnapshot metric(String code, String label, BigDecimal value, String unit) {
@@ -671,9 +605,9 @@ public class DashboardService {
             new DataSourceInfo(
                 "USD_KRW",
                 "USD/KRW 추이",
-                "Twelve Data time_series USD/KRW 5min, 한국수출입은행 현재환율 API, FRED DEXKOUS fallback",
+                "Twelve Data time_series USD/KRW 1min, 한국수출입은행 현재환율 API, FRED DEXKOUS fallback",
                 "1일 세션은 별도 intraday 수집, 전체 수집은 평일 09:10/15:10",
-                "Twelve Data는 API 제한 보호를 위해 1일 5분봉에만 사용하고, 긴 기간은 Koreaexim/FRED 일별 저장값을 사용합니다."
+                "Twelve Data는 API 제한 보호를 위해 1일 1분봉에만 사용하고, 긴 기간은 Koreaexim/FRED 일별 저장값을 사용합니다."
             ),
             new DataSourceInfo(
                 "ADVANCED_DOLLAR_INDEX",
