@@ -485,10 +485,36 @@ public class MarketDataSyncService {
         ).stream().filter(Objects::nonNull).findFirst().orElse(null);
     }
 
+    private LocalDate findEarliestInterestRateDate(String countryCode, String rateType) {
+        return jdbcTemplate.query(
+            """
+                SELECT MIN(base_date)
+                FROM interest_rates
+                WHERE country_code = ?
+                  AND rate_type = ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            countryCode,
+            rateType
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
     private LocalDate findLatestDomesticPolicyDate(String indicatorCode) {
         return jdbcTemplate.query(
             """
                 SELECT MAX(base_date)
+                FROM domestic_policy_indicators
+                WHERE indicator_code = ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            indicatorCode
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private LocalDate findEarliestDomesticPolicyDate(String indicatorCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT MIN(base_date)
                 FROM domestic_policy_indicators
                 WHERE indicator_code = ?
                 """,
@@ -654,14 +680,16 @@ public class MarketDataSyncService {
     }
 
     private int syncUsPolicyRate() {
-        if (hasRecentInterestRateFetch("US", "POLICY_RATE", startOfTodayInSeoul())) {
+        LocalDate historyStartDate = LocalDate.now(SEOUL_ZONE).minusYears(5);
+        if (hasRecentInterestRateFetch("US", "POLICY_RATE", startOfTodayInSeoul())
+            && hasInterestRateCoverage("US", "POLICY_RATE", historyStartDate)) {
             return 0;
         }
 
         String seriesId = properties.fred().usPolicyRateSeriesId();
         LocalDate observationStart = findLatestInterestRateDate("US", "POLICY_RATE");
-        if (observationStart == null) {
-            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(1);
+        if (observationStart == null || !hasInterestRateCoverage("US", "POLICY_RATE", historyStartDate)) {
+            observationStart = historyStartDate;
         } else {
             observationStart = observationStart.minusMonths(3);
         }
@@ -686,13 +714,15 @@ public class MarketDataSyncService {
     }
 
     private int syncKoreanPolicyRate() {
-        if (hasRecentInterestRateFetch("KR", "POLICY_RATE", startOfTodayInSeoul())) {
+        LocalDate historyStartDate = LocalDate.now(SEOUL_ZONE).minusYears(5);
+        if (hasRecentInterestRateFetch("KR", "POLICY_RATE", startOfTodayInSeoul())
+            && hasInterestRateCoverage("KR", "POLICY_RATE", historyStartDate)) {
             return 0;
         }
 
         LocalDate observationStart = findLatestInterestRateDate("KR", "POLICY_RATE");
-        if (observationStart == null) {
-            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(1);
+        if (observationStart == null || !hasInterestRateCoverage("KR", "POLICY_RATE", historyStartDate)) {
+            observationStart = historyStartDate;
         } else {
             observationStart = observationStart.minusMonths(3);
         }
@@ -742,7 +772,7 @@ public class MarketDataSyncService {
 
     private int syncDomesticPolicyIndicators() {
         YearMonth currentMonth = YearMonth.now();
-        YearMonth startMonth = currentMonth.minusYears(3);
+        YearMonth startMonth = currentMonth.minusYears(5);
         List<DomesticPolicySpec> specs = List.of(
             new DomesticPolicySpec("M2", "M2 통화량", "통화 정책", "161Y005", "BBHS00", "KRW_100M", "ECOS:161Y005"),
             new DomesticPolicySpec("CURRENT_ACCOUNT", "경상수지", "대외 수지", "301Y017", "SA000", "USD_MILLION", "ECOS:301Y017"),
@@ -758,7 +788,8 @@ public class MarketDataSyncService {
         List<EcosClient.EcosObservationPayload> exportAmounts = List.of();
         List<EcosClient.EcosObservationPayload> importAmounts = List.of();
         for (DomesticPolicySpec spec : specs) {
-            if (hasRecentDomesticPolicyFetch(spec.code(), startOfCurrentMonthInSeoul())) {
+            if (hasRecentDomesticPolicyFetch(spec.code(), startOfCurrentMonthInSeoul())
+                && hasDomesticPolicyCoverage(spec.code(), startMonth.atDay(1))) {
                 continue;
             }
 
@@ -778,6 +809,7 @@ public class MarketDataSyncService {
         }
 
         rows += upsertTradeBalance(exportAmounts, importAmounts);
+        rows += syncExternalDefenseIndicators(currentMonth, startMonth);
         rows += syncFredRiskIndicators();
         rows += syncOpenFiscalIndicators();
         rows += syncForeignCapitalFlowIndicators(currentMonth, startMonth);
@@ -785,10 +817,83 @@ public class MarketDataSyncService {
         return rows;
     }
 
+    private int syncExternalDefenseIndicators(YearMonth currentMonth, YearMonth startMonth) {
+        Instant threshold = startOfCurrentMonthInSeoul();
+        LocalDate historyStartDate = startMonth.atDay(1);
+        boolean hasShortTermDebt = hasRecentDomesticPolicyFetch("SHORT_TERM_EXTERNAL_DEBT", threshold)
+            && hasDomesticPolicyCoverage("SHORT_TERM_EXTERNAL_DEBT", historyStartDate);
+        boolean hasCoverageRatio = hasRecentDomesticPolicyFetch("RESERVES_TO_SHORT_TERM_DEBT", threshold)
+            && hasDomesticPolicyCoverage("RESERVES_TO_SHORT_TERM_DEBT", historyStartDate);
+        if (hasShortTermDebt && hasCoverageRatio) {
+            return 0;
+        }
+
+        String startQuarter = toEcosQuarter(startMonth.minusMonths(2));
+        String endQuarter = toEcosQuarter(currentMonth);
+        List<EcosClient.EcosObservationPayload> shortTermDebts = ecosClient.fetchStatisticObservations(
+            "311Y004",
+            "Q",
+            startQuarter,
+            endQuarter,
+            "A500000"
+        );
+        List<EcosClient.EcosObservationPayload> reserveTotals = ecosClient.fetchStatisticObservations(
+            "732Y001",
+            "Q",
+            startQuarter,
+            endQuarter,
+            "99"
+        ).stream()
+            .map(payload -> new EcosClient.EcosObservationPayload(
+                payload.baseDate(),
+                payload.value().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP)
+            ))
+            .toList();
+
+        int rows = 0;
+        if (!hasShortTermDebt) {
+            rows += shortTermDebts.stream()
+                .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                    "SHORT_TERM_EXTERNAL_DEBT",
+                    "단기대외채무",
+                    "외환 방어력",
+                    payload.baseDate(),
+                    payload.value(),
+                    "USD_MILLION",
+                    "ECOS:311Y004"
+                ))
+                .sum();
+        }
+
+        if (!hasCoverageRatio) {
+            for (EcosClient.EcosObservationPayload shortTermDebt : shortTermDebts) {
+                if (shortTermDebt.value().compareTo(BigDecimal.ZERO) == 0) {
+                    continue;
+                }
+                rows += reserveTotals.stream()
+                    .filter(reserve -> reserve.baseDate().equals(shortTermDebt.baseDate()))
+                    .findFirst()
+                    .map(reserve -> upsertDomesticPolicyIndicator(
+                            "RESERVES_TO_SHORT_TERM_DEBT",
+                            "단기외채 대비 외환보유액",
+                            "외환 방어력",
+                            shortTermDebt.baseDate(),
+                            reserve.value().multiply(new BigDecimal("100")).divide(shortTermDebt.value(), 4, RoundingMode.HALF_UP),
+                            "PERCENT",
+                            "ECOS:732Y001/311Y004"
+                        )
+                    )
+                    .orElse(0);
+            }
+        }
+        return rows;
+    }
+
     private int syncForeignCapitalFlowIndicators(YearMonth currentMonth, YearMonth startMonth) {
         Instant threshold = startOfCurrentMonthInSeoul();
         int rows = 0;
-        if (!hasRecentDomesticPolicyFetch("FOREIGN_STOCK_FLOW", threshold)) {
+        if (!hasRecentDomesticPolicyFetch("FOREIGN_STOCK_FLOW", threshold)
+            || !hasDomesticPolicyCoverage("FOREIGN_STOCK_FLOW", startMonth.atDay(1))) {
             rows += ecosClient.fetchStatisticObservations("901Y055", "M", startMonth, currentMonth, "S22CC", "VA").stream()
                 .map(payload -> new EcosClient.EcosObservationPayload(
                     payload.baseDate(),
@@ -808,7 +913,8 @@ public class MarketDataSyncService {
 
         String startQuarter = toEcosQuarter(startMonth.minusMonths(2));
         String endQuarter = toEcosQuarter(currentMonth);
-        if (!hasRecentDomesticPolicyFetch("FOREIGN_BOND_FLOW", threshold)) {
+        if (!hasRecentDomesticPolicyFetch("FOREIGN_BOND_FLOW", threshold)
+            || !hasDomesticPolicyCoverage("FOREIGN_BOND_FLOW", startMonth.atDay(1))) {
             rows += ecosClient.fetchStatisticObservations("282Y006", "Q", startQuarter, endQuarter, "ITOT", "HA02").stream()
                 .map(payload -> new EcosClient.EcosObservationPayload(
                     payload.baseDate(),
@@ -848,13 +954,16 @@ public class MarketDataSyncService {
 
     private int syncOpenFiscalIndicators() {
         Instant threshold = startOfCurrentMonthInSeoul();
-        boolean hasBudgetBalance = hasRecentDomesticPolicyFetch("FISCAL_BALANCE", threshold);
-        boolean hasGovernmentDebt = hasRecentDomesticPolicyFetch("GOVERNMENT_DEBT", threshold);
+        LocalDate historyStartDate = LocalDate.now().minusYears(5).withDayOfMonth(1);
+        boolean hasBudgetBalance = hasRecentDomesticPolicyFetch("FISCAL_BALANCE", threshold)
+            && hasDomesticPolicyCoverage("FISCAL_BALANCE", historyStartDate);
+        boolean hasGovernmentDebt = hasRecentDomesticPolicyFetch("GOVERNMENT_DEBT", threshold)
+            && hasDomesticPolicyCoverage("GOVERNMENT_DEBT", historyStartDate);
         if (hasBudgetBalance && hasGovernmentDebt) {
             return 0;
         }
 
-        int startYear = LocalDate.now().minusYears(3).getYear();
+        int startYear = LocalDate.now().minusYears(5).getYear();
         int endYear = LocalDate.now().getYear();
         int rows = 0;
         if (!hasBudgetBalance) {
@@ -887,7 +996,7 @@ public class MarketDataSyncService {
     }
 
     private int syncFredRiskIndicators() {
-        LocalDate startDate = LocalDate.now().minusYears(3);
+        LocalDate startDate = LocalDate.now().minusYears(5);
         return syncFredDomesticPolicyIndicator(
             "US_10Y_TREASURY",
             "미국 10년 국채금리",
@@ -920,12 +1029,13 @@ public class MarketDataSyncService {
     }
 
     private int syncFredDomesticPolicyIndicator(String code, String title, String category, String seriesId, String unit, LocalDate startDate) {
-        if (hasRecentDomesticPolicyFetch(code, startOfTodayInSeoul())) {
+        if (hasRecentDomesticPolicyFetch(code, startOfTodayInSeoul())
+            && hasDomesticPolicyCoverage(code, startDate)) {
             return 0;
         }
 
         LocalDate observationStart = findLatestDomesticPolicyDate(code);
-        if (observationStart == null) {
+        if (observationStart == null || !hasDomesticPolicyCoverage(code, startDate)) {
             observationStart = startDate;
         } else {
             observationStart = observationStart.minusDays(14);
@@ -1189,6 +1299,11 @@ public class MarketDataSyncService {
         );
     }
 
+    private boolean hasInterestRateCoverage(String countryCode, String rateType, LocalDate targetStartDate) {
+        LocalDate earliestDate = findEarliestInterestRateDate(countryCode, rateType);
+        return earliestDate != null && !earliestDate.isAfter(targetStartDate.plusDays(45));
+    }
+
     private boolean hasRecentDomesticPolicyFetch(String indicatorCode, Instant threshold) {
         return hasRecentFetch(
             """
@@ -1200,6 +1315,11 @@ public class MarketDataSyncService {
             indicatorCode,
             threshold
         );
+    }
+
+    private boolean hasDomesticPolicyCoverage(String indicatorCode, LocalDate targetStartDate) {
+        LocalDate earliestDate = findEarliestDomesticPolicyDate(indicatorCode);
+        return earliestDate != null && !earliestDate.isAfter(targetStartDate.plusDays(45));
     }
 
     private boolean hasRecentTableFetch(String tableName, Instant threshold) {
