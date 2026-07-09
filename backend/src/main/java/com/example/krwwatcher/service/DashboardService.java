@@ -19,6 +19,7 @@ import com.example.krwwatcher.domain.DollarIndex;
 import com.example.krwwatcher.domain.ExchangeRate;
 import com.example.krwwatcher.domain.ForeignReserve;
 import com.example.krwwatcher.domain.InterestRate;
+import com.example.krwwatcher.service.IndicatorStatusAnalysisService.IndicatorStatus;
 import com.example.krwwatcher.repository.DollarIndexRepository;
 import com.example.krwwatcher.repository.ExchangeRateRepository;
 import com.example.krwwatcher.repository.ForeignReserveRepository;
@@ -38,6 +39,7 @@ public class DashboardService {
     private final DollarIndexRepository dollarIndexRepository;
     private final InterestRateRepository interestRateRepository;
     private final ForeignReserveRepository foreignReserveRepository;
+    private final IndicatorStatusAnalysisService indicatorStatusAnalysisService;
     private final JdbcTemplate jdbcTemplate;
 
     public DashboardService(
@@ -46,6 +48,7 @@ public class DashboardService {
         DollarIndexRepository dollarIndexRepository,
         InterestRateRepository interestRateRepository,
         ForeignReserveRepository foreignReserveRepository,
+        IndicatorStatusAnalysisService indicatorStatusAnalysisService,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -53,6 +56,7 @@ public class DashboardService {
         this.dollarIndexRepository = dollarIndexRepository;
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
+        this.indicatorStatusAnalysisService = indicatorStatusAnalysisService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -147,6 +151,13 @@ public class DashboardService {
             ? null
             : previousUsRate.getBaseDate().isAfter(previousKrRate.getBaseDate()) ? previousKrRate.getBaseDate() : previousUsRate.getBaseDate();
 
+        IndicatorStatus usdKrwStatus = statusAnalysis("USD_KRW", latestUsdKrw == null ? null : latestUsdKrw.value(), latestUsdKrw == null ? null : latestUsdKrw.baseDate());
+        IndicatorStatus krPolicyRateStatus = statusAnalysis("KR_POLICY_RATE", latestKrRate == null ? null : latestKrRate.getRateValue(), latestKrRate == null ? null : latestKrRate.getBaseDate());
+        IndicatorStatus usPolicyRateStatus = statusAnalysis("US_POLICY_RATE", latestUsRate == null ? null : latestUsRate.getRateValue(), latestUsRate == null ? null : latestUsRate.getBaseDate());
+        IndicatorStatus rateGapStatus = statusAnalysis("KR_US_RATE_GAP", rateGap, rateGapBaseDate);
+        IndicatorStatus foreignReserveStatus = statusAnalysis("FOREIGN_RESERVES", latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion(), latestForeignReserve == null ? null : latestForeignReserve.getBaseDate());
+        IndicatorStatus krNeerRankStatus = statusAnalysis("KR_NEER_RANK", krRank == null ? null : BigDecimal.valueOf(krRank.neerRank()), krRank == null ? null : krRank.baseDate());
+
         List<DomesticIndicator> indicators = new ArrayList<>();
         indicators.add(new DomesticIndicator(
             "USD_KRW",
@@ -161,7 +172,8 @@ public class DashboardService {
             latestIntraday == null && latestUsdKrwDaily != null ? latestUsdKrwDaily.getFetchedAt() : null,
             "환율 상승은 같은 1달러를 사기 위해 더 많은 원화가 필요하다는 뜻이어서 원화 약세 압력으로 봅니다.",
             "Twelve Data 1분봉과 일별 저장 환율을 함께 사용합니다.",
-            statusLabel(latestUsdKrw == null ? null : latestUsdKrw.value())
+            usdKrwStatus.status(),
+            usdKrwStatus.statusReason()
         ));
         indicators.add(new DomesticIndicator(
             "KR_POLICY_RATE",
@@ -176,7 +188,8 @@ public class DashboardService {
             latestKrRate == null ? null : latestKrRate.getFetchedAt(),
             "한국 금리가 상대적으로 높아지면 원화 보유 유인이 커질 수 있지만, 성장 둔화 우려와 함께 봐야 합니다.",
             "한국은행 ECOS에서 발표된 기준금리 저장값입니다.",
-            statusLabel(latestKrRate == null ? null : latestKrRate.getRateValue())
+            krPolicyRateStatus.status(),
+            krPolicyRateStatus.statusReason()
         ));
         indicators.add(new DomesticIndicator(
             "US_POLICY_RATE",
@@ -191,7 +204,8 @@ public class DashboardService {
             latestUsRate == null ? null : latestUsRate.getFetchedAt(),
             "미국 금리가 높거나 인하 기대가 약하면 달러 선호가 강해져 원화에는 부담이 될 수 있습니다.",
             "FRED의 미국 정책금리 계열을 저장합니다.",
-            statusLabel(latestUsRate == null ? null : latestUsRate.getRateValue())
+            usPolicyRateStatus.status(),
+            usPolicyRateStatus.statusReason()
         ));
         indicators.add(new DomesticIndicator(
             "KR_US_RATE_GAP",
@@ -206,7 +220,8 @@ public class DashboardService {
             latestUsRate == null ? null : latestUsRate.getFetchedAt(),
             "값이 플러스면 미국 기준금리가 한국보다 높다는 뜻입니다. 격차 확대는 원화 약세 요인으로 해석될 수 있습니다.",
             "미국 기준금리에서 한국 기준금리를 뺀 값입니다.",
-            statusLabel(rateGap)
+            rateGapStatus.status(),
+            rateGapStatus.statusReason()
         ));
         indicators.add(new DomesticIndicator(
             "FOREIGN_RESERVES",
@@ -221,7 +236,8 @@ public class DashboardService {
             latestForeignReserve == null ? null : latestForeignReserve.getFetchedAt(),
             "외환보유액은 급격한 외환시장 변동에 대응할 수 있는 완충 여력으로 봅니다.",
             "한국은행 ECOS 외환보유액 월별 발표값입니다.",
-            statusLabel(latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion())
+            foreignReserveStatus.status(),
+            foreignReserveStatus.statusReason()
         ));
         indicators.add(new DomesticIndicator(
             "KR_NEER_RANK",
@@ -236,7 +252,8 @@ public class DashboardService {
             null,
             "이 순위는 NEER 값이 낮은 통화부터 매긴 저평가 순위입니다. 1위에 가까울수록 주요 교역상대국 대비 통화가치가 낮은 편입니다.",
             krRank == null ? "BIS 명목실효환율 최신값이 아직 저장되지 않았습니다." : "BIS broad NEER 기준 " + krRank.totalCount() + "개국 중 원화 저평가 순위입니다.",
-            statusLabel(krRank == null ? null : krRank.neerValue())
+            krNeerRankStatus.status(),
+            krNeerRankStatus.statusReason()
         ));
 
         indicators.addAll(domesticPolicyIndicators());
@@ -277,6 +294,7 @@ public class DashboardService {
         }
 
         DomesticPolicyIndicatorRow previous = findPreviousDomesticPolicyIndicator(code, latest.baseDate());
+        IndicatorStatus status = statusAnalysis(latest.code(), latest.value(), latest.baseDate());
         return new DomesticIndicator(
             latest.code(),
             latest.title(),
@@ -290,7 +308,8 @@ public class DashboardService {
             latest.fetchedAt(),
             domesticPolicyImpact(latest.code()),
             domesticPolicyNote(latest.code()),
-            statusLabel(latest.value())
+            status.status(),
+            status.statusReason()
         );
     }
 
@@ -340,7 +359,8 @@ public class DashboardService {
             null,
             krwImpact,
             note,
-            "연동 필요"
+            "NO_DATA",
+            "외부 API 키 또는 원천 데이터가 아직 없어 상태를 분석하지 못했습니다."
         );
     }
 
@@ -516,8 +536,8 @@ public class DashboardService {
         return new MetricSnapshot(code, label, value, unit, null);
     }
 
-    private String statusLabel(BigDecimal value) {
-        return value == null ? "데이터 없음" : "정상 수집";
+    private IndicatorStatus statusAnalysis(String code, BigDecimal value, LocalDate baseDate) {
+        return indicatorStatusAnalysisService.evaluate(code, value, baseDate);
     }
 
     private List<CurrencyStrengthRank> findCurrencyStrengthRanks() {
@@ -729,7 +749,8 @@ public class DashboardService {
         Instant fetchedAt,
         String krwImpact,
         String note,
-        String status
+        String status,
+        String statusReason
     ) {
     }
 

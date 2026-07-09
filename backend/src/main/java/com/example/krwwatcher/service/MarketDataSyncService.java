@@ -53,6 +53,7 @@ public class MarketDataSyncService {
     private final BisClient bisClient;
     private final OpenFiscalClient openFiscalClient;
     private final BokPortalClient bokPortalClient;
+    private final IndicatorStatusAnalysisService indicatorStatusAnalysisService;
     private final JdbcTemplate jdbcTemplate;
     private final ReentrantLock syncLock = new ReentrantLock();
     private final ReentrantLock intradaySyncLock = new ReentrantLock();
@@ -68,6 +69,7 @@ public class MarketDataSyncService {
         BisClient bisClient,
         OpenFiscalClient openFiscalClient,
         BokPortalClient bokPortalClient,
+        IndicatorStatusAnalysisService indicatorStatusAnalysisService,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -79,6 +81,7 @@ public class MarketDataSyncService {
         this.bisClient = bisClient;
         this.openFiscalClient = openFiscalClient;
         this.bokPortalClient = bokPortalClient;
+        this.indicatorStatusAnalysisService = indicatorStatusAnalysisService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -262,9 +265,10 @@ public class MarketDataSyncService {
         int krRateRows = runSource("krRate", counter, this::syncKoreanPolicyRate);
         int foreignReserveRows = runSource("foreignReserve", counter, this::syncForeignReserves);
         int domesticPolicyRows = runSource("domesticPolicy", counter, this::syncDomesticPolicyIndicators);
+        int indicatorStatusRows = runSource("indicatorStatus", counter, indicatorStatusAnalysisService::refreshAll);
 
         String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
-        String message = "exchange=" + exchangeRows + ", dailyBackfill=" + dailyBackfillRows + ", intradayExchange=" + intradayExchangeRows + ", dollarIndex=" + dollarIndexRows + ", currencyStrength=" + currencyStrengthRows + ", usRate=" + usRateRows + ", krRate=" + krRateRows + ", foreignReserve=" + foreignReserveRows + ", domesticPolicy=" + domesticPolicyRows + counter.message;
+        String message = "exchange=" + exchangeRows + ", dailyBackfill=" + dailyBackfillRows + ", intradayExchange=" + intradayExchangeRows + ", dollarIndex=" + dollarIndexRows + ", currencyStrength=" + currencyStrengthRows + ", usRate=" + usRateRows + ", krRate=" + krRateRows + ", foreignReserve=" + foreignReserveRows + ", domesticPolicy=" + domesticPolicyRows + ", indicatorStatus=" + indicatorStatusRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now());
         return new SyncResult(exchangeRows + dailyBackfillRows, intradayExchangeRows, dollarIndexRows, currencyStrengthRows, usRateRows, krRateRows, foreignReserveRows, domesticPolicyRows, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
@@ -661,7 +665,7 @@ public class MarketDataSyncService {
         String seriesId = properties.fred().usPolicyRateSeriesId();
         LocalDate observationStart = findLatestInterestRateDate("US", "POLICY_RATE");
         if (observationStart == null) {
-            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(1);
+            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(5);
         } else {
             observationStart = observationStart.minusMonths(3);
         }
@@ -692,7 +696,7 @@ public class MarketDataSyncService {
 
         LocalDate observationStart = findLatestInterestRateDate("KR", "POLICY_RATE");
         if (observationStart == null) {
-            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(1);
+            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(5);
         } else {
             observationStart = observationStart.minusMonths(3);
         }

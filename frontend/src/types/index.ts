@@ -2,6 +2,7 @@ export type RangeKey = '1D' | '3M' | '1Y' | '5Y';
 export type MainTabKey = 'dashboard' | 'koreaStatus' | 'ranking' | 'newsroom';
 export type PageKey = MainTabKey | 'serviceGuide';
 export type ServiceStatusTone = 'healthy' | 'idle' | 'error';
+export type IndicatorStatus = 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' | 'CAUTION' | 'NO_DATA';
 
 export type MetricSnapshot = {
   code: string;
@@ -53,7 +54,8 @@ export type DomesticIndicator = {
   fetchedAt: string | null;
   krwImpact: string;
   note: string;
-  status: string;
+  status: IndicatorStatus;
+  statusReason: string;
 };
 
 export type DailyDashboardResponse = {

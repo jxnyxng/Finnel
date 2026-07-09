@@ -212,7 +212,7 @@ function PolicyIndicatorCard({
   onInfoOpen: (indicator: DomesticIndicator) => void;
 }) {
   const delta = getDelta(indicator);
-  const isPending = indicator.status === '연동 필요';
+  const isPending = indicator.status === 'NO_DATA';
 
   return (
     <article
@@ -234,9 +234,7 @@ function PolicyIndicatorCard({
             <div className="text-[10px] font-semibold text-zinc-400">{indicator.category}</div>
             <h4 className="mt-0.5 truncate text-sm font-semibold text-zinc-950">{indicator.title}</h4>
           </div>
-          <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${isPending ? 'bg-amber-100 text-amber-800' : 'bg-teal-50 text-teal-700'}`}>
-            {indicator.status}
-          </span>
+          <StatusBadge indicator={indicator} />
         </div>
 
         <div className="mt-3 min-w-0">
@@ -277,7 +275,8 @@ function PolicyIndicatorTable({
         <tbody>
           {indicators.map((indicator) => {
             const delta = getDelta(indicator);
-            const isPending = indicator.status === '연동 필요';
+            const statusMeta = getStatusMeta(indicator.status);
+            const isPending = indicator.status === 'NO_DATA';
             return (
               <tr
                 aria-label={`${indicator.title} 상세 보기`}
@@ -296,7 +295,7 @@ function PolicyIndicatorTable({
                 <td className="border-b border-zinc-100 px-2 py-2">
                   <div className="min-w-0 transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
                     <div className="truncate text-xs font-semibold text-zinc-900">{indicator.title}</div>
-                    <div className="truncate text-[10px] font-medium text-zinc-400">{indicator.category} · {indicator.status} · 클릭해서 해설 보기</div>
+                    <div className="truncate text-[10px] font-medium text-zinc-400">{indicator.category} · {statusMeta.label} · 클릭해서 해설 보기</div>
                   </div>
                 </td>
                 <td className="border-b border-zinc-100 px-2 py-2 text-right">
@@ -306,8 +305,9 @@ function PolicyIndicatorTable({
                   </div>
                 </td>
                 <td className="border-b border-zinc-100 px-2 py-2">
-                  <div className={`transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none text-xs font-semibold ${delta.tone}`}>
-                    {delta.label}
+                  <div className="transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
+                    <StatusBadge indicator={indicator} />
+                    <div className={`mt-1 text-[11px] font-semibold ${delta.tone}`}>{delta.label}</div>
                   </div>
                 </td>
                 <td className="border-b border-zinc-100 px-2 py-2">
@@ -356,6 +356,8 @@ function IndicatorInfoPanel({
         </div>
         <dl className="mt-3 grid gap-2 text-xs">
           <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+          <InfoPanelRow label="상태" value={getStatusMeta(indicator.status).label} />
+          <InfoPanelRow label="판별 사유" value={indicator.statusReason} />
           <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
           <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
           <InfoPanelRow label="출처" value={indicator.source} />
@@ -380,6 +382,37 @@ function InfoPanelRow({ label, value }: { label: string; value: string }) {
       <dd className="min-w-0 break-words font-medium text-zinc-800">{value}</dd>
     </div>
   );
+}
+
+function StatusBadge({ indicator }: { indicator: DomesticIndicator }) {
+  const statusMeta = getStatusMeta(indicator.status);
+  return (
+    <span className="group/status relative inline-flex shrink-0 items-center gap-1">
+      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${statusMeta.className}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${statusMeta.dotClassName}`} aria-hidden="true" />
+        {statusMeta.label}
+      </span>
+      <span className="pointer-events-none absolute right-0 top-7 z-20 hidden w-64 rounded-md border border-zinc-200 bg-white p-2 text-[11px] font-medium leading-4 text-zinc-600 shadow-lg group-hover/status:block">
+        {indicator.statusReason}
+      </span>
+    </span>
+  );
+}
+
+function getStatusMeta(status: DomesticIndicator['status']) {
+  switch (status) {
+    case 'POSITIVE':
+      return { label: '긍정', className: 'bg-emerald-50 text-emerald-700', dotClassName: 'bg-emerald-500' };
+    case 'NEGATIVE':
+      return { label: '부정', className: 'bg-red-50 text-red-700', dotClassName: 'bg-red-500' };
+    case 'CAUTION':
+      return { label: '주의', className: 'bg-amber-50 text-amber-700', dotClassName: 'bg-amber-500' };
+    case 'NEUTRAL':
+      return { label: '보합', className: 'bg-zinc-100 text-zinc-700', dotClassName: 'bg-zinc-400' };
+    case 'NO_DATA':
+    default:
+      return { label: '분석 보류', className: 'bg-amber-100 text-amber-800', dotClassName: 'bg-amber-500' };
+  }
 }
 
 function IndicatorSourceSummary({ indicators }: { indicators: DomesticIndicator[] }) {
