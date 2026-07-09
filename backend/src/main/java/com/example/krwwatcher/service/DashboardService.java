@@ -1,6 +1,7 @@
 package com.example.krwwatcher.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,6 +20,7 @@ import com.example.krwwatcher.domain.DollarIndex;
 import com.example.krwwatcher.domain.ExchangeRate;
 import com.example.krwwatcher.domain.ForeignReserve;
 import com.example.krwwatcher.domain.InterestRate;
+import com.example.krwwatcher.external.BokPortalClient;
 import com.example.krwwatcher.repository.DollarIndexRepository;
 import com.example.krwwatcher.repository.ExchangeRateRepository;
 import com.example.krwwatcher.repository.ForeignReserveRepository;
@@ -38,6 +40,7 @@ public class DashboardService {
     private final DollarIndexRepository dollarIndexRepository;
     private final InterestRateRepository interestRateRepository;
     private final ForeignReserveRepository foreignReserveRepository;
+    private final BokPortalClient bokPortalClient;
     private final JdbcTemplate jdbcTemplate;
 
     public DashboardService(
@@ -46,6 +49,7 @@ public class DashboardService {
         DollarIndexRepository dollarIndexRepository,
         InterestRateRepository interestRateRepository,
         ForeignReserveRepository foreignReserveRepository,
+        BokPortalClient bokPortalClient,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -53,6 +57,7 @@ public class DashboardService {
         this.dollarIndexRepository = dollarIndexRepository;
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
+        this.bokPortalClient = bokPortalClient;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -111,6 +116,31 @@ public class DashboardService {
         );
     }
 
+    public DomesticIndicatorHistoryResponse domesticIndicatorHistory(String code, String range) {
+        LocalDate endDate = LocalDate.now(SEOUL_ZONE);
+        List<HistoryRange> availableRanges = availableHistoryRanges(code, endDate);
+        HistoryRange requestedRange = HistoryRange.from(range);
+        HistoryRange historyRange = availableRanges.contains(requestedRange)
+            ? requestedRange
+            : availableRanges.stream().reduce((first, second) -> second).orElse(requestedRange);
+        LocalDate startDate = endDate.minusYears(historyRange.years());
+        List<TimeSeriesPoint> points = findDomesticIndicatorHistoryPoints(code, startDate, endDate);
+        DomesticIndicatorMetadata metadata = domesticIndicatorMetadata(code);
+        BigDecimal averageValue = average(points);
+
+        return new DomesticIndicatorHistoryResponse(
+            code,
+            metadata.title(),
+            metadata.unit(),
+            historyRange.key(),
+            startDate,
+            endDate,
+            averageValue,
+            availableRanges.stream().map(HistoryRange::key).toList(),
+            points
+        );
+    }
+
     private List<DomesticIndicator> domesticIndicators(
         TimeSeriesPoint latestUsdKrw,
         ExchangeRate latestUsdKrwDaily,
@@ -131,10 +161,6 @@ public class DashboardService {
             .orElse(null);
         ForeignReserve previousForeignReserve = latestForeignReserve == null ? null : foreignReserveRepository
             .findTopByBaseDateBeforeOrderByBaseDateDesc(latestForeignReserve.getBaseDate())
-            .orElse(null);
-        CurrencyStrengthRank krRank = currencyStrengthRanks.stream()
-            .filter(rank -> "KR".equals(rank.areaCode()))
-            .findFirst()
             .orElse(null);
         IntradayTimeSeriesPoint latestIntraday = usdKrwIntradaySeries.isEmpty() ? null : usdKrwIntradaySeries.get(usdKrwIntradaySeries.size() - 1);
 
@@ -161,7 +187,8 @@ public class DashboardService {
             latestIntraday == null && latestUsdKrwDaily != null ? latestUsdKrwDaily.getFetchedAt() : null,
             "환율 상승은 같은 1달러를 사기 위해 더 많은 원화가 필요하다는 뜻이어서 원화 약세 압력으로 봅니다.",
             "Twelve Data 1분봉과 일별 저장 환율을 함께 사용합니다.",
-            statusLabel(latestUsdKrw == null ? null : latestUsdKrw.value())
+            statusLabel(latestUsdKrw == null ? null : latestUsdKrw.value()),
+            null
         ));
         indicators.add(new DomesticIndicator(
             "KR_POLICY_RATE",
@@ -176,7 +203,8 @@ public class DashboardService {
             latestKrRate == null ? null : latestKrRate.getFetchedAt(),
             "한국 금리가 상대적으로 높아지면 원화 보유 유인이 커질 수 있지만, 성장 둔화 우려와 함께 봐야 합니다.",
             "한국은행 ECOS에서 발표된 기준금리 저장값입니다.",
-            statusLabel(latestKrRate == null ? null : latestKrRate.getRateValue())
+            statusLabel(latestKrRate == null ? null : latestKrRate.getRateValue()),
+            null
         ));
         indicators.add(new DomesticIndicator(
             "US_POLICY_RATE",
@@ -191,7 +219,8 @@ public class DashboardService {
             latestUsRate == null ? null : latestUsRate.getFetchedAt(),
             "미국 금리가 높거나 인하 기대가 약하면 달러 선호가 강해져 원화에는 부담이 될 수 있습니다.",
             "FRED의 미국 정책금리 계열을 저장합니다.",
-            statusLabel(latestUsRate == null ? null : latestUsRate.getRateValue())
+            statusLabel(latestUsRate == null ? null : latestUsRate.getRateValue()),
+            null
         ));
         indicators.add(new DomesticIndicator(
             "KR_US_RATE_GAP",
@@ -206,7 +235,8 @@ public class DashboardService {
             latestUsRate == null ? null : latestUsRate.getFetchedAt(),
             "값이 플러스면 미국 기준금리가 한국보다 높다는 뜻입니다. 격차 확대는 원화 약세 요인으로 해석될 수 있습니다.",
             "미국 기준금리에서 한국 기준금리를 뺀 값입니다.",
-            statusLabel(rateGap)
+            statusLabel(rateGap),
+            null
         ));
         indicators.add(new DomesticIndicator(
             "FOREIGN_RESERVES",
@@ -221,24 +251,9 @@ public class DashboardService {
             latestForeignReserve == null ? null : latestForeignReserve.getFetchedAt(),
             "외환보유액은 급격한 외환시장 변동에 대응할 수 있는 완충 여력으로 봅니다.",
             "한국은행 ECOS 외환보유액 월별 발표값입니다.",
-            statusLabel(latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion())
+            statusLabel(latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion()),
+            null
         ));
-        indicators.add(new DomesticIndicator(
-            "KR_NEER_RANK",
-            "원화 명목실효환율 저평가 순위",
-            "원화 상대 가치",
-            krRank == null ? null : BigDecimal.valueOf(krRank.neerRank()),
-            "RANK",
-            krRank == null ? null : krRank.baseDate(),
-            null,
-            null,
-            "BIS WS_EER",
-            null,
-            "이 순위는 NEER 값이 낮은 통화부터 매긴 저평가 순위입니다. 1위에 가까울수록 주요 교역상대국 대비 통화가치가 낮은 편입니다.",
-            krRank == null ? "BIS 명목실효환율 최신값이 아직 저장되지 않았습니다." : "BIS broad NEER 기준 " + krRank.totalCount() + "개국 중 원화 저평가 순위입니다.",
-            statusLabel(krRank == null ? null : krRank.neerValue())
-        ));
-
         indicators.addAll(domesticPolicyIndicators());
         return indicators;
     }
@@ -253,6 +268,7 @@ public class DashboardService {
             "EXPORT_AMOUNT",
             "IMPORT_AMOUNT",
             "TRADE_BALANCE",
+            "RESERVES_TO_SHORT_TERM_DEBT",
             "FISCAL_BALANCE",
             "GOVERNMENT_DEBT",
             "FOREIGN_STOCK_FLOW",
@@ -277,20 +293,22 @@ public class DashboardService {
         }
 
         DomesticPolicyIndicatorRow previous = findPreviousDomesticPolicyIndicator(code, latest.baseDate());
+        BokPortalClient.BokDocumentPayload mpcDocument = "MPC_MINUTES".equals(latest.code()) ? latestMpcMinutesDocument() : null;
         return new DomesticIndicator(
             latest.code(),
-            latest.title(),
+            mpcDocument == null ? latest.title() : mpcDocument.title(),
             latest.category(),
             latest.value(),
             latest.unit(),
-            latest.baseDate(),
-            previous == null ? null : previous.value(),
-            previous == null ? null : previous.baseDate(),
-            latest.source(),
+            mpcDocument == null ? latest.baseDate() : mpcDocument.baseDate(),
+            mpcDocument == null && previous != null ? previous.value() : null,
+            mpcDocument == null && previous != null ? previous.baseDate() : null,
+            sourceLabel(latest.source()),
             latest.fetchedAt(),
             domesticPolicyImpact(latest.code()),
             domesticPolicyNote(latest.code()),
-            statusLabel(latest.value())
+            statusLabel(latest.value()),
+            mpcDocument == null ? detailUrl(latest.source()) : mpcDocument.url()
         );
     }
 
@@ -340,19 +358,21 @@ public class DashboardService {
             null,
             krwImpact,
             note,
-            "연동 필요"
+            "연동 필요",
+            null
         );
     }
 
     private DomesticPolicyIndicatorRow findLatestDomesticPolicyIndicator(String code) {
+        String orderBy = "MPC_MINUTES".equals(code) ? "fetched_at DESC" : "base_date DESC";
         return jdbcTemplate.query(
             """
                 SELECT indicator_code, title, category, base_date, value, unit, source, fetched_at
                 FROM domestic_policy_indicators
                 WHERE indicator_code = ?
-                ORDER BY base_date DESC
+                ORDER BY %s
                 LIMIT 1
-                """,
+                """.formatted(orderBy),
             (rs, rowNum) -> new DomesticPolicyIndicatorRow(
                 rs.getString("indicator_code"),
                 rs.getString("title"),
@@ -402,6 +422,8 @@ public class DashboardService {
             case "EXPORT_AMOUNT" -> "수출 증가는 달러 공급을 늘려 원화 안정에 도움이 될 수 있습니다.";
             case "IMPORT_AMOUNT" -> "수입 증가는 달러 수요를 늘려 원화 약세 압력으로 작용할 수 있습니다.";
             case "TRADE_BALANCE" -> "무역수지 흑자는 달러 순유입, 적자는 달러 순유출 압력으로 봅니다.";
+            case "RESERVES_TO_SHORT_TERM_DEBT" -> "단기외채 대비 외환보유액 비율이 높을수록 단기 대외지급 압력에 대응할 완충 여력이 크다고 봅니다.";
+            case "SHORT_TERM_EXTERNAL_DEBT" -> "단기대외채무 증가는 가까운 시점의 외화 상환 부담을 키우는 요인으로 봅니다.";
             case "FISCAL_BALANCE" -> "재정수지 악화는 정부 재정 건전성 우려와 국채 수급 부담을 통해 원화 신뢰도에 부담이 될 수 있습니다.";
             case "GOVERNMENT_DEBT" -> "중앙정부 국가채무 증가는 재정 여력과 국가 신용위험 평가에 영향을 줄 수 있어 중장기 환율 리스크와 함께 봅니다.";
             case "FOREIGN_STOCK_FLOW" -> "외국인 주식 순매수는 원화 자산 수요와 환전 흐름을 통해 원화에 영향을 줄 수 있습니다.";
@@ -426,6 +448,8 @@ public class DashboardService {
             case "EXPORT_AMOUNT" -> "ECOS 901Y118, 수출금액입니다.";
             case "IMPORT_AMOUNT" -> "ECOS 901Y118, 수입금액입니다.";
             case "TRADE_BALANCE" -> "ECOS 901Y118 수출금액에서 수입금액을 뺀 계산값입니다.";
+            case "RESERVES_TO_SHORT_TERM_DEBT" -> "ECOS 732Y001 외환보유액을 311Y004 단기대외채무로 나눠 계산한 분기 비율입니다.";
+            case "SHORT_TERM_EXTERNAL_DEBT" -> "ECOS 311Y004, 대외채무 중 단기 항목 분기값입니다.";
             case "FISCAL_BALANCE" -> "열린재정 BudgetBalance, 월별 관리재정수지 조원 단위 저장값입니다.";
             case "GOVERNMENT_DEBT" -> "열린재정 GovernmentDebtMonth, 월별 중앙정부 국가채무 총액 조원 단위 저장값입니다.";
             case "FOREIGN_STOCK_FLOW" -> "ECOS 901Y055, 외국인 순매수 거래대금 월별 값이며 백만원을 억원으로 환산했습니다.";
@@ -518,6 +542,271 @@ public class DashboardService {
 
     private String statusLabel(BigDecimal value) {
         return value == null ? "데이터 없음" : "정상 수집";
+    }
+
+    private String sourceLabel(String source) {
+        if (source == null) {
+            return null;
+        }
+        return source.split("\\|", 2)[0];
+    }
+
+    private String detailUrl(String source) {
+        if (source == null || !source.contains("|")) {
+            return null;
+        }
+        return source.split("\\|", 2)[1];
+    }
+
+    private BokPortalClient.BokDocumentPayload latestMpcMinutesDocument() {
+        try {
+            return bokPortalClient.fetchLatestMpcMinutesSignal().orElse(null);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private List<TimeSeriesPoint> findDomesticIndicatorHistoryPoints(String code, LocalDate startDate, LocalDate endDate) {
+        return switch (code) {
+            case "USD_KRW" -> jdbcTemplate.query(
+                """
+                    SELECT base_date, deal_bas_rate
+                    FROM exchange_rates
+                    WHERE currency_code = ?
+                      AND base_date >= ?
+                      AND base_date <= ?
+                    ORDER BY base_date ASC
+                    """,
+                (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("deal_bas_rate")),
+                "USD",
+                startDate,
+                endDate
+            ).stream().filter(point -> isWeekday(point.baseDate())).toList();
+            case "KR_POLICY_RATE" -> findInterestRateHistory("KR", "POLICY_RATE", startDate, endDate);
+            case "US_POLICY_RATE" -> findInterestRateHistory("US", "POLICY_RATE", startDate, endDate);
+            case "KR_US_RATE_GAP" -> findRateGapHistory(startDate, endDate);
+            case "FOREIGN_RESERVES" -> jdbcTemplate.query(
+                """
+                    SELECT base_date, amount_usd_million
+                    FROM foreign_reserves
+                    WHERE base_date >= ?
+                      AND base_date <= ?
+                    ORDER BY base_date ASC
+                    """,
+                (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("amount_usd_million")),
+                startDate,
+                endDate
+            );
+            case "KR_NEER_RANK" -> findKrwNeerRankHistory(startDate, endDate);
+            case "M2", "CURRENT_ACCOUNT", "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
+                "TRADE_BALANCE", "RESERVES_TO_SHORT_TERM_DEBT", "SHORT_TERM_EXTERNAL_DEBT",
+                "FISCAL_BALANCE", "GOVERNMENT_DEBT", "FOREIGN_STOCK_FLOW",
+                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "MPC_MINUTES", "US_10Y_TREASURY", "VIX",
+                "WTI_OIL", "KOREA_CDS" -> jdbcTemplate.query(
+                    """
+                        SELECT base_date, value
+                        FROM domestic_policy_indicators
+                        WHERE indicator_code = ?
+                          AND base_date >= ?
+                          AND base_date <= ?
+                        ORDER BY base_date ASC
+                        """,
+                    (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("value")),
+                    code,
+                    startDate,
+                    endDate
+                );
+            default -> throw new IllegalArgumentException("Unsupported domestic indicator code: " + code);
+        };
+    }
+
+    private List<TimeSeriesPoint> findInterestRateHistory(String countryCode, String rateType, LocalDate startDate, LocalDate endDate) {
+        return jdbcTemplate.query(
+            """
+                SELECT base_date, rate_value
+                FROM interest_rates
+                WHERE country_code = ?
+                  AND rate_type = ?
+                  AND base_date >= ?
+                  AND base_date <= ?
+                ORDER BY base_date ASC
+                """,
+            (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("rate_value")),
+            countryCode,
+            rateType,
+            startDate,
+            endDate
+        );
+    }
+
+    private List<TimeSeriesPoint> findRateGapHistory(LocalDate startDate, LocalDate endDate) {
+        return jdbcTemplate.query(
+            """
+                SELECT us.base_date, us.rate_value - kr.rate_value AS value
+                FROM interest_rates us
+                JOIN interest_rates kr
+                  ON kr.country_code = 'KR'
+                 AND kr.rate_type = 'POLICY_RATE'
+                 AND kr.base_date = (
+                    SELECT MAX(base_date)
+                    FROM interest_rates
+                    WHERE country_code = 'KR'
+                      AND rate_type = 'POLICY_RATE'
+                      AND base_date <= us.base_date
+                 )
+                WHERE us.country_code = 'US'
+                  AND us.rate_type = 'POLICY_RATE'
+                  AND us.base_date >= ?
+                  AND us.base_date <= ?
+                ORDER BY us.base_date ASC
+                """,
+            (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("value")),
+            startDate,
+            endDate
+        );
+    }
+
+    private List<TimeSeriesPoint> findKrwNeerRankHistory(LocalDate startDate, LocalDate endDate) {
+        return jdbcTemplate.query(
+            """
+                SELECT ranked.base_date, ranked.neer_rank
+                FROM (
+                    SELECT base_date, area_code, ROW_NUMBER() OVER (PARTITION BY base_date ORDER BY value ASC) AS neer_rank
+                    FROM effective_exchange_rates
+                    WHERE index_type = 'NEER'
+                      AND basket_type = 'BROAD'
+                      AND base_date >= ?
+                      AND base_date <= ?
+                ) ranked
+                WHERE ranked.area_code = 'KR'
+                ORDER BY ranked.base_date ASC
+                """,
+            (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("neer_rank")),
+            startDate,
+            endDate
+        );
+    }
+
+    private DomesticIndicatorMetadata domesticIndicatorMetadata(String code) {
+        return switch (code) {
+            case "USD_KRW" -> new DomesticIndicatorMetadata("원/달러 환율", "KRW");
+            case "KR_POLICY_RATE" -> new DomesticIndicatorMetadata("한국 기준금리", "PERCENT");
+            case "US_POLICY_RATE" -> new DomesticIndicatorMetadata("미국 기준금리", "PERCENT");
+            case "KR_US_RATE_GAP" -> new DomesticIndicatorMetadata("한미 기준금리차", "PERCENT_POINT");
+            case "FOREIGN_RESERVES" -> new DomesticIndicatorMetadata("외환보유액", "USD_MILLION");
+            case "KR_NEER_RANK" -> new DomesticIndicatorMetadata("원화 명목실효환율 저평가 순위", "RANK");
+            default -> {
+                DomesticPolicyIndicatorRow latest = findLatestDomesticPolicyIndicator(code);
+                if (latest == null) {
+                    yield pendingDomesticIndicatorMetadata(code);
+                }
+                yield new DomesticIndicatorMetadata(latest.title(), latest.unit());
+            }
+        };
+    }
+
+    private DomesticIndicatorMetadata pendingDomesticIndicatorMetadata(String code) {
+        return switch (code) {
+            case "FISCAL_BALANCE" -> new DomesticIndicatorMetadata("재정수지", "KRW_TRILLION");
+            case "GOVERNMENT_DEBT" -> new DomesticIndicatorMetadata("중앙정부 국가채무", "KRW_TRILLION");
+            default -> throw new IllegalArgumentException("Unsupported domestic indicator code: " + code);
+        };
+    }
+
+    private List<HistoryRange> availableHistoryRanges(String code, LocalDate endDate) {
+        LocalDate earliestDate = findEarliestDomesticIndicatorHistoryDate(code);
+        if (earliestDate == null) {
+            return List.of();
+        }
+
+        return List.of(HistoryRange.ONE_YEAR, HistoryRange.THREE_YEARS, HistoryRange.FIVE_YEARS).stream()
+            .filter(range -> !earliestDate.isAfter(endDate.minusYears(range.years()).plusDays(45)))
+            .toList();
+    }
+
+    private LocalDate findEarliestDomesticIndicatorHistoryDate(String code) {
+        return switch (code) {
+            case "USD_KRW" -> queryEarliestDate(
+                """
+                    SELECT MIN(base_date)
+                    FROM exchange_rates
+                    WHERE currency_code = ?
+                    """,
+                "USD"
+            );
+            case "KR_POLICY_RATE" -> findEarliestInterestRateDate("KR", "POLICY_RATE");
+            case "US_POLICY_RATE" -> findEarliestInterestRateDate("US", "POLICY_RATE");
+            case "KR_US_RATE_GAP" -> queryEarliestDate(
+                """
+                    SELECT MIN(us.base_date)
+                    FROM interest_rates us
+                    WHERE us.country_code = 'US'
+                      AND us.rate_type = 'POLICY_RATE'
+                      AND EXISTS (
+                        SELECT 1
+                        FROM interest_rates kr
+                        WHERE kr.country_code = 'KR'
+                          AND kr.rate_type = 'POLICY_RATE'
+                          AND kr.base_date <= us.base_date
+                      )
+                    """
+            );
+            case "FOREIGN_RESERVES" -> queryEarliestDate("SELECT MIN(base_date) FROM foreign_reserves");
+            case "KR_NEER_RANK" -> queryEarliestDate(
+                """
+                    SELECT MIN(base_date)
+                    FROM effective_exchange_rates
+                    WHERE index_type = 'NEER'
+                      AND basket_type = 'BROAD'
+                      AND area_code = 'KR'
+                    """
+            );
+            case "M2", "CURRENT_ACCOUNT", "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
+                "TRADE_BALANCE", "RESERVES_TO_SHORT_TERM_DEBT", "SHORT_TERM_EXTERNAL_DEBT",
+                "FISCAL_BALANCE", "GOVERNMENT_DEBT", "FOREIGN_STOCK_FLOW",
+                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "MPC_MINUTES", "US_10Y_TREASURY", "VIX",
+                "WTI_OIL", "KOREA_CDS" -> queryEarliestDate(
+                    """
+                        SELECT MIN(base_date)
+                        FROM domestic_policy_indicators
+                        WHERE indicator_code = ?
+                        """,
+                    code
+                );
+            default -> throw new IllegalArgumentException("Unsupported domestic indicator code: " + code);
+        };
+    }
+
+    private LocalDate findEarliestInterestRateDate(String countryCode, String rateType) {
+        return queryEarliestDate(
+            """
+                SELECT MIN(base_date)
+                FROM interest_rates
+                WHERE country_code = ?
+                  AND rate_type = ?
+                """,
+            countryCode,
+            rateType
+        );
+    }
+
+    private LocalDate queryEarliestDate(String sql, Object... params) {
+        return jdbcTemplate.query(
+            sql,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            params
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private BigDecimal average(List<TimeSeriesPoint> points) {
+        if (points.isEmpty()) {
+            return null;
+        }
+
+        BigDecimal sum = points.stream()
+            .map(TimeSeriesPoint::value)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return sum.divide(BigDecimal.valueOf(points.size()), 6, RoundingMode.HALF_UP);
     }
 
     private List<CurrencyStrengthRank> findCurrencyStrengthRanks() {
@@ -696,6 +985,53 @@ public class DashboardService {
     ) {
     }
 
+    public record DomesticIndicatorHistoryResponse(
+        String code,
+        String title,
+        String unit,
+        String range,
+        LocalDate startDate,
+        LocalDate endDate,
+        BigDecimal averageValue,
+        List<String> availableRanges,
+        List<TimeSeriesPoint> points
+    ) {
+    }
+
+    private enum HistoryRange {
+        ONE_YEAR("1Y", 1),
+        THREE_YEARS("3Y", 3),
+        FIVE_YEARS("5Y", 5);
+
+        private final String key;
+        private final int years;
+
+        HistoryRange(String key, int years) {
+            this.key = key;
+            this.years = years;
+        }
+
+        private String key() {
+            return key;
+        }
+
+        private int years() {
+            return years;
+        }
+
+        private static HistoryRange from(String value) {
+            for (HistoryRange range : values()) {
+                if (range.key.equalsIgnoreCase(value)) {
+                    return range;
+                }
+            }
+            return THREE_YEARS;
+        }
+    }
+
+    private record DomesticIndicatorMetadata(String title, String unit) {
+    }
+
     private record EffectiveExchangeRateRow(
         LocalDate baseDate,
         String areaCode,
@@ -729,7 +1065,8 @@ public class DashboardService {
         Instant fetchedAt,
         String krwImpact,
         String note,
-        String status
+        String status,
+        String detailUrl
     ) {
     }
 
