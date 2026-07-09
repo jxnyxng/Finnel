@@ -1,6 +1,6 @@
 export type RangeKey = '1D' | '3M' | '1Y' | '5Y';
 export type HistoryRangeKey = '1Y' | '3Y' | '5Y';
-export type MainTabKey = 'dashboard' | 'koreaStatus' | 'ranking' | 'newsroom';
+export type MainTabKey = 'dashboard' | 'exchangeGuide' | 'koreaStatus' | 'ranking' | 'newsroom';
 export type PageKey = MainTabKey | 'serviceGuide';
 export type ServiceStatusTone = 'healthy' | 'idle' | 'error';
 
