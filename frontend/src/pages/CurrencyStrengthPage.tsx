@@ -15,8 +15,8 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
       <header className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-base font-semibold">약세 랭킹</h2>
-            <p className="mt-1 text-xs text-zinc-500">BIS broad NEER 약세 순위 · 2020=100, 낮을수록 교역상대국 대비 약세입니다.</p>
+            <h2 className="text-base font-semibold">화폐 랭킹</h2>
+            <p className="mt-1 text-xs text-zinc-500">BIS broad NEER 기준 통화가치 순위 · 2020=100, 낮을수록 교역상대국 대비 약세입니다.</p>
             <p className="mt-1 text-xs text-zinc-500">BIS 발표: NEER 주중, REER 월중 · 앱 자동 확인: 평일 09:10/15:10 KST</p>
           </div>
           <p className="text-xs font-medium text-zinc-500">
@@ -31,13 +31,14 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white px-4 py-3 text-xs text-zinc-500 shadow-sm">
-            <p>전체 {ranks.length}개 지역 · 1위에 가까울수록 NEER가 낮아 통화가치 약세</p>
+            <p>전체 {ranks.length}개 지역 · 순위가 높을수록 NEER가 낮아 상대적으로 약한 통화</p>
             <p>범위 {formatValue(minNeer, 2)} ~ {formatValue(maxNeer, 2)} · 기준선 100</p>
           </div>
           <div className="grid gap-2">
             {ranks.map((rank) => {
               const display = getAreaDisplay(rank.areaCode, rank.areaName);
               const valuePosition = getScalePosition(rank.neerValue, minNeer, maxNeer);
+              const strengthScore = getStrengthScore(rank.neerValue, minNeer, maxNeer);
               const isWeak = rank.neerValue < 100;
               const isKorea = rank.areaCode === 'KR';
               return (
@@ -47,7 +48,7 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
                     isKorea ? 'relative z-10 border-teal-200 bg-teal-50/70' : 'border-zinc-100 bg-white'
                   }`}
                 >
-                  <div className="grid gap-3 md:grid-cols-[minmax(200px,280px)_minmax(0,1fr)_150px] md:items-center">
+                  <div className="grid gap-3 md:grid-cols-[minmax(190px,250px)_minmax(0,1fr)_105px_120px] md:items-center">
                     <div className="flex min-w-0 items-center gap-3">
                       <p className={`w-12 shrink-0 text-right text-lg font-semibold ${isKorea ? 'text-teal-800' : 'text-zinc-500'}`}>#{rank.neerRank}</p>
                       <span className="shrink-0 text-2xl leading-none" aria-hidden="true">{display.flag}</span>
@@ -74,11 +75,16 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-right text-xs md:grid-cols-1">
+                    <div className="grid gap-0.5 text-right text-xs">
                       <p className={`font-semibold ${isWeak ? 'text-rose-700' : 'text-teal-700'}`}>
                         NEER {formatValue(rank.neerValue, 2)}
                       </p>
                       <p className="text-zinc-500">REER {rank.reerValue === null ? '-' : formatValue(rank.reerValue, 2)}</p>
+                    </div>
+
+                    <div className="border-t border-zinc-100 pt-2 text-right md:border-l md:border-t-0 md:py-1 md:pl-4">
+                      <p className="text-[11px] font-medium text-zinc-500">100점 만점</p>
+                      <p className="text-2xl font-semibold leading-none text-zinc-950">{strengthScore}점</p>
                     </div>
                   </div>
                 </article>
@@ -97,6 +103,14 @@ function getScalePosition(value: number, minValue: number, maxValue: number) {
   }
 
   return Math.min(100, Math.max(0, ((value - minValue) / (maxValue - minValue)) * 100));
+}
+
+function getStrengthScore(value: number, minValue: number, maxValue: number) {
+  if (maxValue <= minValue) {
+    return 100;
+  }
+
+  return Math.round(getScalePosition(value, minValue, maxValue));
 }
 
 function getAreaDisplay(areaCode: string, fallbackName: string) {
