@@ -18,6 +18,7 @@ import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceG
 import { MarketChartSection } from './components/MarketChartSection';
 import { MetricSidePanel as MetricSidePanelView } from './components/MetricSidePanel';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
+import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
 import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
 import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
 import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
@@ -88,7 +89,7 @@ function App() {
   const [newsTotalCount, setNewsTotalCount] = React.useState(0);
   const [newsTotalPages, setNewsTotalPages] = React.useState(0);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
-  const isMainAppPage = activePage === 'dashboard' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom';
+  const isMainAppPage = activePage === 'dashboard' || activePage === 'exchangeGuide' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom';
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
     if (showLoading) {
@@ -246,6 +247,7 @@ function App() {
   });
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
   const activePageTitle = getMainPageTitle(activeTab);
+  const showPageStatus = activePage !== 'exchangeGuide' && activePage !== 'serviceGuide';
   const intradayStatusLabel = getIntradayStatusLabel(
     false,
     latestIntradayDate,
@@ -316,13 +318,26 @@ function App() {
           <div className="flex shrink-0 items-center gap-1">
             <button
               className={`h-7 whitespace-nowrap rounded px-2.5 text-xs font-semibold ${
+                activePage === 'exchangeGuide' ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600'
+              }`}
+              onClick={() => {
+                setActiveTab('exchangeGuide');
+                setActivePage('exchangeGuide');
+              }}
+              type="button"
+            >
+              환율이란
+            </button>
+            {/* 서비스 소개 페이지는 완성도 보완 후 다시 노출합니다. */}
+            {false ? <button
+              className={`h-7 whitespace-nowrap rounded px-2.5 text-xs font-semibold ${
                 activePage === 'serviceGuide' ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600'
               }`}
               onClick={() => setActivePage('serviceGuide')}
               type="button"
             >
-              서비스 이용 안내
-            </button>
+              서비스 소개
+            </button> : null}
           </div>
         </div>
       </div>
@@ -353,16 +368,18 @@ function App() {
             <div className="min-w-0">
               <h1 className="text-xl font-semibold tracking-normal">{activePageTitle}</h1>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:justify-end">
-              <span className="font-medium">오늘 {todayLabel}</span>
-              <span className="hidden text-zinc-300 md:inline" aria-hidden="true">·</span>
-              <div className="flex items-center gap-2 font-medium md:justify-end">
-                <span className={`service-status-dot service-status-dot-${activeServiceStatus.tone}`} aria-hidden="true" />
-                {activeServiceStatus.label}
-                <span className="text-zinc-300" aria-hidden="true">·</span>
-                <span className="font-normal">{activeServiceUpdateInterval}</span>
+            {showPageStatus ? (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:justify-end">
+                <span className="font-medium">오늘 {todayLabel}</span>
+                <span className="hidden text-zinc-300 md:inline" aria-hidden="true">·</span>
+                <div className="flex items-center gap-2 font-medium md:justify-end">
+                  <span className={`service-status-dot service-status-dot-${activeServiceStatus.tone}`} aria-hidden="true" />
+                  {activeServiceStatus.label}
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="font-normal">{activeServiceUpdateInterval}</span>
+                </div>
               </div>
-            </div>
+            ) : null}
           </header>
         ) : null}
 
@@ -503,6 +520,8 @@ function App() {
           </section>
         ) : null}
 
+        {activePage === 'exchangeGuide' ? <ExchangeRateGuidePageView /> : null}
+
         {activePage === 'koreaStatus' ? (
           <KoreaStatusPageView
             dataSources={dataSources}
@@ -534,7 +553,7 @@ function App() {
         {activePage === 'serviceGuide' ? <ServiceGuidePageView /> : null}
 
       </section>
-      <AppFooter />
+      {activePage !== 'serviceGuide' ? <AppFooter /> : null}
     </main>
   );
 }
@@ -549,10 +568,12 @@ function getMainPageTitle(activeTab: MainTabKey) {
   switch (activeTab) {
     case 'dashboard':
       return '환율 현황';
+    case 'exchangeGuide':
+      return '환율이란';
     case 'koreaStatus':
       return '관련 지표';
     case 'ranking':
-      return '약세 랭킹';
+      return '화폐 랭킹';
     case 'newsroom':
       return '최신 뉴스';
     default:

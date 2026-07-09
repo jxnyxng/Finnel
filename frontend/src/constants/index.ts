@@ -30,6 +30,6 @@ export const specialAreaDisplays: Record<string, { name: string; flag: string }>
 export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
   { key: 'dashboard', label: '환율 현황' },
   { key: 'koreaStatus', label: '관련 지표' },
-  { key: 'ranking', label: '약세 랭킹' },
+  { key: 'ranking', label: '화폐 랭킹' },
   { key: 'newsroom', label: '최신 뉴스' }
 ];
