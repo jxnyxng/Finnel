@@ -1,4 +1,5 @@
 export type RangeKey = '1D' | '3M' | '1Y' | '5Y';
+export type HistoryRangeKey = '1Y' | '3Y' | '5Y';
 export type MainTabKey = 'dashboard' | 'koreaStatus' | 'ranking' | 'newsroom';
 export type PageKey = MainTabKey | 'serviceGuide';
 export type ServiceStatusTone = 'healthy' | 'idle' | 'error';
@@ -54,6 +55,19 @@ export type DomesticIndicator = {
   krwImpact: string;
   note: string;
   status: string;
+  detailUrl: string | null;
+};
+
+export type DomesticIndicatorHistoryResponse = {
+  code: string;
+  title: string;
+  unit: string;
+  range: HistoryRangeKey;
+  startDate: string;
+  endDate: string;
+  averageValue: number | null;
+  availableRanges: HistoryRangeKey[];
+  points: TimeSeriesPoint[];
 };
 
 export type DailyDashboardResponse = {
