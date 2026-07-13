@@ -1,9 +1,11 @@
 package com.example.krwwatcher.external;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import org.springframework.stereotype.Component;
@@ -104,7 +106,54 @@ public class TwelveDataClient {
             .toList();
     }
 
+    public Optional<CurrentExchangeRatePayload> fetchCurrentExchangeRate(String symbol) {
+        ExternalApiProperties.TwelveData config = properties.twelveData();
+        if (!StringUtils.hasText(config.apiKey())) {
+            return Optional.empty();
+        }
+
+        TwelveDataExchangeRateResponse response = restClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/exchange_rate")
+                .queryParam("symbol", symbol)
+                .queryParam("apikey", config.apiKey())
+                .build())
+            .retrieve()
+            .body(TwelveDataExchangeRateResponse.class);
+
+        if (response == null) {
+            return Optional.empty();
+        }
+
+        if ("error".equalsIgnoreCase(response.status())) {
+            throw new IllegalStateException("Twelve Data error: " + response.message());
+        }
+
+        if (response.rate() == null || response.timestamp() == null) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new CurrentExchangeRatePayload(
+            response.symbol(),
+            response.rate(),
+            Instant.ofEpochSecond(response.timestamp())
+        ));
+    }
+
     public record IntradayExchangePayload(LocalDateTime observedAt, String currencyPair, BigDecimal closeRate) {
+    }
+
+    public record CurrentExchangeRatePayload(String symbol, BigDecimal rate, Instant observedAt) {
+    }
+
+    public record TwelveDataExchangeRateResponse(
+        String symbol,
+        BigDecimal rate,
+        Long timestamp,
+        String status,
+        String message,
+        Integer code
+    ) {
     }
 
     public record TwelveDataTimeSeriesResponse(

@@ -55,6 +55,7 @@ import {
 import type {
   ChartHoverState,
   DailyDashboardResponse,
+  ForeignExchangeRate,
   MainTabKey,
   NewsArticle,
   NewsCategory,
@@ -200,6 +201,7 @@ function App() {
   const dxyIndexSeries = dashboard?.dxyIndexSeries ?? [];
   const dollarIndexSeries = dashboard?.dollarIndexSeries ?? [];
   const currencyStrengthRanks = dashboard?.currencyStrengthRanks ?? [];
+  const foreignExchangeRates = dashboard?.foreignExchangeRates ?? [];
   const domesticIndicators = dashboard?.domesticIndicators ?? [];
   const dataSources = dashboard?.dataSources ?? [];
   const seoulToday = getSeoulDateString(new Date(nowMs));
@@ -385,6 +387,10 @@ function App() {
 
         {activePage === 'dashboard' ? (
           <section className="grid gap-4">
+            <ForeignExchangeSummary rates={foreignExchangeRates} />
+            <header className="border-b border-zinc-200 pb-2">
+              <h2 className="text-base font-semibold tracking-normal text-zinc-950">실시간 원달러 환율</h2>
+            </header>
             <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
               <MarketChartSection
                 emptyText={usdKrwRange === '1D'
@@ -579,4 +585,106 @@ function getMainPageTitle(activeTab: MainTabKey) {
     default:
       return '환율 현황';
   }
+}
+
+function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
+  if (rates.length === 0) {
+    return (
+      <section className="rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-400 shadow-sm">
+        주요 통화 환율을 확인 중입니다.
+      </section>
+    );
+  }
+
+  const latestFetchedAt = rates
+    .map((rate) => new Date(rate.fetchedAt).getTime())
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a)[0] ?? null;
+
+  return (
+    <section className="overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-1 border-b border-zinc-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-950">주요 통화 환율</h2>
+          <p className="mt-0.5 text-[11px] text-zinc-500">실시간 스트리밍이 아닌 최근 수집값입니다. 주요 통화는 약 1시간 주기로 갱신됩니다.</p>
+        </div>
+        <p className="text-[11px] font-medium text-zinc-500">
+          최근 업데이트 {latestFetchedAt === null ? '-' : formatForeignExchangeUpdatedAt(new Date(latestFetchedAt))}
+        </p>
+      </div>
+      <div className="grid divide-y divide-zinc-100 md:grid-cols-2 md:divide-x md:divide-y-0">
+        {splitIntoColumns(rates).map((column, columnIndex) => (
+          <div className="divide-y divide-zinc-100" key={columnIndex}>
+            {column.map((rate) => (
+              <article className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 hover:bg-zinc-50" key={rate.currencyCode}>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 text-xl leading-none" aria-hidden="true">{getCurrencyFlag(rate.displayCode)}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-zinc-500">{getCurrencyDetailText(rate)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-base font-bold text-teal-800">{formatValue(rate.dealBasRate, 2)}원</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function splitIntoColumns<T>(items: T[]) {
+  const midpoint = Math.ceil(items.length / 2);
+  return [items.slice(0, midpoint), items.slice(midpoint)];
+}
+
+function getCurrencyFlag(code: string) {
+  const flags: Record<string, string> = {
+    AUD: '🇦🇺',
+    CAD: '🇨🇦',
+    CHF: '🇨🇭',
+    CNY: '🇨🇳',
+    EUR: '🇪🇺',
+    GBP: '🇬🇧',
+    HKD: '🇭🇰',
+    JPY: '🇯🇵',
+    SGD: '🇸🇬',
+    USD: '🇺🇸'
+  };
+
+  return flags[code] ?? '🏳️';
+}
+
+function getCurrencyShortLabel(code: string) {
+  const labels: Record<string, string> = {
+    AUD: '호주 달러',
+    CAD: '캐나다 달러',
+    CHF: '스위스 프랑',
+    CNY: '위안화',
+    EUR: '유로',
+    GBP: '파운드',
+    HKD: '홍콩 달러',
+    JPY: '엔화',
+    SGD: '싱가포르 달러',
+    USD: '미국 달러'
+  };
+
+  return labels[code] ?? code;
+}
+
+function getCurrencyDetailText(rate: ForeignExchangeRate) {
+  return `${rate.displayCode} · ${formatForeignExchangeUpdatedAt(new Date(rate.fetchedAt))} 업데이트`;
+}
+
+function formatForeignExchangeUpdatedAt(date: Date) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Seoul'
+  }).format(date);
 }

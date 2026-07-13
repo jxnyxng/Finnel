@@ -34,6 +34,7 @@ public class DashboardService {
     private static final LocalTime INTRADAY_SESSION_START = LocalTime.of(9, 0);
     private static final LocalTime INTRADAY_SESSION_END = LocalTime.of(2, 0);
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+    private static final List<String> FOREIGN_EXCHANGE_ORDER = List.of("USD", "JPY", "EUR", "CNY", "CNH", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD");
 
     private final ExternalApiProperties properties;
     private final ExchangeRateRepository exchangeRateRepository;
@@ -91,6 +92,7 @@ public class DashboardService {
         List<IntradayTimeSeriesPoint> usdKrwIntradaySeries = findLatestIntradaySeries();
         List<TimeSeriesPoint> usdKrwSeries = mergeLatestIntradayPoint(usdKrwDailySeries, usdKrwIntradaySeries);
         List<CurrencyStrengthRank> currencyStrengthRanks = findCurrencyStrengthRanks();
+        List<ForeignExchangeRate> foreignExchangeRates = findForeignExchangeRates();
 
         TimeSeriesPoint latestUsdKrw = usdKrwSeries.isEmpty() ? null : usdKrwSeries.get(usdKrwSeries.size() - 1);
         LocalDate baseDate = latestUsdKrw != null ? latestUsdKrw.baseDate() : LocalDate.now();
@@ -111,6 +113,7 @@ public class DashboardService {
             advancedDollarIndexSeries,
             dollarIndexSeries,
             currencyStrengthRanks,
+            foreignExchangeRates,
             domesticIndicators(latestUsdKrw, latestUsdKrwDaily, usdKrwIntradaySeries, latestKrRate, latestUsRate, latestForeignReserve, currencyStrengthRanks),
             dataSourceInfos()
         );
@@ -889,6 +892,78 @@ public class DashboardService {
         return ranks;
     }
 
+    private List<ForeignExchangeRate> findForeignExchangeRates() {
+        List<ForeignExchangeRate> rows = jdbcTemplate.query(
+            """
+                SELECT exchange_rates.base_date, exchange_rates.currency_code, exchange_rates.currency_name,
+                       exchange_rates.deal_bas_rate, exchange_rates.source, exchange_rates.fetched_at
+                FROM exchange_rates
+                JOIN (
+                    SELECT currency_code, MAX(base_date) AS latest_base_date
+                    FROM exchange_rates
+                    WHERE (
+                        currency_code = 'USD'
+                        OR currency_code LIKE 'JPY%'
+                        OR currency_code LIKE 'EUR%'
+                        OR currency_code LIKE 'CNY%'
+                        OR currency_code LIKE 'CNH%'
+                        OR currency_code LIKE 'GBP%'
+                        OR currency_code LIKE 'AUD%'
+                        OR currency_code LIKE 'CAD%'
+                        OR currency_code LIKE 'CHF%'
+                        OR currency_code LIKE 'HKD%'
+                        OR currency_code LIKE 'SGD%'
+                      )
+                    GROUP BY currency_code
+                ) latest_rates
+                  ON latest_rates.currency_code = exchange_rates.currency_code
+                 AND latest_rates.latest_base_date = exchange_rates.base_date
+                """,
+            (rs, rowNum) -> {
+                String rawCode = rs.getString("currency_code");
+                String displayCode = displayCurrencyCode(rawCode);
+                return new ForeignExchangeRate(
+                    rs.getDate("base_date").toLocalDate(),
+                    rawCode,
+                    displayCode,
+                    rs.getString("currency_name"),
+                    rs.getBigDecimal("deal_bas_rate"),
+                    currencyUnitSize(rawCode),
+                    rs.getString("source"),
+                    rs.getTimestamp("fetched_at").toInstant()
+                );
+            }
+        );
+
+        return rows.stream()
+            .sorted(Comparator.comparingInt(row -> foreignExchangeOrder(row.displayCode())))
+            .toList();
+    }
+
+    private int foreignExchangeOrder(String currencyCode) {
+        int index = FOREIGN_EXCHANGE_ORDER.indexOf(currencyCode);
+        return index < 0 ? FOREIGN_EXCHANGE_ORDER.size() : index;
+    }
+
+    private String displayCurrencyCode(String rawCode) {
+        int parenthesisIndex = rawCode.indexOf('(');
+        return parenthesisIndex < 0 ? rawCode : rawCode.substring(0, parenthesisIndex);
+    }
+
+    private int currencyUnitSize(String rawCode) {
+        int start = rawCode.indexOf('(');
+        int end = rawCode.indexOf(')');
+        if (start < 0 || end <= start + 1) {
+            return 1;
+        }
+
+        try {
+            return Integer.parseInt(rawCode.substring(start + 1, end));
+        } catch (NumberFormatException exception) {
+            return 1;
+        }
+    }
+
     private List<DataSourceInfo> dataSourceInfos() {
         return List.of(
             new DataSourceInfo(
@@ -918,6 +993,13 @@ public class DashboardService {
                 "BIS WS_EER effective exchange rates bulk CSV",
                 "평일 09:10/15:10 KST 전체 시장 데이터 수집 시 broad NEER/REER 최신 발표값 저장",
                 "NEER/REER는 2020=100 지수이며 낮을수록 교역상대국 대비 통화가치가 낮습니다. 랭킹은 낮은 NEER부터 매긴 저평가 순위입니다."
+            ),
+            new DataSourceInfo(
+                "FOREIGN_EXCHANGE",
+                "주요 통화 원화 환율",
+                "Twelve Data exchange_rate, 한국수출입은행 현재환율 API AP01, FRED 주요 통화 환율 시리즈 fallback",
+                "15분마다 최대 4개 통화만 확인하며, 각 통화는 약 1시간 주기로 순차 갱신합니다.",
+                "Twelve Data 현재환율을 우선 사용하고 실패하면 한국수출입은행/FRED 일별 값으로 보강합니다. JPY는 100엔당 기준을 함께 표시합니다."
             ),
             new DataSourceInfo(
                 "MACRO",
@@ -959,6 +1041,7 @@ public class DashboardService {
         List<TimeSeriesPoint> dxyIndexSeries,
         List<TimeSeriesPoint> dollarIndexSeries,
         List<CurrencyStrengthRank> currencyStrengthRanks,
+        List<ForeignExchangeRate> foreignExchangeRates,
         List<DomesticIndicator> domesticIndicators,
         List<DataSourceInfo> dataSources
     ) {
@@ -1049,6 +1132,18 @@ public class DashboardService {
         int totalCount,
         LocalDate reerBaseDate,
         BigDecimal reerValue
+    ) {
+    }
+
+    public record ForeignExchangeRate(
+        LocalDate baseDate,
+        String currencyCode,
+        String displayCode,
+        String currencyName,
+        BigDecimal dealBasRate,
+        int unitSize,
+        String source,
+        Instant fetchedAt
     ) {
     }
 
