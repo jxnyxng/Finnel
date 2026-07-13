@@ -4,7 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.example.krwwatcher.config.ExternalApiProperties;
@@ -31,15 +33,7 @@ public class KoreaeximExchangeClient {
 
         for (int daysBack = 0; daysBack < 14; daysBack++) {
             LocalDate searchDate = baseDate.minusDays(daysBack);
-            KoreaeximExchangeResponse[] response = restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                    .path("/exchangeJSON")
-                    .queryParam("authkey", properties.koreaexim().apiKey())
-                    .queryParam("searchdate", searchDate.format(DATE_FORMATTER))
-                    .queryParam("data", "AP01")
-                    .build())
-                .retrieve()
-                .body(KoreaeximExchangeResponse[].class);
+            KoreaeximExchangeResponse[] response = fetchExchangeRates(searchDate);
 
             Optional<ExchangeRatePayload> usd = findUsd(response, searchDate);
             if (usd.isPresent()) {
@@ -48,6 +42,35 @@ public class KoreaeximExchangeClient {
         }
 
         return Optional.empty();
+    }
+
+    public List<ExchangeRatePayload> fetchLatestExchangeRates(LocalDate baseDate, Set<String> currencyPrefixes) {
+        if (!StringUtils.hasText(properties.koreaexim().apiKey())) {
+            return List.of();
+        }
+
+        for (int daysBack = 0; daysBack < 14; daysBack++) {
+            LocalDate searchDate = baseDate.minusDays(daysBack);
+            KoreaeximExchangeResponse[] response = fetchExchangeRates(searchDate);
+            List<ExchangeRatePayload> payloads = findCurrencies(response, searchDate, currencyPrefixes);
+            if (!payloads.isEmpty()) {
+                return payloads;
+            }
+        }
+
+        return List.of();
+    }
+
+    private KoreaeximExchangeResponse[] fetchExchangeRates(LocalDate searchDate) {
+        return restClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/exchangeJSON")
+                .queryParam("authkey", properties.koreaexim().apiKey())
+                .queryParam("searchdate", searchDate.format(DATE_FORMATTER))
+                .queryParam("data", "AP01")
+                .build())
+            .retrieve()
+            .body(KoreaeximExchangeResponse[].class);
     }
 
     private Optional<ExchangeRatePayload> findUsd(KoreaeximExchangeResponse[] response, LocalDate baseDate) {
@@ -64,6 +87,23 @@ public class KoreaeximExchangeClient {
                 item.curNm(),
                 parseDecimal(item.dealBasR())
             ));
+    }
+
+    private List<ExchangeRatePayload> findCurrencies(KoreaeximExchangeResponse[] response, LocalDate baseDate, Set<String> currencyPrefixes) {
+        if (response == null || response.length == 0 || currencyPrefixes.isEmpty()) {
+            return List.of();
+        }
+
+        return Arrays.stream(response)
+            .filter(item -> StringUtils.hasText(item.curUnit()) && StringUtils.hasText(item.dealBasR()))
+            .filter(item -> currencyPrefixes.stream().anyMatch(prefix -> item.curUnit().startsWith(prefix)))
+            .map(item -> new ExchangeRatePayload(
+                baseDate,
+                item.curUnit(),
+                item.curNm(),
+                parseDecimal(item.dealBasR())
+            ))
+            .toList();
     }
 
     private BigDecimal parseDecimal(String value) {
