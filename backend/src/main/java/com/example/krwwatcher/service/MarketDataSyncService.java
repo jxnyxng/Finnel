@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -40,9 +41,25 @@ public class MarketDataSyncService {
     private static final String JOB_NAME = "MARKET_DATA_SYNC";
     private static final String INTRADAY_JOB_NAME = "INTRADAY_EXCHANGE_SYNC";
     private static final String DAILY_BACKFILL_JOB_NAME = "DAILY_EXCHANGE_BACKFILL_SYNC";
+    private static final String CURRENT_EXCHANGE_RATE_JOB_NAME = "CURRENT_EXCHANGE_RATE_SYNC";
     private static final LocalTime INTRADAY_SESSION_START = LocalTime.of(9, 0);
     private static final LocalTime INTRADAY_SESSION_END = LocalTime.of(2, 0);
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
+    private static final Set<String> MAJOR_EXCHANGE_RATE_PREFIXES = Set.of(
+        "USD",
+        "JPY",
+        "EUR",
+        "CNH",
+        "CNY",
+        "GBP",
+        "AUD",
+        "CAD",
+        "CHF",
+        "HKD",
+        "SGD"
+    );
+    private static final int CURRENT_EXCHANGE_RATE_BATCH_SIZE = 4;
+    private static final Duration CURRENT_EXCHANGE_RATE_STALE_AFTER = Duration.ofMinutes(60);
 
     private final ExternalApiProperties properties;
     private final SyncProperties syncProperties;
@@ -57,6 +74,7 @@ public class MarketDataSyncService {
     private final ReentrantLock syncLock = new ReentrantLock();
     private final ReentrantLock intradaySyncLock = new ReentrantLock();
     private final ReentrantLock dailyBackfillLock = new ReentrantLock();
+    private final ReentrantLock currentExchangeRateLock = new ReentrantLock();
 
     public MarketDataSyncService(
         ExternalApiProperties properties,
@@ -140,6 +158,15 @@ public class MarketDataSyncService {
         if (currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), now).canSync()) {
             syncIntradayNow(SyncTrigger.SCHEDULED_INTRADAY);
         }
+    }
+
+    @Scheduled(cron = "0 */15 * * * *", zone = "${app.sync.market-data.zone}")
+    public void scheduledCurrentExchangeRateSync() {
+        if (!syncProperties.marketData().enabled()) {
+            return;
+        }
+
+        syncCurrentExchangeRatesNow(SyncTrigger.SCHEDULED_CURRENT_EXCHANGE);
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -247,13 +274,25 @@ public class MarketDataSyncService {
         }
     }
 
+    private SyncResult syncCurrentExchangeRatesNow(SyncTrigger trigger) {
+        if (!currentExchangeRateLock.tryLock()) {
+            return skipped("SKIPPED_RUNNING", "Current exchange rate sync is already running", trigger, new SyncWindow(null, 0, true));
+        }
+
+        try {
+            return runCurrentExchangeRateSync(trigger);
+        } finally {
+            currentExchangeRateLock.unlock();
+        }
+    }
+
     @Transactional
     protected SyncResult runSync(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
 
-        int exchangeRows = runSource("exchange", counter, this::syncUsdKrw);
+        int exchangeRows = runSource("exchange", counter, this::syncExchangeRates);
         int dailyBackfillRows = runSource("dailyBackfill", counter, this::backfillMissingWeekdaysFromIntraday);
         int intradayExchangeRows = 0;
         int dollarIndexRows = runSource("dollarIndex", counter, this::syncDollarIndexes);
@@ -300,6 +339,20 @@ public class MarketDataSyncService {
         return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
+    @Transactional
+    protected SyncResult runCurrentExchangeRateSync(SyncTrigger trigger) {
+        Instant startedAt = Instant.now();
+        Long jobId = startJob(CURRENT_EXCHANGE_RATE_JOB_NAME, startedAt, trigger);
+        SyncCounter counter = new SyncCounter();
+
+        int exchangeRows = runSource("currentExchange", counter, () -> syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE));
+
+        String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
+        String message = "currentExchange=" + exchangeRows + counter.message;
+        finishJob(jobId, status, Instant.now(), message);
+        return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, null, 0);
+    }
+
     private int runSource(String sourceName, SyncCounter counter, IntSupplier supplier) {
         try {
             return supplier.getAsInt();
@@ -310,37 +363,30 @@ public class MarketDataSyncService {
         }
     }
 
-    private int syncUsdKrw() {
+    private int syncExchangeRates() {
         LocalDate targetDate = LocalDate.now(SEOUL_ZONE);
-        if (hasRecentDailyUsdKrwFetch(startOfTodayInSeoul())) {
-            return 0;
+        int currentRows = syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE);
+        if (currentRows > 0) {
+            return currentRows;
         }
 
-        if (isWeekday(targetDate) && hasDailyUsdKrwForDate(targetDate)) {
+        if (hasAnyCurrentForeignExchangeRate()) {
             return 0;
         }
 
         try {
-            return koreaeximExchangeClient.fetchLatestUsdKrw(targetDate)
-                .map(payload -> jdbcTemplate.update("""
-                    INSERT INTO exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, fetched_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        currency_name = VALUES(currency_name),
-                        deal_bas_rate = VALUES(deal_bas_rate),
-                        source = VALUES(source),
-                        fetched_at = VALUES(fetched_at)
-                    """,
-                payload.baseDate(),
-                payload.currencyCode(),
-                payload.currencyName(),
-                payload.dealBasRate(),
-                "KOREAEXIM",
-                    Instant.now()
-                ))
-                .orElseGet(this::syncUsdKrwFromFred);
+            List<KoreaeximExchangeClient.ExchangeRatePayload> payloads = koreaeximExchangeClient.fetchLatestExchangeRates(targetDate, MAJOR_EXCHANGE_RATE_PREFIXES);
+            if (payloads.isEmpty()) {
+                return syncExchangeRatesFromFred();
+            }
+
+            int rows = payloads.stream()
+                .mapToInt(payload -> upsertExchangeRate(payload.baseDate(), payload.currencyCode(), payload.currencyName(), payload.dealBasRate(), "KOREAEXIM"))
+                .sum();
+            boolean hasUsd = payloads.stream().anyMatch(payload -> payload.currencyCode().startsWith("USD"));
+            return hasUsd ? rows : rows + syncExchangeRatesFromFred();
         } catch (RuntimeException exception) {
-            return syncUsdKrwFromFred();
+            return syncExchangeRatesFromFred();
         }
     }
 
@@ -369,6 +415,20 @@ public class MarketDataSyncService {
     }
 
     private int upsertDailyUsdKrw(LocalDate baseDate, java.math.BigDecimal rate, String source) {
+        return upsertExchangeRate(
+            baseDate,
+            "USD",
+            "US Dollar",
+            rate,
+            source
+        );
+    }
+
+    private int upsertExchangeRate(LocalDate baseDate, String currencyCode, String currencyName, java.math.BigDecimal rate, String source) {
+        return upsertExchangeRate(baseDate, currencyCode, currencyName, rate, source, Instant.now());
+    }
+
+    private int upsertExchangeRate(LocalDate baseDate, String currencyCode, String currencyName, java.math.BigDecimal rate, String source, Instant fetchedAt) {
         return jdbcTemplate.update("""
                 INSERT INTO exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, fetched_at)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -379,12 +439,85 @@ public class MarketDataSyncService {
                     fetched_at = VALUES(fetched_at)
                 """,
             baseDate,
-            "USD",
-            "US Dollar",
+            currencyCode,
+            currencyName,
             rate,
             source,
-            Instant.now()
+            fetchedAt
         );
+    }
+
+    private int syncCurrentExchangeRatesFromTwelveData(int maxUpdates) {
+        Instant staleThreshold = Instant.now().minus(CURRENT_EXCHANGE_RATE_STALE_AFTER);
+        return twelveDataExchangeSpecs().stream()
+            .map(spec -> new TwelveDataExchangeCandidate(spec, findLatestCurrentExchangeRateFetch(spec.currencyCode())))
+            .filter(candidate -> candidate.latestFetchedAt() == null || candidate.latestFetchedAt().isBefore(staleThreshold))
+            .sorted(Comparator.comparing(
+                TwelveDataExchangeCandidate::latestFetchedAt,
+                Comparator.nullsFirst(Comparator.naturalOrder())
+            ))
+            .limit(maxUpdates)
+            .mapToInt(spec -> {
+                try {
+                    return twelveDataClient.fetchCurrentExchangeRate(spec.spec().symbol())
+                        .map(payload -> {
+                            upsertExchangeRate(
+                                LocalDate.ofInstant(payload.observedAt(), SEOUL_ZONE),
+                                spec.spec().currencyCode(),
+                                spec.spec().currencyName(),
+                                spec.spec().toDisplayRate(payload.rate()),
+                                "TWELVE_DATA:exchange_rate:" + spec.spec().symbol(),
+                                payload.observedAt()
+                            );
+                            return 1;
+                        })
+                        .orElse(0);
+                } catch (RuntimeException exception) {
+                    return 0;
+                }
+            })
+            .sum();
+    }
+
+    private List<TwelveDataExchangeSpec> twelveDataExchangeSpecs() {
+        return List.of(
+            new TwelveDataExchangeSpec("USD/KRW", "USD", "US Dollar", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("JPY/KRW", "JPY(100)", "Japanese Yen", BigDecimal.valueOf(100)),
+            new TwelveDataExchangeSpec("EUR/KRW", "EUR", "Euro", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("CNY/KRW", "CNY", "Chinese Yuan", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("GBP/KRW", "GBP", "British Pound", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("AUD/KRW", "AUD", "Australian Dollar", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("CAD/KRW", "CAD", "Canadian Dollar", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("CHF/KRW", "CHF", "Swiss Franc", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("HKD/KRW", "HKD", "Hong Kong Dollar", BigDecimal.ONE),
+            new TwelveDataExchangeSpec("SGD/KRW", "SGD", "Singapore Dollar", BigDecimal.ONE)
+        );
+    }
+
+    private Instant findLatestCurrentExchangeRateFetch(String currencyCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT MAX(fetched_at)
+                FROM exchange_rates
+                WHERE currency_code = ?
+                  AND source LIKE 'TWELVE_DATA:exchange_rate:%'
+                """,
+            (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
+            currencyCode
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private boolean hasAnyCurrentForeignExchangeRate() {
+        Integer count = jdbcTemplate.queryForObject(
+            """
+                SELECT COUNT(*)
+                FROM exchange_rates
+                WHERE source LIKE 'TWELVE_DATA:exchange_rate:%'
+                  AND currency_code <> 'USD'
+                """,
+            Integer.class
+        );
+        return count != null && count > 0;
     }
 
     private int syncUsdKrwFromFred() {
@@ -414,6 +547,56 @@ public class MarketDataSyncService {
                 Instant.now()
             ))
             .sum();
+    }
+
+    private int syncExchangeRatesFromFred() {
+        int rows = syncUsdKrwFromFred();
+        LatestExchangeRate usdKrw = findLatestDailyExchangeRate("USD");
+        if (usdKrw == null) {
+            return rows;
+        }
+
+        LocalDate observationStart = usdKrw.baseDate().minusDays(14);
+        return rows + fredExchangeSpecs().stream()
+            .mapToInt(spec -> fredClient.fetchObservations(spec.seriesId(), observationStart).stream()
+                .reduce((first, second) -> second)
+                .map(payload -> upsertExchangeRate(
+                    payload.baseDate().isAfter(usdKrw.baseDate()) ? usdKrw.baseDate() : payload.baseDate(),
+                    spec.currencyCode(),
+                    spec.currencyName(),
+                    spec.toKrwRate(usdKrw.rate(), payload.value()),
+                    "FRED:" + properties.fred().usdKrwSeriesId() + "/" + spec.seriesId()
+                ))
+                .orElse(0))
+            .sum();
+    }
+
+    private List<FredExchangeSpec> fredExchangeSpecs() {
+        return List.of(
+            new FredExchangeSpec("JPY(100)", "Japanese Yen", "DEXJPUS", false, BigDecimal.valueOf(100)),
+            new FredExchangeSpec("EUR", "Euro", "DEXUSEU", true, BigDecimal.ONE),
+            new FredExchangeSpec("CNY", "Chinese Yuan", "DEXCHUS", false, BigDecimal.ONE),
+            new FredExchangeSpec("GBP", "British Pound", "DEXUSUK", true, BigDecimal.ONE),
+            new FredExchangeSpec("AUD", "Australian Dollar", "DEXUSAL", true, BigDecimal.ONE),
+            new FredExchangeSpec("CAD", "Canadian Dollar", "DEXCAUS", false, BigDecimal.ONE),
+            new FredExchangeSpec("CHF", "Swiss Franc", "DEXSZUS", false, BigDecimal.ONE),
+            new FredExchangeSpec("HKD", "Hong Kong Dollar", "DEXHKUS", false, BigDecimal.ONE),
+            new FredExchangeSpec("SGD", "Singapore Dollar", "DEXSIUS", false, BigDecimal.ONE)
+        );
+    }
+
+    private LatestExchangeRate findLatestDailyExchangeRate(String currencyCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT base_date, deal_bas_rate
+                FROM exchange_rates
+                WHERE currency_code = ?
+                ORDER BY base_date DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new LatestExchangeRate(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("deal_bas_rate")),
+            currencyCode
+        ).stream().findFirst().orElse(null);
     }
 
     private LocalDate findLatestDailyUsdKrwDate() {
@@ -1243,32 +1426,30 @@ public class MarketDataSyncService {
         return YearMonth.now(SEOUL_ZONE).atDay(1).atStartOfDay(SEOUL_ZONE).toInstant();
     }
 
-    private boolean hasDailyUsdKrwForDate(LocalDate baseDate) {
+    private boolean hasMajorExchangeRateCoverageForDate(LocalDate baseDate) {
         Integer count = jdbcTemplate.queryForObject(
             """
-                SELECT COUNT(*)
+                SELECT COUNT(DISTINCT currency_code)
                 FROM exchange_rates
-                WHERE currency_code = ?
-                  AND base_date = ?
+                WHERE base_date = ?
+                  AND (
+                    currency_code = 'USD'
+                    OR currency_code LIKE 'JPY%'
+                    OR currency_code LIKE 'EUR%'
+                    OR currency_code LIKE 'CNH%'
+                    OR currency_code LIKE 'CNY%'
+                    OR currency_code LIKE 'GBP%'
+                    OR currency_code LIKE 'AUD%'
+                    OR currency_code LIKE 'CAD%'
+                    OR currency_code LIKE 'CHF%'
+                    OR currency_code LIKE 'HKD%'
+                    OR currency_code LIKE 'SGD%'
+                  )
                 """,
             Integer.class,
-            "USD",
             baseDate
         );
-        return count != null && count > 0;
-    }
-
-    private boolean hasRecentDailyUsdKrwFetch(Instant threshold) {
-        return hasRecentFetch(
-            """
-                SELECT COUNT(*)
-                FROM exchange_rates
-                WHERE currency_code = ?
-                  AND fetched_at >= ?
-                """,
-            "USD",
-            threshold
-        );
+        return count != null && count >= MAJOR_EXCHANGE_RATE_PREFIXES.size() - 1;
     }
 
     private boolean hasRecentDollarIndexFetch(String seriesId, Instant threshold) {
@@ -1346,7 +1527,8 @@ public class MarketDataSyncService {
         INTRADAY,
         SCHEDULED_INTRADAY,
         DAILY_BACKFILL,
-        SCHEDULED_DAILY_BACKFILL
+        SCHEDULED_DAILY_BACKFILL,
+        SCHEDULED_CURRENT_EXCHANGE
     }
 
     private record SyncWindow(Instant nextAllowedAt, long remainingCooldownSeconds, boolean canSync) {
@@ -1361,6 +1543,30 @@ public class MarketDataSyncService {
     }
 
     private record DomesticPolicySpec(String code, String title, String category, String statCode, String itemCode, String unit, String source) {
+    }
+
+    private record LatestExchangeRate(LocalDate baseDate, BigDecimal rate) {
+    }
+
+    private record TwelveDataExchangeSpec(String symbol, String currencyCode, String currencyName, BigDecimal displayUnit) {
+
+        private BigDecimal toDisplayRate(BigDecimal rate) {
+            return rate.multiply(displayUnit).setScale(4, RoundingMode.HALF_UP);
+        }
+    }
+
+    private record TwelveDataExchangeCandidate(TwelveDataExchangeSpec spec, Instant latestFetchedAt) {
+    }
+
+    private record FredExchangeSpec(String currencyCode, String currencyName, String seriesId, boolean usdPerForeignUnit, BigDecimal displayUnit) {
+
+        private BigDecimal toKrwRate(BigDecimal usdKrwRate, BigDecimal fredRate) {
+            if (usdPerForeignUnit) {
+                return usdKrwRate.multiply(fredRate).multiply(displayUnit).setScale(4, RoundingMode.HALF_UP);
+            }
+
+            return usdKrwRate.divide(fredRate, 8, RoundingMode.HALF_UP).multiply(displayUnit).setScale(4, RoundingMode.HALF_UP);
+        }
     }
 
     public record SyncResult(
