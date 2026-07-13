@@ -33,6 +33,17 @@ export type CurrencyStrengthRank = {
   reerValue: number | null;
 };
 
+export type ForeignExchangeRate = {
+  baseDate: string;
+  currencyCode: string;
+  displayCode: string;
+  currencyName: string;
+  dealBasRate: number;
+  unitSize: number;
+  source: string;
+  fetchedAt: string;
+};
+
 export type DataSourceInfo = {
   code: string;
   title: string;
@@ -78,6 +89,7 @@ export type DailyDashboardResponse = {
   dxyIndexSeries: TimeSeriesPoint[];
   dollarIndexSeries: TimeSeriesPoint[];
   currencyStrengthRanks: CurrencyStrengthRank[];
+  foreignExchangeRates: ForeignExchangeRate[];
   domesticIndicators: DomesticIndicator[];
   dataSources: DataSourceInfo[];
 };
