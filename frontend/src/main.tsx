@@ -559,6 +559,7 @@ function App() {
         {activePage === 'serviceGuide' ? <ServiceGuidePageView /> : null}
 
       </section>
+      <ExchangeRateCalculator rates={foreignExchangeRates} />
       {activePage !== 'serviceGuide' ? <AppFooter /> : null}
     </main>
   );
@@ -636,9 +637,254 @@ function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
   );
 }
 
+function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [selectedCode, setSelectedCode] = React.useState('');
+  const [foreignInput, setForeignInput] = React.useState('100');
+  const [krwInput, setKrwInput] = React.useState('');
+  const [lastEdited, setLastEdited] = React.useState<'foreign' | 'krw'>('foreign');
+  const [isHoverExpansionPaused, setIsHoverExpansionPaused] = React.useState(false);
+  const [isClosing, setIsClosing] = React.useState(false);
+  const [isOpening, setIsOpening] = React.useState(false);
+  const closeTimerRef = React.useRef<number | null>(null);
+  const openTimerRef = React.useRef<number | null>(null);
+  const availableRates = React.useMemo(
+    () => [...rates].sort((a, b) => a.displayCode.localeCompare(b.displayCode)),
+    [rates]
+  );
+
+  React.useEffect(() => {
+    if (availableRates.length === 0) {
+      setSelectedCode('');
+      return;
+    }
+
+    if (!availableRates.some((rate) => rate.currencyCode === selectedCode)) {
+      setSelectedCode(availableRates.find((rate) => rate.displayCode === 'USD')?.currencyCode ?? availableRates[0].currencyCode);
+    }
+  }, [availableRates, selectedCode]);
+
+  const selectedRate = availableRates.find((rate) => rate.currencyCode === selectedCode) ?? availableRates[0] ?? null;
+
+  React.useEffect(() => {
+    if (!selectedRate) {
+      setKrwInput('');
+      return;
+    }
+
+    if (lastEdited === 'foreign') {
+      setKrwInput(formatCalculatorNumber(calculateKrwAmount(foreignInput, selectedRate), 0));
+      return;
+    }
+
+    setForeignInput(formatCalculatorNumber(calculateForeignAmount(krwInput, selectedRate), 2));
+  }, [foreignInput, krwInput, lastEdited, selectedRate]);
+
+  const handleForeignInputChange = (value: string) => {
+    const sanitizedValue = sanitizeNumericInput(value);
+    setLastEdited('foreign');
+    setForeignInput(sanitizedValue);
+    setKrwInput(formatCalculatorNumber(calculateKrwAmount(sanitizedValue, selectedRate), 0));
+  };
+
+  const handleKrwInputChange = (value: string) => {
+    const sanitizedValue = sanitizeNumericInput(value);
+    setLastEdited('krw');
+    setKrwInput(sanitizedValue);
+    setForeignInput(formatCalculatorNumber(calculateForeignAmount(sanitizedValue, selectedRate), 2));
+  };
+
+  const handleCurrencyChange = (value: string) => {
+    const nextRate = availableRates.find((rate) => rate.currencyCode === value) ?? null;
+    setSelectedCode(value);
+
+    if (lastEdited === 'foreign') {
+      setKrwInput(formatCalculatorNumber(calculateKrwAmount(foreignInput, nextRate), 0));
+      return;
+    }
+
+    setForeignInput(formatCalculatorNumber(calculateForeignAmount(krwInput, nextRate), 2));
+  };
+
+  const openCalculator = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    if (openTimerRef.current !== null) {
+      window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+
+    setIsClosing(false);
+    setIsOpening(true);
+    setIsOpen(true);
+
+    openTimerRef.current = window.setTimeout(() => {
+      setIsOpening(false);
+      openTimerRef.current = null;
+    }, 220);
+  };
+
+  const closeCalculator = () => {
+    setIsHoverExpansionPaused(true);
+    setIsOpening(false);
+    setIsClosing(true);
+    setIsOpen(false);
+
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsClosing(false);
+      setIsHoverExpansionPaused(false);
+      closeTimerRef.current = null;
+    }, 420);
+  };
+
+  React.useEffect(() => () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+
+    if (openTimerRef.current !== null) {
+      window.clearTimeout(openTimerRef.current);
+    }
+  }, []);
+
+  const containerClassName = getCalculatorContainerClassName(isOpen, isClosing, isHoverExpansionPaused);
+  const shouldShowPanel = isOpen || isClosing;
+  const containerHeight = isOpen ? 306 : 56;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] justify-end">
+      <div
+        className={containerClassName}
+        style={{ height: `${containerHeight}px` }}
+        onMouseLeave={() => {
+          if (!isClosing) {
+            setIsHoverExpansionPaused(false);
+          }
+        }}
+      >
+      {isClosing ? (
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+          <span className="text-2xl leading-none" aria-hidden="true">💱</span>
+        </div>
+      ) : null}
+      {shouldShowPanel ? (
+        <section
+          aria-label="환율 계산기"
+          className={`transition-opacity duration-200 ease-out ${isClosing || isOpening ? 'opacity-0' : 'opacity-100'}`}
+        >
+          <div className="flex items-start justify-between gap-3 border-b border-zinc-100 px-4 py-3">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-zinc-950">환율 계산기</h2>
+              <p className="mt-1 text-[11px] leading-4 text-zinc-500">수수료와 은행별 스프레드는 제외한 기준 환율 계산입니다.</p>
+            </div>
+            <button
+              aria-label="환율 계산기 닫기"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-zinc-200 text-sm font-semibold text-zinc-500 hover:bg-zinc-100"
+              onClick={closeCalculator}
+              type="button"
+            >
+              ×
+            </button>
+          </div>
+
+          {selectedRate ? (
+            <div className="grid gap-3 px-4 py-3">
+              <label className="grid gap-1.5">
+                <span className="text-[11px] font-semibold text-zinc-500">통화</span>
+                <select
+                  className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  onChange={(event) => handleCurrencyChange(event.target.value)}
+                  value={selectedRate.currencyCode}
+                >
+                  {availableRates.map((rate) => (
+                    <option key={rate.currencyCode} value={rate.currencyCode}>
+                      {getCurrencyShortLabel(rate.displayCode)} ({rate.displayCode})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                <label className="grid gap-1.5">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
+                    <span className="text-sm leading-none" aria-hidden="true">{getCurrencyFlag(selectedRate.displayCode)}</span>
+                    {selectedRate.displayCode}
+                  </span>
+                  <input
+                    className="h-10 min-w-0 rounded-md border border-zinc-200 px-3 text-right text-sm font-semibold text-zinc-950 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    inputMode="decimal"
+                    onChange={(event) => handleForeignInputChange(event.target.value)}
+                    placeholder="0"
+                    value={foreignInput}
+                  />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
+                    <span className="text-sm leading-none" aria-hidden="true">🇰🇷</span>
+                    KRW
+                  </span>
+                  <input
+                    className="h-10 min-w-0 rounded-md border border-zinc-200 px-3 text-right text-sm font-semibold text-zinc-950 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    inputMode="decimal"
+                    onChange={(event) => handleKrwInputChange(event.target.value)}
+                    placeholder="0"
+                    value={krwInput}
+                  />
+                </label>
+              </div>
+
+              <div className="rounded border border-zinc-100 bg-zinc-50 px-3 py-2 text-[11px] leading-5 text-zinc-500">
+                <p className="font-medium text-zinc-700">
+                  1 {selectedRate.displayCode} = {formatValue(selectedRate.dealBasRate / selectedRate.unitSize, 2)}원
+                </p>
+                <p>기준 시각 {formatForeignExchangeUpdatedAt(new Date(selectedRate.fetchedAt))}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="px-4 py-5 text-sm text-zinc-400">제공 중인 주요 통화 환율을 확인 중입니다.</div>
+          )}
+        </section>
+      ) : (
+        <button
+          aria-label="환율 계산기 열기"
+          aria-pressed={isOpen}
+          className="flex h-14 w-full cursor-pointer items-center gap-2.5 bg-white px-[13px] text-left text-teal-800 transition-colors hover:bg-teal-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-teal-200"
+          onClick={openCalculator}
+          type="button"
+        >
+          <span className="grid h-7 w-7 shrink-0 place-items-center text-2xl leading-none" aria-hidden="true">💱</span>
+          <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-24 group-hover:opacity-100">
+            환율계산기
+          </span>
+        </button>
+      )}
+      </div>
+    </div>
+  );
+}
+
 function splitIntoColumns<T>(items: T[]) {
   const midpoint = Math.ceil(items.length / 2);
   return [items.slice(0, midpoint), items.slice(midpoint)];
+}
+
+function getCalculatorContainerClassName(isOpen: boolean, isClosing: boolean, isHoverExpansionPaused: boolean) {
+  const baseClassName = 'relative overflow-hidden border-2 border-teal-700 bg-white shadow-lg transition-[width,height,border-radius,box-shadow] ease-out';
+
+  if (isOpen) {
+    return `${baseClassName} duration-[600ms] w-[min(22rem,calc(100vw-2rem))] rounded-md shadow-xl`;
+  }
+
+  if (isClosing) {
+    return `${baseClassName} duration-[420ms] w-14 rounded-[28px]`;
+  }
+
+  return `${baseClassName} group duration-500 w-14 rounded-[28px] ${
+    isHoverExpansionPaused ? '' : 'hover:w-40 hover:rounded-[18px] hover:shadow-xl'
+  }`;
 }
 
 function getCurrencyFlag(code: string) {
@@ -687,4 +933,47 @@ function formatForeignExchangeUpdatedAt(date: Date) {
     minute: '2-digit',
     timeZone: 'Asia/Seoul'
   }).format(date);
+}
+
+function calculateKrwAmount(value: string, rate: ForeignExchangeRate | null) {
+  const numericValue = parseCalculatorNumber(value);
+  if (numericValue === null || !rate || rate.unitSize === 0) {
+    return null;
+  }
+
+  return (numericValue * rate.dealBasRate) / rate.unitSize;
+}
+
+function calculateForeignAmount(value: string, rate: ForeignExchangeRate | null) {
+  const numericValue = parseCalculatorNumber(value);
+  if (numericValue === null || !rate || rate.dealBasRate === 0) {
+    return null;
+  }
+
+  return (numericValue * rate.unitSize) / rate.dealBasRate;
+}
+
+function parseCalculatorNumber(value: string) {
+  if (value.trim() === '' || value === '.') {
+    return null;
+  }
+
+  const numericValue = Number(value.replace(/,/g, ''));
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function sanitizeNumericInput(value: string) {
+  const normalizedValue = value.replace(/,/g, '').replace(/[^\d.]/g, '');
+  const [integerPart, ...decimalParts] = normalizedValue.split('.');
+  return decimalParts.length === 0 ? integerPart : `${integerPart}.${decimalParts.join('')}`;
+}
+
+function formatCalculatorNumber(value: number | null, fractionDigits: number) {
+  if (value === null) {
+    return '';
+  }
+
+  return new Intl.NumberFormat('ko-KR', {
+    maximumFractionDigits: fractionDigits
+  }).format(value);
 }
