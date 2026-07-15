@@ -17,12 +17,16 @@ public class NewsImageClient {
 
     private static final int MAX_HTML_LENGTH = 200_000;
     private static final Pattern META_TAG_PATTERN = Pattern.compile("<meta\\s+[^>]*>", Pattern.CASE_INSENSITIVE);
+    private static final Pattern LINK_TAG_PATTERN = Pattern.compile("<link\\s+[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern ATTRIBUTE_PATTERN = Pattern.compile("([a-zA-Z_:.-]+)\\s*=\\s*(['\"])(.*?)\\2", Pattern.CASE_INSENSITIVE);
 
     private final RestClient restClient;
 
     public NewsImageClient(RestClient.Builder restClientBuilder) {
-        this.restClient = restClientBuilder.clone().build();
+        this.restClient = restClientBuilder.clone()
+            .defaultHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .defaultHeader("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+            .build();
     }
 
     public String fetchRepresentativeImage(String pageUrl) {
@@ -50,7 +54,15 @@ public class NewsImageClient {
         Matcher tagMatcher = META_TAG_PATTERN.matcher(head);
         while (tagMatcher.find()) {
             String image = getMetaImageContent(tagMatcher.group());
-            if (StringUtils.hasText(image)) {
+            if (StringUtils.hasText(image) && isLikelyArticleImage(image)) {
+                return resolveImageUrl(pageUrl, HtmlUtils.htmlUnescape(image.trim()));
+            }
+        }
+
+        Matcher linkMatcher = LINK_TAG_PATTERN.matcher(head);
+        while (linkMatcher.find()) {
+            String image = getLinkImageHref(linkMatcher.group());
+            if (StringUtils.hasText(image) && isLikelyArticleImage(image)) {
                 return resolveImageUrl(pageUrl, HtmlUtils.htmlUnescape(image.trim()));
             }
         }
@@ -79,6 +91,27 @@ public class NewsImageClient {
         return null;
     }
 
+    private String getLinkImageHref(String tag) {
+        String rel = null;
+        String href = null;
+        Matcher attributeMatcher = ATTRIBUTE_PATTERN.matcher(tag);
+        while (attributeMatcher.find()) {
+            String name = attributeMatcher.group(1).toLowerCase(Locale.ROOT);
+            String value = attributeMatcher.group(3);
+            if ("rel".equals(name)) {
+                rel = value.toLowerCase(Locale.ROOT);
+            } else if ("href".equals(name)) {
+                href = value;
+            }
+        }
+
+        if ("image_src".equals(rel)) {
+            return href;
+        }
+
+        return null;
+    }
+
     private Optional<String> resolveImageUrl(String pageUrl, String imageUrl) {
         try {
             URI resolved = URI.create(pageUrl).resolve(imageUrl);
@@ -96,5 +129,13 @@ public class NewsImageClient {
 
         String lowerValue = value.toLowerCase(Locale.ROOT);
         return lowerValue.startsWith("https://") || lowerValue.startsWith("http://");
+    }
+
+    private boolean isLikelyArticleImage(String value) {
+        String lowerValue = value.toLowerCase(Locale.ROOT);
+        return !lowerValue.contains("favicon")
+            && !lowerValue.contains("logo")
+            && !lowerValue.contains("snslogo")
+            && !lowerValue.contains("apple-touch-icon");
     }
 }
