@@ -33,6 +33,14 @@ public class NewsController {
         return newsService.latest(category, from, to, keyword, page, pageSize);
     }
 
+    @GetMapping("/related")
+    public NewsService.RelatedNewsResponse related(
+        @RequestParam(defaultValue = "exchange") String topic,
+        @RequestParam(defaultValue = "9") int limit
+    ) {
+        return newsService.related(topic, limit);
+    }
+
     @PostMapping("/sync")
     public NewsService.NewsSyncResult sync() {
         return newsService.syncNews();
