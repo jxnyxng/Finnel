@@ -56,6 +56,7 @@ export function getServiceStatus({
   activeTab,
   dashboard,
   domesticIndicators,
+  isGovernmentBriefingsConfigured,
   intradayStatus,
   isNewsConfigured,
   latestIntradayDate,
@@ -67,6 +68,7 @@ export function getServiceStatus({
   activeTab: MainTabKey;
   dashboard: DailyDashboardResponse | null;
   domesticIndicators: DomesticIndicator[];
+  isGovernmentBriefingsConfigured: boolean;
   intradayStatus: SyncStatus | null;
   isNewsConfigured: boolean;
   latestIntradayDate: string | null;
@@ -77,6 +79,10 @@ export function getServiceStatus({
 }): { label: string; tone: ServiceStatusTone } {
   if (activeTab === 'newsroom') {
     return isNewsConfigured ? { label: '업데이트 원활', tone: 'healthy' } : { label: '업데이트 대기', tone: 'idle' };
+  }
+
+  if (activeTab === 'governmentBriefings') {
+    return isGovernmentBriefingsConfigured ? { label: '업데이트 원활', tone: 'healthy' } : { label: '업데이트 대기', tone: 'idle' };
   }
 
   const marketSyncFailed = isFailedSyncStatus(syncStatus?.latestStatus);
@@ -132,6 +138,10 @@ export function getServiceUpdateInterval(activeTab: MainTabKey) {
 
   if (activeTab === 'ranking') {
     return '랭킹 09:10/15:10';
+  }
+
+  if (activeTab === 'governmentBriefings') {
+    return '정부 정책 10분';
   }
 
   return '뉴스 10분';

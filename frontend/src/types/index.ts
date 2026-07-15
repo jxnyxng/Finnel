@@ -1,6 +1,6 @@
 export type RangeKey = '1D' | '3M' | '1Y' | '5Y';
 export type HistoryRangeKey = '1Y' | '3Y' | '5Y';
-export type MainTabKey = 'dashboard' | 'exchangeGuide' | 'koreaStatus' | 'ranking' | 'newsroom';
+export type MainTabKey = 'dashboard' | 'exchangeGuide' | 'koreaStatus' | 'ranking' | 'newsroom' | 'governmentBriefings';
 export type PageKey = MainTabKey | 'serviceGuide';
 export type ServiceStatusTone = 'healthy' | 'idle' | 'error';
 
@@ -153,6 +153,41 @@ export type NewsResponse = {
   configured: boolean;
   categories: NewsCategory[];
   articles: NewsArticle[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+export type GovernmentBriefingArticle = {
+  title: string;
+  subtitle: string | null;
+  body: string | null;
+  ministry: string | null;
+  category: string | null;
+  publishedAt: string | null;
+  thumbnailUrl: string | null;
+  imageUrl: string | null;
+  originalUrl: string | null;
+  fetchedAt: string;
+};
+
+export type GovernmentBriefingCategory = {
+  code: string;
+  name: string;
+  articleCount: number;
+};
+
+export type GovernmentBriefingFilters = {
+  fromDate: string;
+  toDate: string;
+  keyword: string;
+};
+
+export type GovernmentBriefingResponse = {
+  configured: boolean;
+  categories: GovernmentBriefingCategory[];
+  articles: GovernmentBriefingArticle[];
   page: number;
   pageSize: number;
   totalCount: number;
