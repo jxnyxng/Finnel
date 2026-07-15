@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -153,6 +154,69 @@ public class NewsService {
 
         int totalPages = totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / normalizedPageSize);
         return new NewsResponse(naverNewsClient.isConfigured(), CATEGORIES, articles, normalizedPage, normalizedPageSize, totalCount, totalPages);
+    }
+
+    public RelatedNewsResponse related(String topic, int limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit, 9));
+        List<NewsArticle> candidates = jdbcTemplate.query(
+            """
+            SELECT n.category_code, n.category_name, n.query_text, n.title, n.description, n.origin_link, n.link, n.publisher, n.published_at, n.ai_summary, n.market_sentiment, n.image_url, n.fetched_at
+            FROM news_articles n
+            INNER JOIN (
+                SELECT MAX(id) AS id
+                FROM news_articles
+                GROUP BY COALESCE(dedupe_key, article_key)
+            ) latest ON latest.id = n.id
+            ORDER BY n.published_at DESC, n.id DESC
+            LIMIT 100
+            """,
+            (rs, rowNum) -> mapArticle(rs)
+        );
+        List<String> keywords = relatedKeywords(topic);
+        List<NewsArticle> articles = candidates.stream()
+            .sorted(Comparator
+                .comparingInt((NewsArticle article) -> scoreRelatedArticle(article, keywords)).reversed()
+                .thenComparing((NewsArticle article) -> StringUtils.hasText(article.imageUrl()), Comparator.reverseOrder())
+                .thenComparing(NewsArticle::publishedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(NewsArticle::fetchedAt, Comparator.reverseOrder()))
+            .limit(normalizedLimit)
+            .toList();
+
+        return new RelatedNewsResponse(naverNewsClient.isConfigured(), articles);
+    }
+
+    private List<String> relatedKeywords(String topic) {
+        if ("indicators".equals(topic)) {
+            return List.of("한국은행", "기준금리", "금리", "FOMC", "연준", "외환보유액", "경상수지", "무역수지", "물가", "재정", "CDS");
+        }
+
+        return List.of("원달러", "환율", "달러", "원화", "외환", "외환시장", "달러 인덱스", "연준", "FOMC");
+    }
+
+    private int scoreRelatedArticle(NewsArticle article, List<String> keywords) {
+        String title = article.title() == null ? "" : article.title();
+        String description = article.description() == null ? "" : article.description();
+        String categoryName = article.categoryName() == null ? "" : article.categoryName();
+        String queryText = article.queryText() == null ? "" : article.queryText();
+        int score = 0;
+
+        for (String keyword : keywords) {
+            if (title.contains(keyword)) {
+                score += 5;
+            }
+            if (description.contains(keyword)) {
+                score += 2;
+            }
+            if (categoryName.contains(keyword) || queryText.contains(keyword)) {
+                score += 3;
+            }
+        }
+
+        if (StringUtils.hasText(article.imageUrl())) {
+            score += 8;
+        }
+
+        return score;
     }
 
     private int syncCategoryLatest(NewsCategory category) {
@@ -376,6 +440,9 @@ public class NewsService {
         int totalCount,
         int totalPages
     ) {
+    }
+
+    public record RelatedNewsResponse(boolean configured, List<NewsArticle> articles) {
     }
 
     public record NewsSyncResult(String status, String message, int rows, Instant syncedAt) {
