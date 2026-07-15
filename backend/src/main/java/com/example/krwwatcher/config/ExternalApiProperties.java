@@ -11,6 +11,7 @@ public record ExternalApiProperties(
     Bis bis,
     Naver naver,
     OpenFiscal openFiscal,
+    PolicyBriefing policyBriefing,
     Bok bok
 ) {
 
@@ -61,6 +62,12 @@ public record ExternalApiProperties(
     }
 
     public record OpenFiscal(
+        String baseUrl,
+        String apiKey
+    ) {
+    }
+
+    public record PolicyBriefing(
         String baseUrl,
         String apiKey
     ) {

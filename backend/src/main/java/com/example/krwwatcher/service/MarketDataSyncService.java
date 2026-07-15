@@ -44,6 +44,8 @@ public class MarketDataSyncService {
     private static final String CURRENT_EXCHANGE_RATE_JOB_NAME = "CURRENT_EXCHANGE_RATE_SYNC";
     private static final LocalTime INTRADAY_SESSION_START = LocalTime.of(9, 0);
     private static final LocalTime INTRADAY_SESSION_END = LocalTime.of(2, 0);
+    private static final int RECENT_MONTH_REFRESH_OVERLAP = 6;
+    private static final int RECENT_QUARTER_REFRESH_MONTH_OVERLAP = 12;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final Set<String> MAJOR_EXCHANGE_RATE_PREFIXES = Set.of(
         "USD",
@@ -170,16 +172,27 @@ public class MarketDataSyncService {
     }
 
     @EventListener(ApplicationReadyEvent.class)
-    public void syncIntradayOnStartup() {
+    public void syncOnStartup() {
         if (!syncProperties.marketData().enabled()) {
-            return;
-        }
-        if (!isBusinessDayNow()) {
             return;
         }
 
         Instant now = Instant.now();
-        if (currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), now).canSync()) {
+        syncCurrentExchangeRatesNow(SyncTrigger.SCHEDULED_CURRENT_EXCHANGE);
+
+        if (currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), now).canSync()) {
+            syncNow(SyncTrigger.SCHEDULED);
+        }
+
+        if (currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now()).canSync()) {
+            syncDailyBackfillNow(SyncTrigger.SCHEDULED_DAILY_BACKFILL);
+        }
+
+        if (!isBusinessDayNow()) {
+            return;
+        }
+
+        if (currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), Instant.now()).canSync()) {
             syncIntradayNow(SyncTrigger.SCHEDULED_INTRADAY);
         }
     }
@@ -930,12 +943,9 @@ public class MarketDataSyncService {
     }
 
     private int syncForeignReserves() {
-        if (hasRecentTableFetch("foreign_reserves", startOfCurrentMonthInSeoul())) {
-            return 0;
-        }
-
-        YearMonth currentMonth = YearMonth.now();
-        List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchForeignReserves(currentMonth.minusYears(5), currentMonth);
+        YearMonth currentMonth = YearMonth.now(SEOUL_ZONE);
+        YearMonth startMonth = currentMonth.minusYears(5);
+        List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchForeignReserves(startMonth, currentMonth);
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
                     INSERT INTO foreign_reserves (base_date, amount_usd_million, source, fetched_at)
@@ -954,8 +964,8 @@ public class MarketDataSyncService {
     }
 
     private int syncDomesticPolicyIndicators() {
-        YearMonth currentMonth = YearMonth.now();
-        YearMonth startMonth = currentMonth.minusYears(5);
+        YearMonth currentMonth = YearMonth.now(SEOUL_ZONE);
+        YearMonth historyStartMonth = currentMonth.minusYears(5);
         List<DomesticPolicySpec> specs = List.of(
             new DomesticPolicySpec("M2", "M2 통화량", "통화 정책", "161Y005", "BBHS00", "KRW_100M", "ECOS:161Y005"),
             new DomesticPolicySpec("CURRENT_ACCOUNT", "경상수지", "대외 수지", "301Y017", "SA000", "USD_MILLION", "ECOS:301Y017"),
@@ -971,15 +981,11 @@ public class MarketDataSyncService {
         List<EcosClient.EcosObservationPayload> exportAmounts = List.of();
         List<EcosClient.EcosObservationPayload> importAmounts = List.of();
         for (DomesticPolicySpec spec : specs) {
-            if (hasRecentDomesticPolicyFetch(spec.code(), startOfCurrentMonthInSeoul())
-                && hasDomesticPolicyCoverage(spec.code(), startMonth.atDay(1))) {
-                continue;
-            }
-
+            YearMonth observationStart = domesticPolicyRefreshStartMonth(spec.code(), historyStartMonth);
             List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchStatisticObservations(
                 spec.statCode(),
                 "M",
-                startMonth,
+                observationStart,
                 currentMonth,
                 spec.itemCode()
             );
@@ -992,25 +998,16 @@ public class MarketDataSyncService {
         }
 
         rows += upsertTradeBalance(exportAmounts, importAmounts);
-        rows += syncExternalDefenseIndicators(currentMonth, startMonth);
+        rows += syncExternalDefenseIndicators(currentMonth, historyStartMonth);
         rows += syncFredRiskIndicators();
         rows += syncOpenFiscalIndicators();
-        rows += syncForeignCapitalFlowIndicators(currentMonth, startMonth);
+        rows += syncForeignCapitalFlowIndicators(currentMonth, historyStartMonth);
         rows += syncMpcMinutesIndicator();
         return rows;
     }
 
-    private int syncExternalDefenseIndicators(YearMonth currentMonth, YearMonth startMonth) {
-        Instant threshold = startOfCurrentMonthInSeoul();
-        LocalDate historyStartDate = startMonth.atDay(1);
-        boolean hasShortTermDebt = hasRecentDomesticPolicyFetch("SHORT_TERM_EXTERNAL_DEBT", threshold)
-            && hasDomesticPolicyCoverage("SHORT_TERM_EXTERNAL_DEBT", historyStartDate);
-        boolean hasCoverageRatio = hasRecentDomesticPolicyFetch("RESERVES_TO_SHORT_TERM_DEBT", threshold)
-            && hasDomesticPolicyCoverage("RESERVES_TO_SHORT_TERM_DEBT", historyStartDate);
-        if (hasShortTermDebt && hasCoverageRatio) {
-            return 0;
-        }
-
+    private int syncExternalDefenseIndicators(YearMonth currentMonth, YearMonth historyStartMonth) {
+        YearMonth startMonth = quarterlyDomesticPolicyRefreshStartMonth("SHORT_TERM_EXTERNAL_DEBT", historyStartMonth);
         String startQuarter = toEcosQuarter(startMonth.minusMonths(2));
         String endQuarter = toEcosQuarter(currentMonth);
         List<EcosClient.EcosObservationPayload> shortTermDebts = ecosClient.fetchStatisticObservations(
@@ -1034,86 +1031,77 @@ public class MarketDataSyncService {
             .toList();
 
         int rows = 0;
-        if (!hasShortTermDebt) {
-            rows += shortTermDebts.stream()
-                .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                    "SHORT_TERM_EXTERNAL_DEBT",
-                    "단기대외채무",
-                    "외환 방어력",
-                    payload.baseDate(),
-                    payload.value(),
-                    "USD_MILLION",
-                    "ECOS:311Y004"
-                ))
-                .sum();
-        }
+        rows += shortTermDebts.stream()
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                "SHORT_TERM_EXTERNAL_DEBT",
+                "단기대외채무",
+                "외환 방어력",
+                payload.baseDate(),
+                payload.value(),
+                "USD_MILLION",
+                "ECOS:311Y004"
+            ))
+            .sum();
 
-        if (!hasCoverageRatio) {
-            for (EcosClient.EcosObservationPayload shortTermDebt : shortTermDebts) {
-                if (shortTermDebt.value().compareTo(BigDecimal.ZERO) == 0) {
-                    continue;
-                }
-                rows += reserveTotals.stream()
-                    .filter(reserve -> reserve.baseDate().equals(shortTermDebt.baseDate()))
-                    .findFirst()
-                    .map(reserve -> upsertDomesticPolicyIndicator(
-                            "RESERVES_TO_SHORT_TERM_DEBT",
-                            "단기외채 대비 외환보유액",
-                            "외환 방어력",
-                            shortTermDebt.baseDate(),
-                            reserve.value().multiply(new BigDecimal("100")).divide(shortTermDebt.value(), 4, RoundingMode.HALF_UP),
-                            "PERCENT",
-                            "ECOS:732Y001/311Y004"
-                        )
-                    )
-                    .orElse(0);
+        for (EcosClient.EcosObservationPayload shortTermDebt : shortTermDebts) {
+            if (shortTermDebt.value().compareTo(BigDecimal.ZERO) == 0) {
+                continue;
             }
+            rows += reserveTotals.stream()
+                .filter(reserve -> reserve.baseDate().equals(shortTermDebt.baseDate()))
+                .findFirst()
+                .map(reserve -> upsertDomesticPolicyIndicator(
+                        "RESERVES_TO_SHORT_TERM_DEBT",
+                        "단기외채 대비 외환보유액",
+                        "외환 방어력",
+                        shortTermDebt.baseDate(),
+                        reserve.value().multiply(new BigDecimal("100")).divide(shortTermDebt.value(), 4, RoundingMode.HALF_UP),
+                        "PERCENT",
+                        "ECOS:732Y001/311Y004"
+                    )
+                )
+                .orElse(0);
         }
         return rows;
     }
 
-    private int syncForeignCapitalFlowIndicators(YearMonth currentMonth, YearMonth startMonth) {
-        Instant threshold = startOfCurrentMonthInSeoul();
+    private int syncForeignCapitalFlowIndicators(YearMonth currentMonth, YearMonth historyStartMonth) {
         int rows = 0;
-        if (!hasRecentDomesticPolicyFetch("FOREIGN_STOCK_FLOW", threshold)
-            || !hasDomesticPolicyCoverage("FOREIGN_STOCK_FLOW", startMonth.atDay(1))) {
-            rows += ecosClient.fetchStatisticObservations("901Y055", "M", startMonth, currentMonth, "S22CC", "VA").stream()
-                .map(payload -> new EcosClient.EcosObservationPayload(
-                    payload.baseDate(),
-                    payload.value().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
-                ))
-                .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                    "FOREIGN_STOCK_FLOW",
-                    "외국인 주식 순매수",
-                    "자본 흐름",
-                    payload.baseDate(),
-                    payload.value(),
-                    "KRW_100M",
-                    "ECOS:901Y055"
-                ))
-                .sum();
-        }
+        YearMonth stockStartMonth = domesticPolicyRefreshStartMonth("FOREIGN_STOCK_FLOW", historyStartMonth);
+        rows += ecosClient.fetchStatisticObservations("901Y055", "M", stockStartMonth, currentMonth, "S22CC", "VA").stream()
+            .map(payload -> new EcosClient.EcosObservationPayload(
+                payload.baseDate(),
+                payload.value().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)
+            ))
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                "FOREIGN_STOCK_FLOW",
+                "외국인 주식 순매수",
+                "자본 흐름",
+                payload.baseDate(),
+                payload.value(),
+                "KRW_100M",
+                "ECOS:901Y055"
+            ))
+            .sum();
 
-        String startQuarter = toEcosQuarter(startMonth.minusMonths(2));
+        YearMonth bondStartMonth = quarterlyDomesticPolicyRefreshStartMonth("FOREIGN_BOND_FLOW", historyStartMonth);
+        String startQuarter = toEcosQuarter(bondStartMonth.minusMonths(2));
         String endQuarter = toEcosQuarter(currentMonth);
-        if (!hasRecentDomesticPolicyFetch("FOREIGN_BOND_FLOW", threshold)
-            || !hasDomesticPolicyCoverage("FOREIGN_BOND_FLOW", startMonth.atDay(1))) {
-            rows += ecosClient.fetchStatisticObservations("282Y006", "Q", startQuarter, endQuarter, "ITOT", "HA02").stream()
-                .map(payload -> new EcosClient.EcosObservationPayload(
-                    payload.baseDate(),
-                    payload.value().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP)
-                ))
-                .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                    "FOREIGN_BOND_FLOW",
-                    "외국인 채권 보유잔액",
-                    "자본 흐름",
-                    payload.baseDate(),
-                    payload.value(),
-                    "KRW_TRILLION",
-                    "ECOS:282Y006"
-                ))
-                .sum();
-        }
+        rows += ecosClient.fetchStatisticObservations("282Y006", "Q", startQuarter, endQuarter, "ITOT", "HA02").stream()
+            .map(payload -> new EcosClient.EcosObservationPayload(
+                payload.baseDate(),
+                payload.value().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP)
+            ))
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                "FOREIGN_BOND_FLOW",
+                "외국인 채권 보유잔액",
+                "자본 흐름",
+                payload.baseDate(),
+                payload.value(),
+                "KRW_TRILLION",
+                "ECOS:282Y006"
+            ))
+            .sum();
         return rows;
     }
 
@@ -1136,45 +1124,35 @@ public class MarketDataSyncService {
     }
 
     private int syncOpenFiscalIndicators() {
-        Instant threshold = startOfCurrentMonthInSeoul();
         LocalDate historyStartDate = LocalDate.now().minusYears(5).withDayOfMonth(1);
-        boolean hasBudgetBalance = hasRecentDomesticPolicyFetch("FISCAL_BALANCE", threshold)
-            && hasDomesticPolicyCoverage("FISCAL_BALANCE", historyStartDate);
-        boolean hasGovernmentDebt = hasRecentDomesticPolicyFetch("GOVERNMENT_DEBT", threshold)
-            && hasDomesticPolicyCoverage("GOVERNMENT_DEBT", historyStartDate);
-        if (hasBudgetBalance && hasGovernmentDebt) {
-            return 0;
-        }
-
-        int startYear = LocalDate.now().minusYears(5).getYear();
-        int endYear = LocalDate.now().getYear();
+        int startYear = hasDomesticPolicyCoverage("FISCAL_BALANCE", historyStartDate)
+            && hasDomesticPolicyCoverage("GOVERNMENT_DEBT", historyStartDate)
+            ? LocalDate.now(SEOUL_ZONE).minusYears(1).getYear()
+            : LocalDate.now(SEOUL_ZONE).minusYears(5).getYear();
+        int endYear = LocalDate.now(SEOUL_ZONE).getYear();
         int rows = 0;
-        if (!hasBudgetBalance) {
-            rows += openFiscalClient.fetchBudgetBalances(startYear, endYear).stream()
-                .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                    "FISCAL_BALANCE",
-                    "재정수지",
-                    "재정 정책",
-                    payload.baseDate(),
-                    payload.value(),
-                    "KRW_TRILLION",
-                    "OPENFISCAL:BudgetBalance"
-                ))
-                .sum();
-        }
-        if (!hasGovernmentDebt) {
-            rows += openFiscalClient.fetchGovernmentDebtMonths(startYear, endYear).stream()
-                .mapToInt(payload -> upsertDomesticPolicyIndicator(
-                    "GOVERNMENT_DEBT",
-                    "중앙정부 국가채무",
-                    "재정 정책",
-                    payload.baseDate(),
-                    payload.value(),
-                    "KRW_TRILLION",
-                    "OPENFISCAL:GovernmentDebtMonth"
-                ))
-                .sum();
-        }
+        rows += openFiscalClient.fetchBudgetBalances(startYear, endYear).stream()
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                "FISCAL_BALANCE",
+                "재정수지",
+                "재정 정책",
+                payload.baseDate(),
+                payload.value(),
+                "KRW_TRILLION",
+                "OPENFISCAL:BudgetBalance"
+            ))
+            .sum();
+        rows += openFiscalClient.fetchGovernmentDebtMonths(startYear, endYear).stream()
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                "GOVERNMENT_DEBT",
+                "중앙정부 국가채무",
+                "재정 정책",
+                payload.baseDate(),
+                payload.value(),
+                "KRW_TRILLION",
+                "OPENFISCAL:GovernmentDebtMonth"
+            ))
+            .sum();
         return rows;
     }
 
@@ -1249,6 +1227,34 @@ public class MarketDataSyncService {
                 spec.source()
             ))
             .sum();
+    }
+
+    private YearMonth domesticPolicyRefreshStartMonth(String code, YearMonth historyStartMonth) {
+        if (!hasDomesticPolicyCoverage(code, historyStartMonth.atDay(1))) {
+            return historyStartMonth;
+        }
+
+        LocalDate latestDate = findLatestDomesticPolicyDate(code);
+        if (latestDate == null) {
+            return historyStartMonth;
+        }
+
+        YearMonth recentStartMonth = YearMonth.from(latestDate).minusMonths(RECENT_MONTH_REFRESH_OVERLAP);
+        return recentStartMonth.isBefore(historyStartMonth) ? historyStartMonth : recentStartMonth;
+    }
+
+    private YearMonth quarterlyDomesticPolicyRefreshStartMonth(String code, YearMonth historyStartMonth) {
+        if (!hasDomesticPolicyCoverage(code, historyStartMonth.atDay(1))) {
+            return historyStartMonth;
+        }
+
+        LocalDate latestDate = findLatestDomesticPolicyDate(code);
+        if (latestDate == null) {
+            return historyStartMonth;
+        }
+
+        YearMonth recentStartMonth = YearMonth.from(latestDate).minusMonths(RECENT_QUARTER_REFRESH_MONTH_OVERLAP);
+        return recentStartMonth.isBefore(historyStartMonth) ? historyStartMonth : recentStartMonth;
     }
 
     private int upsertTradeBalance(List<EcosClient.EcosObservationPayload> exportAmounts, List<EcosClient.EcosObservationPayload> importAmounts) {
