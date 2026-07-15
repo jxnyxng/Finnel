@@ -78,7 +78,7 @@ public class NewsArticleMaintenance {
                 FROM news_articles
                 WHERE image_url IS NULL
                 ORDER BY published_at DESC, id DESC
-                LIMIT 20
+                LIMIT 80
                 """,
             (rs, rowNum) -> new StoredNewsArticle(
                 rs.getLong("id"),

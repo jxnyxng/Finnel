@@ -17,6 +17,7 @@ import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
 import { MetricSidePanel as MetricSidePanelView } from './components/MetricSidePanel';
+import { RelatedNewsBanner } from './components/RelatedNewsBanner';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
 import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
@@ -365,6 +366,9 @@ function App() {
         </div>
       ) : null}
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4">
+        {activePage === 'dashboard' ? <RelatedNewsBanner topic="exchange" /> : null}
+        {activePage === 'koreaStatus' ? <RelatedNewsBanner topic="indicators" /> : null}
+
         {isMainAppPage ? (
           <header className="flex flex-col gap-2 border-b border-zinc-200 pb-3 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
