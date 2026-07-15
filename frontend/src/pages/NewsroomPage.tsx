@@ -1,5 +1,6 @@
 import React from 'react';
 import type { NewsArticle, NewsCategory, NewsFilters } from '../types';
+import { getSeoulDateString } from '../utils/time';
 
 type NewsroomPageProps = {
   articles: NewsArticle[];
@@ -50,6 +51,22 @@ export function NewsroomPage({
     setDraftFilters(emptyFilters);
     onFiltersApply(emptyFilters);
   };
+  const applyTodayFilter = () => {
+    const today = getSeoulDateString(new Date());
+    const isActive = filters.fromDate === today && filters.toDate === today;
+    const nextFilters = {
+      ...draftFilters,
+      fromDate: isActive ? '' : today,
+      toDate: isActive ? '' : today
+    };
+    setDraftFilters(nextFilters);
+    onFiltersApply({
+      fromDate: nextFilters.fromDate,
+      keyword: nextFilters.keyword.trim(),
+      toDate: nextFilters.toDate
+    });
+  };
+  const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
 
   return (
     <section className="grid gap-3">
@@ -57,11 +74,20 @@ export function NewsroomPage({
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-teal-700">네이버 뉴스 기반</p>
-            <h2 className="text-base font-semibold text-zinc-950">최신 뉴스</h2>
+            <h2 className="text-base font-semibold text-zinc-950">뉴스 검색</h2>
           </div>
           <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
         </div>
-        <form className="mt-2 grid gap-2 border-t border-zinc-100 pt-2 md:grid-cols-[140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
+        <form className="mt-2 grid gap-2 border-t border-zinc-100 pt-2 md:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
+          <button
+            className={`h-8 self-end rounded-md border px-3 text-xs font-semibold ${
+              isTodayFilterActive ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
+            }`}
+            onClick={applyTodayFilter}
+            type="button"
+          >
+            오늘
+          </button>
           <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
             시작일
             <input
@@ -154,6 +180,7 @@ function CategoryButton({ active, label, onClick }: { active: boolean; label: st
 
 function NewsArticleCard({ article }: { article: NewsArticle }) {
   const articleUrl = article.link || article.originLink;
+  const isNew = isPublishedToday(article.publishedAt);
   const openArticle = () => {
     if (!articleUrl) {
       return;
@@ -174,15 +201,15 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
   return (
     <article
-      className="group/card cursor-pointer rounded-md border border-zinc-100 bg-white p-3 shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
+      className="group/card cursor-pointer overflow-hidden rounded-md border border-zinc-100 bg-white shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
       onClick={openArticle}
       onKeyDown={openArticleWithKeyboard}
       role="link"
       tabIndex={0}
     >
-      <div className="grid gap-3 transition-transform duration-150 ease-out group-hover/card:scale-[1.01] sm:grid-cols-[96px_minmax(0,1fr)] motion-reduce:transform-none motion-reduce:transition-none">
-        <NewsThumbnail article={article} />
-        <div className="min-w-0">
+      <div className="grid transition-transform duration-150 ease-out group-hover/card:scale-[1.01] sm:grid-cols-[144px_minmax(0,1fr)] motion-reduce:transform-none motion-reduce:transition-none">
+        <NewsThumbnail article={article} isNew={isNew} />
+        <div className="min-w-0 p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
@@ -219,21 +246,36 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
   );
 }
 
-function NewsThumbnail({ article }: { article: NewsArticle }) {
+function NewBadge() {
+  return (
+    <span className="absolute right-2 top-2 z-10 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-normal text-white shadow-sm">
+      New
+    </span>
+  );
+}
+
+function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolean }) {
   if (article.imageUrl) {
     return (
-      <img
-        alt=""
-        className="h-24 w-full rounded border border-zinc-100 object-cover sm:w-24"
-        loading="lazy"
-        src={article.imageUrl}
-      />
+      <div className="relative h-32 w-full overflow-hidden bg-zinc-100 sm:h-full sm:min-h-32">
+        {isNew ? <NewBadge /> : null}
+        <img
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover/card:scale-105"
+          loading="lazy"
+          src={article.imageUrl}
+        />
+      </div>
     );
   }
 
   return (
-    <div className="flex h-24 w-full items-center justify-center rounded border border-zinc-100 bg-zinc-50 text-xs font-semibold text-zinc-400 sm:w-24">
-      {article.categoryName}
+    <div className="relative grid h-32 w-full place-items-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#3f3f46)] text-center text-white sm:h-full sm:min-h-32">
+      {isNew ? <NewBadge /> : null}
+      <div>
+        <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white text-lg font-bold text-teal-700">₩</span>
+        <p className="mt-1 text-[11px] font-semibold leading-4">{article.categoryName}</p>
+      </div>
     </div>
   );
 }
@@ -305,4 +347,12 @@ function formatNewsDate(value: string | null) {
     timeStyle: 'short',
     timeZone: 'Asia/Seoul'
   }).format(new Date(value));
+}
+
+function isPublishedToday(value: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  return getSeoulDateString(new Date(value)) === getSeoulDateString(new Date());
 }

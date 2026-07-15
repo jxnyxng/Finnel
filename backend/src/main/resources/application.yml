@@ -77,6 +77,9 @@ app:
     open-fiscal:
       base-url: ${OPENFISCAL_BASE_URL:https://www.openfiscaldata.go.kr}
       api-key: ${OPENFISCAL_API_KEY:}
+    policy-briefing:
+      base-url: ${POLICY_BRIEFING_BASE_URL:http://apis.data.go.kr}
+      api-key: ${POLICY_BRIEFING_API_KEY:}
     bok:
       base-url: ${BOK_PORTAL_BASE_URL:https://www.bok.or.kr}
       mpc-minutes-path: ${BOK_MPC_MINUTES_PATH:/portal/singl/newsData/list.do?pageIndex=1&targetDepth=3&menuNo=200789}

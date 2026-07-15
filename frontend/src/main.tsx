@@ -20,6 +20,7 @@ import { MetricSidePanel as MetricSidePanelView } from './components/MetricSideP
 import { RelatedNewsBanner } from './components/RelatedNewsBanner';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
+import { GovernmentBriefingsPage as GovernmentBriefingsPageView } from './pages/GovernmentBriefingsPage';
 import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
 import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
 import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
@@ -57,6 +58,10 @@ import type {
   ChartHoverState,
   DailyDashboardResponse,
   ForeignExchangeRate,
+  GovernmentBriefingArticle,
+  GovernmentBriefingCategory,
+  GovernmentBriefingFilters,
+  GovernmentBriefingResponse,
   MainTabKey,
   NewsArticle,
   NewsCategory,
@@ -90,8 +95,17 @@ function App() {
   const [newsPage, setNewsPage] = React.useState(1);
   const [newsTotalCount, setNewsTotalCount] = React.useState(0);
   const [newsTotalPages, setNewsTotalPages] = React.useState(0);
+  const [governmentBriefings, setGovernmentBriefings] = React.useState<GovernmentBriefingArticle[]>([]);
+  const [governmentBriefingCategories, setGovernmentBriefingCategories] = React.useState<GovernmentBriefingCategory[]>([]);
+  const [isGovernmentBriefingsConfigured, setIsGovernmentBriefingsConfigured] = React.useState(false);
+  const [isGovernmentBriefingsLoading, setIsGovernmentBriefingsLoading] = React.useState(false);
+  const [selectedGovernmentBriefingCategory, setSelectedGovernmentBriefingCategory] = React.useState('all');
+  const [governmentBriefingFilters, setGovernmentBriefingFilters] = React.useState<GovernmentBriefingFilters>({ fromDate: '', toDate: '', keyword: '' });
+  const [governmentBriefingsPage, setGovernmentBriefingsPage] = React.useState(1);
+  const [governmentBriefingsTotalCount, setGovernmentBriefingsTotalCount] = React.useState(0);
+  const [governmentBriefingsTotalPages, setGovernmentBriefingsTotalPages] = React.useState(0);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
-  const isMainAppPage = activePage === 'dashboard' || activePage === 'exchangeGuide' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom';
+  const isMainAppPage = activePage === 'dashboard' || activePage === 'exchangeGuide' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom' || activePage === 'governmentBriefings';
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
     if (showLoading) {
@@ -165,6 +179,42 @@ function App() {
     }
   }, [newsFilters, newsPage, selectedNewsCategory]);
 
+  const loadGovernmentBriefings = React.useCallback(async (
+    category = selectedGovernmentBriefingCategory,
+    page = governmentBriefingsPage,
+    showLoading = false,
+    filters = governmentBriefingFilters
+  ) => {
+    if (showLoading) {
+      setIsGovernmentBriefingsLoading(true);
+    }
+
+    try {
+      const response = await axios.get<GovernmentBriefingResponse>('/api/v1/government-briefings', {
+        params: {
+          category,
+          from: filters.fromDate || undefined,
+          keyword: filters.keyword || undefined,
+          page,
+          pageSize: 12,
+          to: filters.toDate || undefined
+        }
+      });
+      setGovernmentBriefings(response.data.articles);
+      setGovernmentBriefingCategories(response.data.categories);
+      setIsGovernmentBriefingsConfigured(response.data.configured);
+      setGovernmentBriefingsPage(response.data.page);
+      setGovernmentBriefingsTotalCount(response.data.totalCount);
+      setGovernmentBriefingsTotalPages(response.data.totalPages);
+    } catch {
+      setGovernmentBriefings([]);
+    } finally {
+      if (showLoading) {
+        setIsGovernmentBriefingsLoading(false);
+      }
+    }
+  }, [governmentBriefingFilters, governmentBriefingsPage, selectedGovernmentBriefingCategory]);
+
   React.useEffect(() => {
     loadDashboard(true);
     loadSyncStatus();
@@ -192,6 +242,16 @@ function App() {
     const newsTimer = window.setInterval(() => loadNews(selectedNewsCategory, newsPage), 60_000);
     return () => window.clearInterval(newsTimer);
   }, [activePage, loadNews, newsPage, selectedNewsCategory]);
+
+  React.useEffect(() => {
+    if (activePage !== 'governmentBriefings') {
+      return undefined;
+    }
+
+    loadGovernmentBriefings(selectedGovernmentBriefingCategory, governmentBriefingsPage, true);
+    const briefingTimer = window.setInterval(() => loadGovernmentBriefings(selectedGovernmentBriefingCategory, governmentBriefingsPage), 60_000);
+    return () => window.clearInterval(briefingTimer);
+  }, [activePage, governmentBriefingsPage, loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
 
   const metrics = sortMetrics(dashboard?.metrics ?? []);
   const usdKrwMetric = findMetric(metrics, 'USD/KRW');
@@ -240,6 +300,7 @@ function App() {
     activeTab,
     dashboard,
     domesticIndicators,
+    isGovernmentBriefingsConfigured,
     intradayStatus,
     isNewsConfigured,
     latestIntradayDate,
@@ -303,6 +364,23 @@ function App() {
     loadNews(selectedNewsCategory, 1, true, filters);
   }, [loadNews, selectedNewsCategory]);
 
+  const changeGovernmentBriefingsPage = React.useCallback((page: number) => {
+    setGovernmentBriefingsPage(page);
+    loadGovernmentBriefings(selectedGovernmentBriefingCategory, page, true, governmentBriefingFilters);
+  }, [governmentBriefingFilters, loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
+
+  const changeGovernmentBriefingCategory = React.useCallback((category: string) => {
+    setSelectedGovernmentBriefingCategory(category);
+    setGovernmentBriefingsPage(1);
+    loadGovernmentBriefings(category, 1, true, governmentBriefingFilters);
+  }, [governmentBriefingFilters, loadGovernmentBriefings]);
+
+  const applyGovernmentBriefingFilters = React.useCallback((filters: GovernmentBriefingFilters) => {
+    setGovernmentBriefingFilters(filters);
+    setGovernmentBriefingsPage(1);
+    loadGovernmentBriefings(selectedGovernmentBriefingCategory, 1, true, filters);
+  }, [loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
+
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
       <div className="w-full bg-teal-700 text-white">
@@ -346,10 +424,10 @@ function App() {
       </div>
       {isMainAppPage ? (
         <div className="border-b border-zinc-200 bg-white">
-          <nav className="mx-auto flex w-full max-w-6xl gap-1 overflow-x-auto px-5 py-2" aria-label="주요 화면">
+          <nav className="mx-auto flex w-full max-w-6xl gap-0.5 overflow-x-auto px-5 py-1" aria-label="주요 화면">
             {mainTabs.map((tab) => (
               <button
-                className={`h-7 shrink-0 rounded px-3 text-xs font-semibold ${
+                className={`h-8 shrink-0 rounded px-3.5 text-xs font-semibold ${
                   activePage === tab.key ? 'bg-teal-700 text-white' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
                 }`}
                 key={tab.key}
@@ -560,6 +638,23 @@ function App() {
           />
         ) : null}
 
+        {activePage === 'governmentBriefings' ? (
+          <GovernmentBriefingsPageView
+            articles={governmentBriefings}
+            categories={governmentBriefingCategories}
+            configured={isGovernmentBriefingsConfigured}
+            filters={governmentBriefingFilters}
+            isLoading={isGovernmentBriefingsLoading}
+            onCategoryChange={changeGovernmentBriefingCategory}
+            onFiltersApply={applyGovernmentBriefingFilters}
+            onPageChange={changeGovernmentBriefingsPage}
+            page={governmentBriefingsPage}
+            selectedCategory={selectedGovernmentBriefingCategory}
+            totalCount={governmentBriefingsTotalCount}
+            totalPages={governmentBriefingsTotalPages}
+          />
+        ) : null}
+
         {activePage === 'serviceGuide' ? <ServiceGuidePageView /> : null}
 
       </section>
@@ -586,7 +681,9 @@ function getMainPageTitle(activeTab: MainTabKey) {
     case 'ranking':
       return '화폐 랭킹';
     case 'newsroom':
-      return '최신 뉴스';
+      return '뉴스 검색';
+    case 'governmentBriefings':
+      return '정부 정책';
     default:
       return '환율 현황';
   }

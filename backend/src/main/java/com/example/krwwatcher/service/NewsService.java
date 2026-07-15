@@ -73,11 +73,11 @@ public class NewsService {
             return;
         }
 
-        if (hasNewsFetchedToday() && hasMinimumBackfillArticles()) {
-            return;
+        if (hasMinimumBackfillArticles()) {
+            syncLatestNews();
+        } else {
+            syncNews();
         }
-
-        syncNews();
     }
 
     @Transactional

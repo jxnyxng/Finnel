@@ -1,0 +1,20 @@
+CREATE TABLE government_briefings (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    briefing_key CHAR(64) NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    subtitle VARCHAR(1000) NULL,
+    body TEXT NULL,
+    ministry VARCHAR(120) NULL,
+    category VARCHAR(80) NULL,
+    published_at TIMESTAMP NULL,
+    thumbnail_url VARCHAR(1000) NULL,
+    image_url VARCHAR(1000) NULL,
+    original_url VARCHAR(1000) NULL,
+    fetched_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_government_briefings_key (briefing_key),
+    KEY idx_government_briefings_published_at (published_at),
+    KEY idx_government_briefings_category (category)
+);
