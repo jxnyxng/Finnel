@@ -142,7 +142,7 @@ export function ExchangeRateGuidePage() {
 
   return (
     <section className="grid gap-4">
-      <header className="overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
+      <header className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
         <div className="grid gap-0 lg:grid-cols-[300px_minmax(0,1fr)]">
           <div className="flex min-h-64 flex-col justify-between bg-teal-700 p-5 text-white">
             <div>
@@ -171,7 +171,7 @@ export function ExchangeRateGuidePage() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         {directionCards.map((card) => (
-          <article className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm" key={card.title}>
+          <article className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm" key={card.title}>
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-100 pb-3">
               <div>
                 <p className="text-xs font-semibold text-teal-700">{card.label}</p>
@@ -192,7 +192,7 @@ export function ExchangeRateGuidePage() {
         ))}
       </section>
 
-      <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="border-b border-zinc-100 pb-3">
           <h3 className="text-sm font-semibold text-zinc-950">왜 환율이 중요한가요?</h3>
           <p className="mt-1 text-xs text-zinc-500">환율은 개인 소비, 기업 비용, 물가, 금융시장 심리를 동시에 연결합니다.</p>
@@ -208,7 +208,7 @@ export function ExchangeRateGuidePage() {
         </div>
       </section>
 
-      <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="border-b border-zinc-100 pb-3">
           <h3 className="text-sm font-semibold text-zinc-950">원화가치 하락을 왜 경계해야 하나요?</h3>
           <p className="mt-1 text-xs text-zinc-500">환율 상승이 길어지면 단순히 달러가 비싸지는 문제를 넘어 경제 전반의 비용이 올라갈 수 있습니다.</p>
@@ -223,7 +223,7 @@ export function ExchangeRateGuidePage() {
         </div>
       </section>
 
-      <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="border-b border-zinc-100 pb-3">
           <h3 className="text-sm font-semibold text-zinc-950">달러도 약한데 원화도 약하면 더 조심해야 합니다</h3>
           <p className="mt-1 text-xs text-zinc-500">USD/KRW만 보지 말고 달러 지수와 함께 보면 원화 약세의 성격을 구분할 수 있습니다.</p>
@@ -257,7 +257,7 @@ export function ExchangeRateGuidePage() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-        <article className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+        <article className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="border-b border-zinc-100 pb-3">
             <h3 className="text-sm font-semibold text-zinc-950">매매기준율과 실제 환전 환율</h3>
             <p className="mt-1 text-xs text-zinc-500">차트 환율과 실제 환전 금액이 다른 이유를 이해하는 핵심입니다.</p>
@@ -284,7 +284,7 @@ export function ExchangeRateGuidePage() {
           </div>
         </article>
 
-        <article className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+        <article className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="border-b border-zinc-100 pb-3">
             <h3 className="text-sm font-semibold text-zinc-950">자주 보는 주요 통화</h3>
             <p className="mt-1 text-xs text-zinc-500">원화 흐름을 이해할 때 함께 보면 좋은 통화입니다.</p>
@@ -305,7 +305,7 @@ export function ExchangeRateGuidePage() {
         </article>
       </section>
 
-      <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="border-b border-zinc-100 pb-3">
           <h3 className="text-sm font-semibold text-zinc-950">헷갈리기 쉬운 질문</h3>
           <p className="mt-1 text-xs text-zinc-500">환율을 처음 볼 때 자주 생기는 오해를 정리했습니다.</p>
