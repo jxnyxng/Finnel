@@ -261,6 +261,7 @@ public class MarketDataSyncService {
         } finally {
             syncLock.unlock();
         }
+
     }
 
     private SyncResult syncIntradayNow(SyncTrigger trigger) {

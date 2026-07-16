@@ -15,9 +15,9 @@ export const longRangeOptions: Array<{ key: Exclude<RangeKey, '1D'>; label: stri
 
 export const intradaySessionStartMinutes = 9 * 60;
 export const intradaySessionEndMinutes = 26 * 60;
-export const chartHeightPx = 320;
-export const chartTopMarginPx = 8;
-export const chartBottomMarginPx = 18;
+export const chartHeightPx = 384;
+export const chartTopMarginPx = 18;
+export const chartBottomMarginPx = 0;
 export const intradayXAxisHeightPx = 28;
 export const dailyXAxisHeightPx = 30;
 

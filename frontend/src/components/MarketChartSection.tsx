@@ -22,6 +22,15 @@ type RangeSelectorOption<T extends RangeKey> = {
   label: string;
 };
 
+type AxisTickProps = {
+  x?: number;
+  y?: number;
+  index?: number;
+  payload?: {
+    value?: number | string;
+  };
+};
+
 type MarketChartSectionProps<T extends RangeKey> = {
   title: string;
   helpAriaLabel: string;
@@ -54,6 +63,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   panelDetails?: Array<{ label: string; value: string }>;
   panelFooterText?: string;
   statusNode?: ReactNode;
+  headerAction?: ReactNode;
 };
 
 export function MarketChartSection<T extends RangeKey>({
@@ -69,6 +79,7 @@ export function MarketChartSection<T extends RangeKey>({
   onRangeChange,
   panelDetails = [],
   panelFooterText,
+  headerAction,
   plotLeft,
   plotRight,
   range,
@@ -92,136 +103,156 @@ export function MarketChartSection<T extends RangeKey>({
   const latestPoint = series[series.length - 1] ?? null;
   const chartBottom = chartBottomMarginPx + xAxisHeight;
   const plotBottom = chartHeightPx - chartBottom;
+  const axisWidth = 58;
+  const plotInsetLeft = 18;
 
   return (
-    <article className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_248px]">
-        <div className="min-w-0">
-          <div className="mb-3 grid gap-2">
+    <div className={`relative ${headerAction ? 'pt-7' : ''}`}>
+      {headerAction ? <div className="absolute right-1 top-0">{headerAction}</div> : null}
+      <article className="glass-card rounded-2xl shadow-sm">
+        <div className="grid gap-4 p-4">
+          <div className="grid gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <h2 className="text-base font-semibold">{title}</h2>
+              <h2 className="text-base font-semibold text-white">{title}</h2>
               <ChartHelpTooltip ariaLabel={helpAriaLabel} title={helpTitle} widthClassName={helpWidthClassName}>
                 {helpContent}
               </ChartHelpTooltip>
             </div>
-            <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-start md:justify-between">
-              <div className="flex min-h-8 min-w-0 flex-col justify-start gap-1">
-                <p className="text-xs text-zinc-500">{subtitle}</p>
-                <p className={`text-xs ${statusClassName}`}>{statusText}</p>
-              </div>
-              {statusNode}
+            <div className="flex min-h-8 min-w-0 flex-col justify-start gap-1">
+              <p className="text-xs text-white/70">{subtitle}</p>
+              <p className={`text-xs ${statusClassName}`}>{statusText}</p>
             </div>
           </div>
 
-          <div className="chart-grid-surface relative h-80 overflow-hidden rounded-xl">
-            <div className="chart-range-enter absolute inset-0" key={range}>
-            <ChartPlotGrid bottom={chartBottom} left={plotLeft} right={plotRight} top={chartTopMarginPx} />
-            {series.length === 0 ? (
-              <ChartEmptyState>{emptyText}</ChartEmptyState>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={series}
-                  margin={{ top: 8, right: 8, bottom: 18, left: plotLeft }}
-                  onMouseLeave={() => onHoverChange(null)}
-                  onMouseMove={(state) => onHoverChange(getActiveChartHover(state, series, {
-                    plotBottom,
-                    plotLeft,
-                    plotTop: chartTopMarginPx
-                  }))}
-                >
-                  <XAxis
-                    dataKey="x"
-                    type="number"
-                    domain={xDomain}
-                    height={xAxisHeight}
-                    padding={xAxisPadding}
-                    ticks={xTicks}
-                    tickFormatter={(value) => xTickFormatter(value)}
-                    tick={{ fontSize: 10, fill: '#71717a' }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                  />
-                  <YAxis
-                    orientation="right"
-                    domain={yDomain}
-                    tickFormatter={(value) => formatValue(Number(value))}
-                    tick={{ fontSize: 10, fill: '#71717a' }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickCount={8}
-                    width={58}
-                  />
-                  <Tooltip
-                    animationDuration={120}
-                    content={tooltipContent}
-                    cursor={false}
-                    wrapperStyle={{ outline: 'none', transition: 'opacity 120ms ease-out' }}
-                  />
-                  {latestPoint ? (
-                    <ReferenceLine
-                      y={latestPoint.value}
-                      stroke={referenceStroke}
-                      strokeDasharray="4 4"
-                      strokeOpacity={0.45}
-                    />
-                  ) : null}
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke={lineStroke}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 2 }}
-                    isAnimationActive={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="latestValue"
-                    stroke="transparent"
-                    dot={<LatestValueDot />}
-                    activeDot={false}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-            <ChartCrosshairOverlay
-              bottom={chartBottom}
-              hover={hover}
-              left={plotLeft}
-              range={range}
-              right={plotRight}
-              top={chartTopMarginPx}
-              yDomain={yDomain}
-            />
+          <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
+            <div className="chart-grid-surface relative h-full min-h-96 min-w-0 overflow-hidden rounded-2xl">
+              <div className="chart-range-enter absolute inset-0" key={range}>
+                <ChartPlotGrid bottom={chartBottom} left={plotInsetLeft} right={axisWidth} top={chartTopMarginPx} />
+                {series.length === 0 ? (
+                  <ChartEmptyState>{emptyText}</ChartEmptyState>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={series}
+                      margin={{ top: chartTopMarginPx, right: 0, bottom: 0, left: plotInsetLeft }}
+                      onMouseLeave={() => onHoverChange(null)}
+                      onMouseMove={(state) => onHoverChange(getActiveChartHover(state, series, {
+                        plotBottom,
+                        plotLeft: plotInsetLeft,
+                        plotTop: chartTopMarginPx
+                      }))}
+                    >
+                      <XAxis
+                        dataKey="x"
+                        type="number"
+                        domain={xDomain}
+                        height={xAxisHeight}
+                        padding={xAxisPadding}
+                        ticks={xTicks}
+                        tickFormatter={(value) => xTickFormatter(value)}
+                        tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.62)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval={0}
+                      />
+                      <YAxis
+                        orientation="right"
+                        domain={yDomain}
+                        tick={<YAxisTick />}
+                        tickLine={false}
+                        axisLine={false}
+                        tickCount={8}
+                        width={axisWidth}
+                      />
+                      <Tooltip
+                        animationDuration={120}
+                        content={tooltipContent}
+                        cursor={false}
+                        wrapperStyle={{ outline: 'none', transition: 'opacity 120ms ease-out' }}
+                      />
+                      {latestPoint ? (
+                        <ReferenceLine
+                          y={latestPoint.value}
+                          stroke={referenceStroke}
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.45}
+                        />
+                      ) : null}
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={lineStroke}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, strokeWidth: 2 }}
+                        isAnimationActive={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="latestValue"
+                        stroke="transparent"
+                        dot={<LatestValueDot />}
+                        activeDot={false}
+                        isAnimationActive={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+                <ChartCrosshairOverlay
+                  bottom={chartBottom}
+                  hover={hover}
+                  left={plotInsetLeft}
+                  range={range}
+                  right={axisWidth}
+                  top={chartTopMarginPx}
+                  yDomain={yDomain}
+                />
+              </div>
             </div>
+
+            <aside className="glass-subcard flex min-h-96 flex-col justify-between rounded-2xl p-3">
+              <div className="grid gap-3">
+                <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
+                {statusNode ? (
+                  <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2">
+                    {statusNode}
+                  </div>
+                ) : null}
+                <div>
+                  <div className="mt-3 flex items-end justify-between gap-3">
+                    <p className="text-3xl font-semibold tracking-normal text-white">{metric ? formatMetricValue(metric) : '-'}</p>
+                    <span className="shrink-0 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
+                  </div>
+                </div>
+              </div>
+              <dl className="mt-5 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs">
+                {panelDetails.map((item) => (
+                  <div key={item.label} className="flex items-start justify-between gap-3">
+                    <dt className="shrink-0 text-white/55">{item.label}</dt>
+                    <dd className="min-w-0 text-right font-medium leading-5 text-white/85">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
+            </aside>
           </div>
         </div>
+      </article>
+    </div>
+  );
+}
 
-        <aside className="flex min-h-32 flex-col justify-between border-t border-zinc-100 pt-4 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-          <div className="grid gap-3">
-            <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
-            <div>
-              <p className="text-sm font-medium text-zinc-500">{metric?.label ?? '지표 확인 중'}</p>
-              <div className="mt-3 flex items-end justify-between gap-3">
-                <p className="text-3xl font-semibold tracking-normal">{metric ? formatMetricValue(metric) : '-'}</p>
-                <span className="shrink-0 text-xs font-medium text-zinc-500">{metric ? formatMetricUnit(metric.unit) : ''}</span>
-              </div>
-            </div>
-          </div>
-          <dl className="mt-5 flex flex-col gap-2 border-t border-zinc-100 pt-4 text-xs">
-            {panelDetails.map((item) => (
-              <div key={item.label} className="flex items-start justify-between gap-3">
-                <dt className="shrink-0 text-zinc-500">{item.label}</dt>
-                <dd className="min-w-0 text-right font-medium leading-5 text-zinc-800">{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-          {panelFooterText ? <p className="mt-4 text-xs text-zinc-500">{panelFooterText}</p> : null}
-        </aside>
-      </div>
-    </article>
+function YAxisTick({ index = 0, payload, x = 0, y = 0 }: AxisTickProps) {
+  return (
+    <text
+      dy={4}
+      fill="rgba(255,255,255,0.62)"
+      fontSize={10}
+      textAnchor="start"
+      x={x}
+      y={index === 0 ? y - 14 : y}
+    >
+      {formatValue(Number(payload?.value))}
+    </text>
   );
 }
