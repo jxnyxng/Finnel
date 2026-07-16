@@ -1,15 +1,18 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartEmptyState } from '../components/ChartElements';
 import type { DataSourceInfo, DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
 import { formatMetricUnit, formatValue } from '../utils/format';
+import { lockBodyScroll } from '../utils/scrollLock';
 
 type KoreaStatusPageProps = {
   indicators: DomesticIndicator[];
   dataSources: DataSourceInfo[];
   isLoading: boolean;
   latestSyncLabel: string;
+  statusNode?: React.ReactNode;
 };
 
 const sections = [
@@ -58,6 +61,7 @@ const sections = [
 ];
 
 const sectionTabs = [
+  { key: 'all', label: '전체' },
   { key: 'external', label: '대외수급' },
   { key: 'policy', label: '정책' },
   { key: 'inflation', label: '물가·원자재' },
@@ -71,38 +75,91 @@ const historyRangeOptions: Array<{ key: HistoryRangeKey; label: string }> = [
   { key: '5Y', label: '5년' }
 ];
 
-export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSyncLabel }: KoreaStatusPageProps) {
+export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSyncLabel, statusNode }: KoreaStatusPageProps) {
   const [activeSectionKey, setActiveSectionKey] = React.useState(sectionTabs[0].key);
   const [viewMode, setViewMode] = React.useState<'card' | 'list'>('list');
   const [selectedIndicator, setSelectedIndicator] = React.useState<DomesticIndicator | null>(null);
+  const sectionTabNavRef = React.useRef<HTMLDivElement | null>(null);
+  const sectionTabButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
+  const [sectionTabIndicator, setSectionTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
   const indicatorMap = new Map(indicators.map((indicator) => [indicator.code, indicator]));
   const collectedIndicators = indicators.filter((indicator) => indicator.value !== null);
-  const visibleSections = sections.filter((section) => section.key === activeSectionKey);
+  const visibleSections = activeSectionKey === 'all' ? sections : sections.filter((section) => section.key === activeSectionKey);
+
+  React.useLayoutEffect(() => {
+    const updateIndicator = () => {
+      const nav = sectionTabNavRef.current;
+      const button = sectionTabButtonRefs.current[activeSectionKey];
+      if (!nav || !button) {
+        return;
+      }
+
+      const navRect = nav.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const nextIndicator = {
+        height: buttonRect.height,
+        left: buttonRect.left - navRect.left,
+        top: buttonRect.top - navRect.top,
+        width: buttonRect.width
+      };
+      setSectionTabIndicator((current) => {
+        if (
+          current.height === nextIndicator.height &&
+          current.left === nextIndicator.left &&
+          current.top === nextIndicator.top &&
+          current.width === nextIndicator.width
+        ) {
+          return current;
+        }
+        return nextIndicator;
+      });
+    };
+
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [activeSectionKey]);
 
   return (
     <section className="grid gap-4">
-      <header className="rounded-md border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <header className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+        <div className="grid gap-2">
           <div className="min-w-0 leading-tight">
             <p className="text-[11px] font-semibold text-teal-700">관련 지표</p>
-            <h2 className="mt-0.5 text-base font-semibold text-zinc-950">원화 관련 정책·거시 지표</h2>
+            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-zinc-950">원화 관련 정책·거시 지표</h2>
+              <SummaryBox label="수집 지표" value={`${collectedIndicators.length}개`} />
+            </div>
             <p className="mt-1 truncate text-[11px] text-zinc-500">{latestSyncLabel}</p>
           </div>
-          <div className="shrink-0">
-            <SummaryBox label="수집 지표" value={`${collectedIndicators.length}개`} />
+          <div className="flex min-w-0 justify-start md:justify-end">
+            {statusNode}
           </div>
         </div>
       </header>
 
-      <nav className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white p-2 shadow-sm" aria-label="국내 현황 범주">
-        <div className="flex flex-wrap gap-1.5">
+      <nav className="flex flex-wrap items-center justify-between gap-2 rounded-full border border-zinc-200 bg-white p-1 shadow-sm" aria-label="국내 현황 범주">
+        <div className="relative flex flex-wrap gap-1" ref={sectionTabNavRef}>
+          {sectionTabIndicator.width > 0 ? (
+            <span
+              className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-700 shadow-md shadow-teal-900/15 ring-1 ring-teal-600/30 transition-[transform,width,height] duration-200 ease-out"
+              style={{
+                height: sectionTabIndicator.height,
+                transform: `translate(${sectionTabIndicator.left + 1}px, ${sectionTabIndicator.top - 1}px)`,
+                width: Math.max(0, sectionTabIndicator.width - 2)
+              }}
+            />
+          ) : null}
           {sectionTabs.map((tab) => (
             <button
-              className={`h-8 rounded-md px-3 text-xs font-semibold ${
-                activeSectionKey === tab.key ? 'bg-teal-700 text-white' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
+              className={`relative z-10 h-10 rounded-full px-4 text-xs font-semibold transition-colors duration-150 ${
+                activeSectionKey === tab.key ? 'text-white' : 'text-zinc-500 hover:text-zinc-900'
               }`}
               key={tab.key}
               onClick={() => setActiveSectionKey(tab.key)}
+              ref={(node) => {
+                sectionTabButtonRefs.current[tab.key] = node;
+              }}
               type="button"
             >
               {tab.label}
@@ -113,39 +170,41 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
       </nav>
 
       {isLoading ? (
-        <div className="rounded-md border border-zinc-200 bg-white p-6 text-sm text-zinc-500 shadow-sm">국내 정책 지표를 확인 중입니다.</div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500 shadow-sm">국내 정책 지표를 확인 중입니다.</div>
       ) : activeSectionKey !== 'sources' ? (
-        visibleSections.map((section) => {
-          const sectionIndicators = section.codes
-            .map((code) => indicatorMap.get(code))
-            .filter((indicator): indicator is DomesticIndicator => Boolean(indicator));
+        <div className="page-content-enter grid gap-4" key={activeSectionKey}>
+          {visibleSections.map((section) => {
+            const sectionIndicators = section.codes
+              .map((code) => indicatorMap.get(code))
+              .filter((indicator): indicator is DomesticIndicator => Boolean(indicator));
 
-          if (sectionIndicators.length === 0) {
-            return null;
-          }
+            if (sectionIndicators.length === 0) {
+              return null;
+            }
 
-          return (
-            <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm" key={section.title}>
-              <div className="mb-3 border-b border-zinc-100 pb-3">
-                <h3 className="text-sm font-semibold text-zinc-950">{section.title}</h3>
-                <p className="mt-1 text-xs text-zinc-500">{section.description}</p>
-              </div>
-              {viewMode === 'card' ? (
-                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                  {sectionIndicators.map((indicator) => (
-                    <PolicyIndicatorCard indicator={indicator} key={indicator.code} onInfoOpen={setSelectedIndicator} />
-                  ))}
+            return (
+              <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm" key={section.title}>
+                <div className="mb-3 border-b border-zinc-100 pb-3">
+                  <h3 className="text-sm font-semibold text-zinc-950">{section.title}</h3>
+                  <p className="mt-1 text-xs text-zinc-500">{section.description}</p>
                 </div>
-              ) : (
-                <PolicyIndicatorTable indicators={sectionIndicators} onInfoOpen={setSelectedIndicator} />
-              )}
-              <IndicatorSourceSummary indicators={sectionIndicators} />
-            </section>
-          );
-        })
+                {viewMode === 'card' ? (
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {sectionIndicators.map((indicator) => (
+                      <PolicyIndicatorCard indicator={indicator} key={indicator.code} onInfoOpen={setSelectedIndicator} />
+                    ))}
+                  </div>
+                ) : (
+                  <PolicyIndicatorTable indicators={sectionIndicators} onInfoOpen={setSelectedIndicator} />
+                )}
+                <IndicatorSourceSummary indicators={sectionIndicators} />
+              </section>
+            );
+          })}
+        </div>
       ) : null}
 
-      {activeSectionKey === 'sources' ? <DataSourceSection dataSources={dataSources} /> : null}
+      {activeSectionKey === 'sources' ? <div className="page-content-enter"><DataSourceSection dataSources={dataSources} /></div> : null}
       <IndicatorInfoPanel indicator={selectedIndicator} onClose={() => setSelectedIndicator(null)} />
     </section>
   );
@@ -159,16 +218,24 @@ function ViewModeToggle({
   value: 'card' | 'list';
 }) {
   return (
-    <div className="grid h-7 shrink-0 grid-cols-2 rounded-md border border-zinc-200 bg-zinc-100 p-0.5">
+    <div className="relative grid h-8 shrink-0 grid-cols-2 rounded-full border border-zinc-200 bg-zinc-100 p-0.5">
+      <span
+        className="pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 rounded-full bg-white shadow-md shadow-zinc-900/10 ring-1 ring-zinc-200 transition-transform duration-200 ease-out"
+        style={{
+          transform: value === 'list' ? 'translateX(100%) scale(1)' : 'translateX(0) scale(1)',
+          transformOrigin: 'center',
+          width: 'calc(50% - 2px)'
+        }}
+      />
       <button
-        className={`h-6 min-w-12 rounded px-2 text-[11px] font-semibold ${value === 'card' ? 'bg-white text-teal-700 shadow-sm' : 'text-zinc-500'}`}
+        className={`relative z-10 h-7 min-w-12 rounded-full px-2 text-[11px] font-semibold transition-colors duration-150 ${value === 'card' ? 'text-teal-700' : 'text-zinc-500 hover:text-zinc-900'}`}
         onClick={() => onChange('card')}
         type="button"
       >
         카드
       </button>
       <button
-        className={`h-6 min-w-12 rounded px-2 text-[11px] font-semibold ${value === 'list' ? 'bg-white text-teal-700 shadow-sm' : 'text-zinc-500'}`}
+        className={`relative z-10 h-7 min-w-12 rounded-full px-2 text-[11px] font-semibold transition-colors duration-150 ${value === 'list' ? 'text-teal-700' : 'text-zinc-500 hover:text-zinc-900'}`}
         onClick={() => onChange('list')}
         type="button"
       >
@@ -180,7 +247,7 @@ function ViewModeToggle({
 
 function DataSourceSection({ dataSources }: { dataSources: DataSourceInfo[] }) {
   return (
-    <section className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+    <section className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="border-b border-zinc-100 pb-3">
         <h3 className="text-sm font-semibold text-zinc-950">데이터 확보 경로</h3>
         <p className="mt-1 text-xs text-zinc-500">실제 수집 중인 API와 추가 연동이 필요한 API를 구분합니다.</p>
@@ -206,10 +273,10 @@ function DataSourceSection({ dataSources }: { dataSources: DataSourceInfo[] }) {
 
 function SummaryBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="inline-block rounded border border-zinc-100 bg-zinc-50 px-3 py-1.5 text-right">
-      <div className="text-[10px] font-medium text-zinc-500">{label}</div>
-      <div className="text-sm font-semibold text-zinc-950">{value}</div>
-    </div>
+    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-500">
+      <span>{label}</span>
+      <span className="font-semibold text-zinc-800">{value}</span>
+    </span>
   );
 }
 
@@ -346,6 +413,14 @@ function IndicatorInfoPanel({
   const hasChart = indicator !== null && shouldShowHistoryChart(indicator);
 
   React.useEffect(() => {
+    if (!indicator) {
+      return;
+    }
+
+    return lockBodyScroll();
+  }, [indicator]);
+
+  React.useEffect(() => {
     if (!indicator || !shouldShowHistoryChart(indicator)) {
       setHistory(null);
       setHistoryError(null);
@@ -391,10 +466,10 @@ function IndicatorInfoPanel({
 
   const delta = getDelta(indicator);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/25 px-4 py-6" onClick={onClose}>
+  return createPortal(
+    <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/35 px-4 py-6" onClick={onClose}>
       <section
-        className="max-h-[min(760px,calc(100vh-3rem))] w-full max-w-3xl overflow-y-auto rounded-md border border-zinc-200 bg-white p-6 text-sm shadow-xl"
+        className="modal-panel modal-scroll-area max-h-[min(760px,calc(100vh-3rem))] w-full max-w-3xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6 text-sm shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-zinc-100 pb-4">
@@ -433,7 +508,7 @@ function IndicatorInfoPanel({
           </div>
         ) : null}
         {hasChart ? (
-          <div className="mt-5 rounded-md border border-zinc-100 bg-white p-4">
+          <div className="mt-5 rounded-xl border border-zinc-100 bg-white p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold text-zinc-900">과거 흐름</p>
@@ -443,12 +518,14 @@ function IndicatorInfoPanel({
               </div>
               <HistoryRangeSelector history={history} value={historyRange} onChange={setHistoryRange} />
             </div>
-            <DomesticIndicatorHistoryChart
-              history={history}
-              indicator={indicator}
-              isLoading={isHistoryLoading}
-              error={historyError}
-            />
+            <div className="chart-range-enter" key={`${indicator.code}-${history?.range ?? historyRange}-${history?.endDate ?? ''}`}>
+              <DomesticIndicatorHistoryChart
+                history={history}
+                indicator={indicator}
+                isLoading={isHistoryLoading}
+                error={historyError}
+              />
+            </div>
           </div>
         ) : null}
         <div className="mt-5 rounded-md bg-zinc-50 p-4 text-xs leading-5 text-zinc-700">
@@ -459,7 +536,8 @@ function IndicatorInfoPanel({
           <p className="mt-1">{indicator.note}</p>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -472,9 +550,47 @@ function HistoryRangeSelector({
   onChange: (value: HistoryRangeKey) => void;
   value: HistoryRangeKey;
 }) {
-  const options = history
-    ? historyRangeOptions.filter((option) => history.availableRanges.includes(option.key))
-    : historyRangeOptions;
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const buttonRefs = React.useRef<Partial<Record<HistoryRangeKey, HTMLButtonElement | null>>>({});
+  const [indicator, setIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
+  const options = React.useMemo(
+    () => (history ? historyRangeOptions.filter((option) => history.availableRanges.includes(option.key)) : historyRangeOptions),
+    [history]
+  );
+
+  React.useLayoutEffect(() => {
+    const updateIndicator = () => {
+      const container = containerRef.current;
+      const button = buttonRefs.current[value];
+      if (!container || !button) {
+        return;
+      }
+
+      const containerRect = container.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const nextIndicator = {
+        height: buttonRect.height,
+        left: buttonRect.left - containerRect.left,
+        top: buttonRect.top - containerRect.top,
+        width: buttonRect.width
+      };
+      setIndicator((current) => {
+        if (
+          current.height === nextIndicator.height &&
+          current.left === nextIndicator.left &&
+          current.top === nextIndicator.top &&
+          current.width === nextIndicator.width
+        ) {
+          return current;
+        }
+        return nextIndicator;
+      });
+    };
+
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [options, value]);
 
   if (options.length === 0) {
     return (
@@ -485,14 +601,27 @@ function HistoryRangeSelector({
   }
 
   return (
-    <div className="inline-flex h-9 shrink-0 rounded-md border border-zinc-200 bg-zinc-100 p-1">
+    <div className="relative inline-flex h-10 shrink-0 rounded-full border border-zinc-200 bg-zinc-100 p-0.5" ref={containerRef}>
+      {indicator.width > 0 ? (
+        <span
+          className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-white shadow-md shadow-zinc-900/10 ring-1 ring-zinc-200 transition-[transform,width,height] duration-200 ease-out"
+          style={{
+            height: indicator.height,
+            transform: `translate(${indicator.left + 1}px, ${indicator.top - 1}px)`,
+            width: Math.max(0, indicator.width - 2)
+          }}
+        />
+      ) : null}
       {options.map((option) => (
         <button
-          className={`h-7 min-w-14 rounded px-3 text-xs font-semibold ${
-            value === option.key ? 'bg-white text-teal-700 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'
+          className={`relative z-10 inline-flex h-full min-w-14 items-center justify-center rounded-full px-3 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
+            value === option.key ? 'text-teal-700' : 'text-zinc-500 hover:text-zinc-900'
           }`}
           key={option.key}
           onClick={() => onChange(option.key)}
+          ref={(node) => {
+            buttonRefs.current[option.key] = node;
+          }}
           type="button"
         >
           {option.label}
@@ -517,7 +646,7 @@ function DomesticIndicatorHistoryChart({
   indicator: DomesticIndicator;
   isLoading: boolean;
 }) {
-  if (isLoading) {
+  if (isLoading && !history) {
     return (
       <div className="mt-4 h-72">
         <ChartEmptyState>과거 데이터를 불러오는 중입니다.</ChartEmptyState>

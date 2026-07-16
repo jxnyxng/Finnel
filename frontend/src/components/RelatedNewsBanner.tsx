@@ -20,6 +20,36 @@ const autoAdvanceMs = 7000;
 const manualPauseMs = 10000;
 const slideDurationMs = 420;
 const relatedNewsCache = new Map<RelatedNewsBannerProps['topic'], RelatedNewsResponse>();
+const relatedNewsRequestCache = new Map<RelatedNewsBannerProps['topic'], Promise<RelatedNewsResponse>>();
+
+export function prefetchRelatedNews(topic: RelatedNewsBannerProps['topic']) {
+  const cached = relatedNewsCache.get(topic);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  const pendingRequest = relatedNewsRequestCache.get(topic);
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const request = axios.get<RelatedNewsResponse>('/api/v1/news/related', {
+    params: {
+      limit: 9,
+      topic
+    }
+  }).then((response) => {
+    relatedNewsCache.set(topic, response.data);
+    relatedNewsRequestCache.delete(topic);
+    return response.data;
+  }).catch((error) => {
+    relatedNewsRequestCache.delete(topic);
+    throw error;
+  });
+
+  relatedNewsRequestCache.set(topic, request);
+  return request;
+}
 
 export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
   const cachedResponse = relatedNewsCache.get(topic);
@@ -47,19 +77,13 @@ export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
       setIsAnimating(false);
     }
 
-    axios.get<RelatedNewsResponse>('/api/v1/news/related', {
-      params: {
-        limit: 9,
-        topic
-      }
-    }).then((response) => {
+    prefetchRelatedNews(topic).then((response) => {
       if (!isMounted) {
         return;
       }
 
-      relatedNewsCache.set(topic, response.data);
-      setArticles(response.data.articles);
-      setIsConfigured(response.data.configured);
+      setArticles(response.articles);
+      setIsConfigured(response.configured);
       setActiveGroup(0);
       setPreviousGroup(null);
       setIsAnimating(false);
@@ -133,9 +157,9 @@ export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
   };
 
   return (
-    <section className="related-news-banner rounded-md border border-zinc-200 bg-white shadow-sm" aria-label={topicLabels[topic]}>
+    <section className="related-news-banner rounded-xl border border-zinc-200 bg-white shadow-sm" aria-label={topicLabels[topic]}>
       <div className="relative">
-        <div className="relative overflow-hidden rounded-md bg-zinc-200">
+        <div className="relative overflow-hidden rounded-xl bg-zinc-200">
           {isAnimating && previousGroup !== null ? (
             <div className={`related-news-slide related-news-slide-exit related-news-slide-exit-${slideDirection}`}>
               <RelatedNewsGroup articles={previousArticles} />
