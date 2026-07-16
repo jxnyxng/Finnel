@@ -16,8 +16,7 @@ import {
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
-import { MetricSidePanel as MetricSidePanelView } from './components/MetricSidePanel';
-import { RelatedNewsBanner } from './components/RelatedNewsBanner';
+import { RelatedNewsBanner, prefetchRelatedNews } from './components/RelatedNewsBanner';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
 import { GovernmentBriefingsPage as GovernmentBriefingsPageView } from './pages/GovernmentBriefingsPage';
@@ -32,7 +31,6 @@ import {
   getDailyReferenceLabel,
   getDailyXTicks,
   getLatestIntradayDate,
-  getLatestValueLabelTop,
   getPanelPeriodLabel,
   getRangeLabel,
   getUsdKrwPanelReferenceLabel,
@@ -90,6 +88,8 @@ function App() {
   const [newsCategories, setNewsCategories] = React.useState<NewsCategory[]>([]);
   const [isNewsConfigured, setIsNewsConfigured] = React.useState(false);
   const [isNewsLoading, setIsNewsLoading] = React.useState(false);
+  const delayedNewsLoading = useDelayedFlag(isNewsLoading, 240);
+  const [hasNewsLoaded, setHasNewsLoaded] = React.useState(false);
   const [selectedNewsCategory, setSelectedNewsCategory] = React.useState('all');
   const [newsFilters, setNewsFilters] = React.useState<NewsFilters>({ fromDate: '', toDate: '', keyword: '' });
   const [newsPage, setNewsPage] = React.useState(1);
@@ -99,6 +99,8 @@ function App() {
   const [governmentBriefingCategories, setGovernmentBriefingCategories] = React.useState<GovernmentBriefingCategory[]>([]);
   const [isGovernmentBriefingsConfigured, setIsGovernmentBriefingsConfigured] = React.useState(false);
   const [isGovernmentBriefingsLoading, setIsGovernmentBriefingsLoading] = React.useState(false);
+  const delayedGovernmentBriefingsLoading = useDelayedFlag(isGovernmentBriefingsLoading, 240);
+  const [hasGovernmentBriefingsLoaded, setHasGovernmentBriefingsLoaded] = React.useState(false);
   const [selectedGovernmentBriefingCategory, setSelectedGovernmentBriefingCategory] = React.useState('all');
   const [governmentBriefingFilters, setGovernmentBriefingFilters] = React.useState<GovernmentBriefingFilters>({ fromDate: '', toDate: '', keyword: '' });
   const [governmentBriefingsPage, setGovernmentBriefingsPage] = React.useState(1);
@@ -106,6 +108,48 @@ function App() {
   const [governmentBriefingsTotalPages, setGovernmentBriefingsTotalPages] = React.useState(0);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const isMainAppPage = activePage === 'dashboard' || activePage === 'exchangeGuide' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom' || activePage === 'governmentBriefings';
+  const mainTabNavRef = React.useRef<HTMLElement | null>(null);
+  const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
+  const [mainTabIndicator, setMainTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
+
+  React.useLayoutEffect(() => {
+    if (!isMainAppPage) {
+      return;
+    }
+
+    const activeKey = activePage as MainTabKey;
+    const updateIndicator = () => {
+      const nav = mainTabNavRef.current;
+      const button = mainTabButtonRefs.current[activeKey];
+      if (!nav || !button) {
+        return;
+      }
+
+      const navRect = nav.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const nextIndicator = {
+        height: buttonRect.height,
+        left: buttonRect.left - navRect.left,
+        top: buttonRect.top - navRect.top,
+        width: buttonRect.width
+      };
+      setMainTabIndicator((current) => {
+        if (
+          current.height === nextIndicator.height &&
+          current.left === nextIndicator.left &&
+          current.top === nextIndicator.top &&
+          current.width === nextIndicator.width
+        ) {
+          return current;
+        }
+        return nextIndicator;
+      });
+    };
+
+    updateIndicator();
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [activePage, isMainAppPage]);
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
     if (showLoading) {
@@ -173,6 +217,7 @@ function App() {
     } catch {
       setNewsArticles([]);
     } finally {
+      setHasNewsLoaded(true);
       if (showLoading) {
         setIsNewsLoading(false);
       }
@@ -209,6 +254,7 @@ function App() {
     } catch {
       setGovernmentBriefings([]);
     } finally {
+      setHasGovernmentBriefingsLoaded(true);
       if (showLoading) {
         setIsGovernmentBriefingsLoading(false);
       }
@@ -234,11 +280,18 @@ function App() {
   }, [loadDashboard, loadSyncStatus, loadIntradayStatus]);
 
   React.useEffect(() => {
+    loadNews('all', 1, false);
+    loadGovernmentBriefings('all', 1, false);
+    prefetchRelatedNews('exchange').catch(() => undefined);
+    prefetchRelatedNews('indicators').catch(() => undefined);
+  }, []);
+
+  React.useEffect(() => {
     if (activePage !== 'newsroom') {
       return undefined;
     }
 
-    loadNews(selectedNewsCategory, newsPage, true);
+    loadNews(selectedNewsCategory, newsPage, newsArticles.length === 0);
     const newsTimer = window.setInterval(() => loadNews(selectedNewsCategory, newsPage), 60_000);
     return () => window.clearInterval(newsTimer);
   }, [activePage, loadNews, newsPage, selectedNewsCategory]);
@@ -248,7 +301,7 @@ function App() {
       return undefined;
     }
 
-    loadGovernmentBriefings(selectedGovernmentBriefingCategory, governmentBriefingsPage, true);
+    loadGovernmentBriefings(selectedGovernmentBriefingCategory, governmentBriefingsPage, governmentBriefings.length === 0);
     const briefingTimer = window.setInterval(() => loadGovernmentBriefings(selectedGovernmentBriefingCategory, governmentBriefingsPage), 60_000);
     return () => window.clearInterval(briefingTimer);
   }, [activePage, governmentBriefingsPage, loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
@@ -271,23 +324,16 @@ function App() {
   const visibleUsdKrwSeries = buildVisibleUsdKrwSeries(usdKrwSeries, usdKrwIntradaySeries, usdKrwRange);
   const latestUsdKrwPoint = visibleUsdKrwSeries[visibleUsdKrwSeries.length - 1] ?? null;
   const usdKrwDomain = getValueDomain(visibleUsdKrwSeries, 5);
-  const latestUsdKrwLabelTop = getLatestValueLabelTop(
-    latestUsdKrwPoint?.value ?? null,
-    usdKrwDomain,
-    usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx
-  );
   const usdKrwXDomain = getXDomain(visibleUsdKrwSeries, usdKrwRange);
   const usdKrwXTicks = usdKrwRange === '1D' ? getUsdKrwXTicks(usdKrwRange) : getDailyXTicks(visibleUsdKrwSeries);
   const visibleDxyIndexSeries = buildVisibleDailySeries(dxyIndexSeries, dxyRange);
   const latestDxyIndexPoint = visibleDxyIndexSeries[visibleDxyIndexSeries.length - 1] ?? null;
   const dxyIndexDomain = getValueDomain(visibleDxyIndexSeries, 1);
-  const latestDxyIndexLabelTop = getLatestValueLabelTop(latestDxyIndexPoint?.value ?? null, dxyIndexDomain, dailyXAxisHeightPx);
   const dxyIndexXDomain = getXDomain(visibleDxyIndexSeries, dxyRange);
   const dxyIndexXTicks = getDailyXTicks(visibleDxyIndexSeries);
   const visibleDollarIndexSeries = buildVisibleDailySeries(dollarIndexSeries, dollarIndexRange);
   const latestDollarIndexPoint = visibleDollarIndexSeries[visibleDollarIndexSeries.length - 1] ?? null;
   const dollarIndexDomain = getValueDomain(visibleDollarIndexSeries, 1);
-  const latestDollarIndexLabelTop = getLatestValueLabelTop(latestDollarIndexPoint?.value ?? null, dollarIndexDomain, dailyXAxisHeightPx);
   const dollarIndexXDomain = getXDomain(visibleDollarIndexSeries, dollarIndexRange);
   const dollarIndexXTicks = getDailyXTicks(visibleDollarIndexSeries);
   const dollarIndexReferenceLabel = getDailyReferenceLabel(visibleDollarIndexSeries);
@@ -310,8 +356,15 @@ function App() {
     syncStatus
   });
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
-  const activePageTitle = getMainPageTitle(activeTab);
   const showPageStatus = activePage !== 'exchangeGuide' && activePage !== 'serviceGuide';
+  const activeStatusNode = showPageStatus ? (
+    <UpdateStatusBox
+      interval={activeServiceUpdateInterval}
+      statusLabel={activeServiceStatus.label}
+      todayLabel={todayLabel}
+      tone={activeServiceStatus.tone}
+    />
+  ) : null;
   const intradayStatusLabel = getIntradayStatusLabel(
     false,
     latestIntradayDate,
@@ -423,102 +476,88 @@ function App() {
         </div>
       </div>
       {isMainAppPage ? (
-        <div className="border-b border-zinc-200 bg-white">
-          <nav className="mx-auto flex w-full max-w-6xl gap-0.5 overflow-x-auto px-5 py-1" aria-label="주요 화면">
-            {mainTabs.map((tab) => (
-              <button
-                className={`h-8 shrink-0 rounded px-3.5 text-xs font-semibold ${
-                  activePage === tab.key ? 'bg-teal-700 text-white' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
-                }`}
-                key={tab.key}
-                onClick={() => {
-                  setActiveTab(tab.key);
-                  setActivePage(tab.key);
-                }}
-                type="button"
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+        <div className="bg-zinc-50 pt-2">
+          <div className="mx-auto w-full max-w-6xl px-5">
+            <nav className="relative flex flex-wrap gap-1 rounded-full border border-zinc-200 bg-white p-1 shadow-sm" aria-label="주요 화면" ref={mainTabNavRef}>
+              {mainTabIndicator.width > 0 ? (
+                <span
+                  className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-700 shadow-md shadow-teal-900/15 ring-1 ring-teal-600/30 transition-[transform,width,height] duration-200 ease-out"
+                  style={{
+                    height: mainTabIndicator.height,
+                    transform: `translate(${mainTabIndicator.left + 1}px, ${mainTabIndicator.top - 1}px)`,
+                    width: Math.max(0, mainTabIndicator.width - 2)
+                  }}
+                />
+              ) : null}
+              {mainTabs.map((tab) => (
+                <button
+                  className={`relative z-10 inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
+                    activePage === tab.key ? 'text-white' : 'text-zinc-500 hover:text-zinc-900'
+                  }`}
+                  key={tab.key}
+                  onClick={() => {
+                    setActiveTab(tab.key);
+                    setActivePage(tab.key);
+                  }}
+                  ref={(node) => {
+                    mainTabButtonRefs.current[tab.key] = node;
+                  }}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
         </div>
       ) : null}
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4">
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-3">
         {activePage === 'dashboard' ? <RelatedNewsBanner topic="exchange" /> : null}
         {activePage === 'koreaStatus' ? <RelatedNewsBanner topic="indicators" /> : null}
 
-        {isMainAppPage ? (
-          <header className="flex flex-col gap-2 border-b border-zinc-200 pb-3 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-xl font-semibold tracking-normal">{activePageTitle}</h1>
-            </div>
-            {showPageStatus ? (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 md:justify-end">
-                <span className="font-medium">오늘 {todayLabel}</span>
-                <span className="hidden text-zinc-300 md:inline" aria-hidden="true">·</span>
-                <div className="flex items-center gap-2 font-medium md:justify-end">
-                  <span className={`service-status-dot service-status-dot-${activeServiceStatus.tone}`} aria-hidden="true" />
-                  {activeServiceStatus.label}
-                  <span className="text-zinc-300" aria-hidden="true">·</span>
-                  <span className="font-normal">{activeServiceUpdateInterval}</span>
-                </div>
-              </div>
-            ) : null}
-          </header>
-        ) : null}
-
         {activePage === 'dashboard' ? (
-          <section className="grid gap-4">
+          <section className="page-content-enter grid gap-4">
+            <MarketChartSection
+              emptyText={usdKrwRange === '1D'
+                ? '09:00~다음날 02:00 세션 환율 데이터를 확인 중입니다.'
+                : '표시할 환율 데이터가 없습니다.'}
+              helpAriaLabel="USD/KRW 그래프 안내"
+              helpContent={(
+                <>
+                  <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
+                  <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
+                </>
+              )}
+              helpTitle="USD/KRW 그래프"
+              hover={activeUsdKrwHover}
+              lineStroke="#0f766e"
+              metric={usdKrwMetric}
+              onHoverChange={setActiveUsdKrwHover}
+              onRangeChange={setUsdKrwRange}
+              panelDetails={usdKrwPanelDetails}
+              panelFooterText={`기준 ${dashboard?.baseDate ?? '-'}`}
+              plotLeft={28}
+              plotRight={66}
+              range={usdKrwRange}
+              rangeColumns={4}
+              rangeOptions={rangeOptions}
+              referenceStroke="#0f766e"
+              series={visibleUsdKrwSeries}
+              statusClassName={usdKrwRange === '1D' ? 'text-teal-700' : 'text-transparent'}
+              statusNode={activeStatusNode}
+              statusText={usdKrwRange === '1D' ? intradayStatusLabel : '상태 영역'}
+              subtitle={usdKrwRange === '1D' ? '09:00~익일 02:00 실시간 수집 환율' : `${getRangeLabel(usdKrwRange)} 일별 기준 환율`}
+              title="실시간 원달러 환율"
+              tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
+              xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
+              xAxisPadding={{ left: 0, right: 0 }}
+              xDomain={usdKrwXDomain}
+              xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
+              xTicks={usdKrwXTicks}
+              yDomain={usdKrwDomain}
+            />
             <ForeignExchangeSummary rates={foreignExchangeRates} />
-            <header className="border-b border-zinc-200 pb-2">
-              <h2 className="text-base font-semibold tracking-normal text-zinc-950">실시간 원달러 환율</h2>
-            </header>
-            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <MarketChartSection
-                emptyText={usdKrwRange === '1D'
-                  ? '09:00~다음날 02:00 세션 환율 데이터를 확인 중입니다.'
-                  : '표시할 환율 데이터가 없습니다.'}
-                helpAriaLabel="USD/KRW 그래프 안내"
-                helpContent={(
-                  <>
-                    <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
-                    <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
-                  </>
-                )}
-                helpTitle="USD/KRW 그래프"
-                hover={activeUsdKrwHover}
-                latestLabelTop={latestUsdKrwLabelTop}
-                latestValue={latestUsdKrwPoint?.value ?? null}
-                lineStroke="#0f766e"
-                onHoverChange={setActiveUsdKrwHover}
-                onRangeChange={setUsdKrwRange}
-                plotLeft={28}
-                plotRight={66}
-                range={usdKrwRange}
-                rangeColumns={4}
-                rangeOptions={rangeOptions}
-                referenceStroke="#0f766e"
-                series={visibleUsdKrwSeries}
-                statusClassName={usdKrwRange === '1D' ? 'text-teal-700' : 'text-transparent'}
-                statusText={usdKrwRange === '1D' ? intradayStatusLabel : '상태 영역'}
-                subtitle={usdKrwRange === '1D' ? '09:00~익일 02:00' : getRangeLabel(usdKrwRange)}
-                title="USD/KRW 추이"
-                tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
-                xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
-                xAxisPadding={{ left: 0, right: 0 }}
-                xDomain={usdKrwXDomain}
-                xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
-                xTicks={usdKrwXTicks}
-                yDomain={usdKrwDomain}
-              />
-              <MetricSidePanelView
-                details={usdKrwPanelDetails}
-                footerText={`기준 ${dashboard?.baseDate ?? '-'}`}
-                metric={usdKrwMetric}
-              />
-            </section>
 
-            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
               <MarketChartSection
                 emptyText="표시할 선진국 달러 지수 데이터가 없습니다."
                 helpAriaLabel="선진국 달러 지수 안내"
@@ -531,17 +570,18 @@ function App() {
                 helpTitle="선진국 달러 지수"
                 helpWidthClassName="w-80"
                 hover={activeAdvancedDollarHover}
-                latestLabelTop={latestDxyIndexLabelTop}
-                latestValue={latestDxyIndexPoint?.value ?? null}
-                lineStroke="#0f766e"
+                lineStroke="#52525b"
+                metric={dxyMetric}
                 onHoverChange={setActiveAdvancedDollarHover}
                 onRangeChange={setDxyRange}
+                panelDetails={dxyPanelDetails}
+                panelFooterText={`최신 계산 ${latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
                 plotLeft={18}
                 plotRight={66}
                 range={dxyRange}
                 rangeColumns={3}
                 rangeOptions={longRangeOptions}
-                referenceStroke="#0f766e"
+                referenceStroke="#52525b"
                 series={visibleDxyIndexSeries}
                 statusClassName="text-transparent"
                 statusText="상태 영역"
@@ -555,14 +595,7 @@ function App() {
                 xTicks={dxyIndexXTicks}
                 yDomain={dxyIndexDomain}
               />
-              <MetricSidePanelView
-                details={dxyPanelDetails}
-                footerText={`최신 계산 ${latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
-                metric={dxyMetric}
-              />
-            </section>
 
-            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
               <MarketChartSection
                 emptyText="표시할 달러 지수 데이터가 없습니다."
                 helpAriaLabel="광의 달러 지수 안내"
@@ -574,11 +607,12 @@ function App() {
                 )}
                 helpTitle="광의 달러 지수"
                 hover={activeBroadDollarHover}
-                latestLabelTop={latestDollarIndexLabelTop}
-                latestValue={latestDollarIndexPoint?.value ?? null}
                 lineStroke="#52525b"
+                metric={dollarIndexMetric}
                 onHoverChange={setActiveBroadDollarHover}
                 onRangeChange={setDollarIndexRange}
+                panelDetails={dollarIndexPanelDetails}
+                panelFooterText={`최신 발표 ${latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
                 plotLeft={18}
                 plotRight={66}
                 range={dollarIndexRange}
@@ -598,64 +632,69 @@ function App() {
                 xTicks={dollarIndexXTicks}
                 yDomain={dollarIndexDomain}
               />
-              <MetricSidePanelView
-                details={dollarIndexPanelDetails}
-                footerText={`최신 발표 ${latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
-                metric={dollarIndexMetric}
-              />
-            </section>
             <DataSourceGuideView dataSources={dataSources} />
           </section>
         ) : null}
 
-        {activePage === 'exchangeGuide' ? <ExchangeRateGuidePageView /> : null}
+        {activePage === 'exchangeGuide' ? <div className="page-content-enter"><ExchangeRateGuidePageView /></div> : null}
 
         {activePage === 'koreaStatus' ? (
-          <KoreaStatusPageView
-            dataSources={dataSources}
-            indicators={domesticIndicators}
-            isLoading={isLoading}
-            latestSyncLabel={latestSyncLabel}
-          />
+          <div className="page-content-enter">
+            <KoreaStatusPageView
+              dataSources={dataSources}
+              indicators={domesticIndicators}
+              isLoading={isLoading}
+              latestSyncLabel={latestSyncLabel}
+              statusNode={activeStatusNode}
+            />
+          </div>
         ) : null}
 
-        {activePage === 'ranking' ? <CurrencyStrengthPageView ranks={currencyStrengthRanks} /> : null}
+        {activePage === 'ranking' ? <div className="page-content-enter"><CurrencyStrengthPageView ranks={currencyStrengthRanks} statusNode={activeStatusNode} /></div> : null}
 
         {activePage === 'newsroom' ? (
-          <NewsroomPageView
-            articles={newsArticles}
-            categories={newsCategories}
-            configured={isNewsConfigured}
-            filters={newsFilters}
-            isLoading={isNewsLoading}
-            onFiltersApply={applyNewsFilters}
-            onCategoryChange={changeNewsCategory}
-            onPageChange={changeNewsPage}
-            page={newsPage}
-            selectedCategory={selectedNewsCategory}
-            totalCount={newsTotalCount}
-            totalPages={newsTotalPages}
-          />
+          <div className="page-content-enter">
+            <NewsroomPageView
+              articles={newsArticles}
+              categories={newsCategories}
+              configured={!hasNewsLoaded || isNewsConfigured}
+              filters={newsFilters}
+              isLoading={delayedNewsLoading}
+              isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
+              onFiltersApply={applyNewsFilters}
+              onCategoryChange={changeNewsCategory}
+              onPageChange={changeNewsPage}
+              page={newsPage}
+              selectedCategory={selectedNewsCategory}
+              statusNode={activeStatusNode}
+              totalCount={newsTotalCount}
+              totalPages={newsTotalPages}
+            />
+          </div>
         ) : null}
 
         {activePage === 'governmentBriefings' ? (
-          <GovernmentBriefingsPageView
-            articles={governmentBriefings}
-            categories={governmentBriefingCategories}
-            configured={isGovernmentBriefingsConfigured}
-            filters={governmentBriefingFilters}
-            isLoading={isGovernmentBriefingsLoading}
-            onCategoryChange={changeGovernmentBriefingCategory}
-            onFiltersApply={applyGovernmentBriefingFilters}
-            onPageChange={changeGovernmentBriefingsPage}
-            page={governmentBriefingsPage}
-            selectedCategory={selectedGovernmentBriefingCategory}
-            totalCount={governmentBriefingsTotalCount}
-            totalPages={governmentBriefingsTotalPages}
-          />
+          <div className="page-content-enter">
+            <GovernmentBriefingsPageView
+              articles={governmentBriefings}
+              categories={governmentBriefingCategories}
+              configured={!hasGovernmentBriefingsLoaded || isGovernmentBriefingsConfigured}
+              filters={governmentBriefingFilters}
+              isLoading={delayedGovernmentBriefingsLoading}
+              isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
+              onCategoryChange={changeGovernmentBriefingCategory}
+              onFiltersApply={applyGovernmentBriefingFilters}
+              onPageChange={changeGovernmentBriefingsPage}
+              page={governmentBriefingsPage}
+              selectedCategory={selectedGovernmentBriefingCategory}
+              statusNode={activeStatusNode}
+              totalCount={governmentBriefingsTotalCount}
+              totalPages={governmentBriefingsTotalPages}
+            />
+          </div>
         ) : null}
 
-        {activePage === 'serviceGuide' ? <ServiceGuidePageView /> : null}
+        {activePage === 'serviceGuide' ? <div className="page-content-enter"><ServiceGuidePageView /></div> : null}
 
       </section>
       <ExchangeRateCalculator rates={foreignExchangeRates} />
@@ -670,29 +709,53 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 );
 
-function getMainPageTitle(activeTab: MainTabKey) {
-  switch (activeTab) {
-    case 'dashboard':
-      return '환율 현황';
-    case 'exchangeGuide':
-      return '환율이란';
-    case 'koreaStatus':
-      return '관련 지표';
-    case 'ranking':
-      return '화폐 랭킹';
-    case 'newsroom':
-      return '뉴스 검색';
-    case 'governmentBriefings':
-      return '정부 정책';
-    default:
-      return '환율 현황';
-  }
+function useDelayedFlag(value: boolean, delayMs: number) {
+  const [delayedValue, setDelayedValue] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!value) {
+      setDelayedValue(false);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setDelayedValue(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [delayMs, value]);
+
+  return delayedValue;
+}
+
+function UpdateStatusBox({
+  interval,
+  statusLabel,
+  todayLabel,
+  tone
+}: {
+  interval: string;
+  statusLabel: string;
+  todayLabel: string;
+  tone: string;
+}) {
+  return (
+    <div className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[10px] font-medium text-zinc-500">
+      <span className="inline-flex max-w-full min-w-0 items-center">
+        <span className="truncate">{interval}</span>
+      </span>
+      <span className="inline-flex max-w-full min-w-0 items-center">
+        <span className="truncate">오늘 {todayLabel}</span>
+      </span>
+      <span className="inline-flex max-w-full min-w-0 items-center gap-1">
+        <span className={`service-status-dot service-status-dot-${tone} shrink-0`} aria-hidden="true" />
+        <span className="truncate">{statusLabel}</span>
+      </span>
+    </div>
+  );
 }
 
 function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
   if (rates.length === 0) {
     return (
-      <section className="rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-400 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-400 shadow-sm">
         주요 통화 환율을 확인 중입니다.
       </section>
     );
@@ -704,7 +767,7 @@ function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
     .sort((a, b) => b - a)[0] ?? null;
 
   return (
-    <section className="overflow-hidden rounded-md border border-zinc-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
       <div className="flex flex-col gap-1 border-b border-zinc-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-zinc-950">주요 통화 환율</h2>
@@ -714,24 +777,20 @@ function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
           최근 업데이트 {latestFetchedAt === null ? '-' : formatForeignExchangeUpdatedAt(new Date(latestFetchedAt))}
         </p>
       </div>
-      <div className="grid divide-y divide-zinc-100 md:grid-cols-2 md:divide-x md:divide-y-0">
-        {splitIntoColumns(rates).map((column, columnIndex) => (
-          <div className="divide-y divide-zinc-100" key={columnIndex}>
-            {column.map((rate) => (
-              <article className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 hover:bg-zinc-50" key={rate.currencyCode}>
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0 text-xl leading-none" aria-hidden="true">{getCurrencyFlag(rate.displayCode)}</span>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</p>
-                    <p className="mt-0.5 text-[11px] font-medium text-zinc-500">{getCurrencyDetailText(rate)}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-base font-bold text-teal-800">{formatValue(rate.dealBasRate, 2)}원</p>
-                </div>
-              </article>
-            ))}
-          </div>
+      <div className="grid gap-2 p-3 md:grid-cols-2 md:gap-y-2 md:[&>article:nth-child(even)]:border-l md:[&>article:nth-child(even)]:border-zinc-100">
+        {rates.map((rate) => (
+          <article className="grid grid-cols-[48px_minmax(0,1fr)_minmax(104px,auto)] items-center gap-3 rounded-xl border border-zinc-100 bg-white px-3 py-2.5" key={rate.currencyCode}>
+            <div className="grid h-12 w-12 place-items-center rounded-xl border border-zinc-100 bg-white text-2xl leading-none" aria-hidden="true">
+              {getCurrencyFlag(rate.displayCode)}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</p>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-zinc-500">{getCurrencyDetailText(rate)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-base font-bold text-teal-800">{formatValue(rate.dealBasRate, 2)}원</p>
+            </div>
+          </article>
         ))}
       </div>
     </section>
@@ -868,7 +927,7 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
       >
       {isClosing ? (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-          <span className="text-2xl leading-none" aria-hidden="true">💱</span>
+          <CalculatorIcon className="h-7 w-7 text-zinc-950" />
         </div>
       ) : null}
       {shouldShowPanel ? (
@@ -956,7 +1015,7 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
           onClick={openCalculator}
           type="button"
         >
-          <span className="grid h-7 w-7 shrink-0 place-items-center text-2xl leading-none" aria-hidden="true">💱</span>
+          <CalculatorIcon className="h-7 w-7 shrink-0 text-zinc-950" />
           <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-24 group-hover:opacity-100">
             환율계산기
           </span>
@@ -967,9 +1026,30 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
   );
 }
 
-function splitIntoColumns<T>(items: T[]) {
-  const midpoint = Math.ceil(items.length / 2);
-  return [items.slice(0, midpoint), items.slice(midpoint)];
+function CalculatorIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <rect height="18" rx="2.5" width="14" x="5" y="3" />
+      <path d="M8 7h8" />
+      <path d="M8 11h1" />
+      <path d="M12 11h1" />
+      <path d="M16 11h.01" />
+      <path d="M8 15h1" />
+      <path d="M12 15h1" />
+      <path d="M16 15h.01" />
+      <path d="M8 19h1" />
+      <path d="M12 19h4" />
+    </svg>
+  );
 }
 
 function getCalculatorContainerClassName(isOpen: boolean, isClosing: boolean, isHoverExpansionPaused: boolean) {

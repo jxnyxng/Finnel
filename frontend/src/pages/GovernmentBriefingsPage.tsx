@@ -1,5 +1,7 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import type { GovernmentBriefingArticle, GovernmentBriefingCategory, GovernmentBriefingFilters } from '../types';
+import { lockBodyScroll } from '../utils/scrollLock';
 import { getSeoulDateString } from '../utils/time';
 
 type GovernmentBriefingsPageProps = {
@@ -8,8 +10,10 @@ type GovernmentBriefingsPageProps = {
   configured: boolean;
   filters: GovernmentBriefingFilters;
   isLoading: boolean;
+  isPendingInitialLoad?: boolean;
   page: number;
   selectedCategory: string;
+  statusNode?: React.ReactNode;
   totalCount: number;
   totalPages: number;
   onCategoryChange: (category: string) => void;
@@ -23,11 +27,13 @@ export function GovernmentBriefingsPage({
   configured,
   filters,
   isLoading,
+  isPendingInitialLoad = false,
   onCategoryChange,
   onFiltersApply,
   onPageChange,
   page,
   selectedCategory,
+  statusNode,
   totalCount,
   totalPages
 }: GovernmentBriefingsPageProps) {
@@ -71,18 +77,23 @@ export function GovernmentBriefingsPage({
 
   return (
     <section className="grid gap-3">
-      <header className="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <header className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+        <div className="grid gap-2">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-teal-700">정책브리핑 공식 콘텐츠</p>
             <h2 className="text-base font-semibold text-zinc-950">정부 정책</h2>
-            <p className="mt-1 text-xs text-zinc-500">정부 공식 정책뉴스를 서비스 안에서 읽기 쉽게 정리해 보여줍니다.</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">
+              대한민국 정책브리핑 공개 API에서 수집한 정부 부처 공식 발표입니다. 원문 링크와 발행일을 함께 보존해 출처를 확인할 수 있습니다.
+            </p>
           </div>
-          <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
+          <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-center md:justify-between">
+            <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
+            {statusNode}
+          </div>
         </div>
         <form className="mt-3 grid gap-2 border-t border-zinc-100 pt-3 md:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
           <button
-            className={`h-8 self-end rounded-md border px-3 text-xs font-semibold ${
+            className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold ${
               isTodayFilterActive ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
             }`}
             onClick={applyTodayFilter}
@@ -120,10 +131,10 @@ export function GovernmentBriefingsPage({
               value={draftFilters.keyword}
             />
           </label>
-          <button className="h-8 self-end rounded-md border border-teal-600 bg-teal-600 px-3 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
+          <button className="h-8 self-end rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
             검색
           </button>
-          <button className="h-8 self-end rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900" onClick={resetFilters} type="button">
+          <button className="h-8 self-end rounded-full border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-500 hover:text-zinc-900" onClick={resetFilters} type="button">
             초기화
           </button>
         </form>
@@ -141,14 +152,16 @@ export function GovernmentBriefingsPage({
       </header>
 
       {!configured ? (
-        <section className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
           정책브리핑 API 키가 아직 설정되지 않았습니다. `backend/.env`에 `POLICY_BRIEFING_API_KEY`를 추가한 뒤 백엔드를 다시 실행하세요.
         </section>
       ) : null}
 
-      <section className="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
         {isLoading ? (
           <div className="grid min-h-40 place-items-center text-sm text-zinc-400">정부 정책을 불러오는 중입니다.</div>
+        ) : isPendingInitialLoad ? (
+          <div className="min-h-40" />
         ) : articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-zinc-400">저장된 정부 정책이 없습니다.</div>
         ) : (
@@ -175,8 +188,8 @@ export function GovernmentBriefingsPage({
 function CategoryButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className={`h-7 rounded-md border px-2.5 text-xs font-semibold ${
-        active ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
+      className={`h-8 rounded-full border px-3.5 text-xs font-semibold ${
+        active ? 'border-teal-700 bg-teal-700 text-white shadow-md shadow-teal-900/15 ring-1 ring-teal-600/30' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
       }`}
       onClick={onClick}
       type="button"
@@ -196,11 +209,12 @@ function GovernmentBriefingCard({
   const imageUrl = article.thumbnailUrl || article.imageUrl;
   const isNew = isPublishedToday(article.publishedAt);
   const categoryLabel = getGovernmentBriefingCategoryLabel(article.category);
+  const keywords = getGovernmentBriefingKeywords(article, categoryLabel);
 
   return (
     <article
       aria-label={`${article.title} 상세 보기`}
-      className="group/card relative cursor-pointer overflow-hidden rounded-md border border-zinc-100 bg-white shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
+      className="group/card relative cursor-pointer overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
       onClick={() => onOpen(article)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -230,13 +244,20 @@ function GovernmentBriefingCard({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/55 to-transparent" />
       </div>
-      <div className="p-3">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-          <span className="rounded bg-zinc-100 px-2 py-0.5 font-semibold text-zinc-600">{categoryLabel}</span>
-          <span>{formatBriefingDate(article.publishedAt)}</span>
+      <div className="flex min-h-40 flex-col p-3">
+        <div className="flex justify-start">
+          <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">{formatBriefingDate(article.publishedAt)}</span>
         </div>
         <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-zinc-950">{article.title}</h3>
         {article.subtitle ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-600">{article.subtitle}</p> : null}
+        <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-3">
+          <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">{categoryLabel}</span>
+          {keywords.map((keyword) => (
+            <span className="text-[11px] font-semibold text-teal-700" key={keyword}>
+              #{keyword}
+            </span>
+          ))}
+        </div>
       </div>
     </article>
   );
@@ -267,6 +288,32 @@ function getGovernmentBriefingCategoryLabel(category: string | null) {
   }
 }
 
+function getGovernmentBriefingKeywords(article: GovernmentBriefingArticle, categoryLabel: string) {
+  const source = `${article.title} ${article.subtitle ?? ''} ${article.body ?? ''}`;
+  const candidates = [
+    categoryLabel,
+    '환율',
+    '외환',
+    '금융시장',
+    '금리',
+    '물가',
+    '민생',
+    '무역',
+    '수출',
+    '수입',
+    '재정',
+    '예산',
+    '통화정책',
+    '한국은행',
+    '기획재정부'
+  ];
+
+  return candidates
+    .filter((keyword, index, values) => values.indexOf(keyword) === index)
+    .filter((keyword) => keyword === categoryLabel || source.includes(keyword))
+    .slice(0, 3);
+}
+
 function GovernmentBriefingModal({
   article,
   onClose
@@ -274,6 +321,14 @@ function GovernmentBriefingModal({
   article: GovernmentBriefingArticle | null;
   onClose: () => void;
 }) {
+  React.useEffect(() => {
+    if (!article) {
+      return;
+    }
+
+    return lockBodyScroll();
+  }, [article]);
+
   if (!article) {
     return null;
   }
@@ -281,55 +336,58 @@ function GovernmentBriefingModal({
   const imageUrl = article.imageUrl || article.thumbnailUrl;
   const bodyParagraphs = getBriefingParagraphs(article.body || article.subtitle || '본문 요약 정보가 제공되지 않았습니다. 원문에서 전체 내용을 확인하세요.');
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/30 px-4 py-6" onClick={onClose}>
+  return createPortal(
+    <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/35 px-4 py-6" onClick={onClose}>
       <section
-        className="max-h-[min(760px,calc(100vh-3rem))] w-full max-w-3xl overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-xl"
+        className="modal-panel w-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        {imageUrl ? (
-          <img alt="" className="h-44 w-full object-cover md:h-52" src={imageUrl} />
-        ) : null}
-        <div className="px-4 py-4 md:px-6 md:py-5">
-          <div className="mx-auto flex max-w-2xl items-start justify-between gap-4 border-b border-zinc-100 pb-4">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                <span className="rounded bg-teal-50 px-2 py-0.5 font-semibold text-teal-700">{article.category || '정책뉴스'}</span>
-                <span className="font-medium">{formatBriefingDate(article.publishedAt)}</span>
+        <div className="modal-scroll-area max-h-[min(760px,calc(100vh-3rem))] overflow-y-auto">
+          {imageUrl ? (
+            <img alt="" className="h-44 w-full object-cover md:h-52" src={imageUrl} />
+          ) : null}
+          <div className="px-4 py-4 md:px-6 md:py-5">
+            <div className="mx-auto flex max-w-2xl items-start justify-between gap-4 border-b border-zinc-100 pb-4">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
+                  <span className="rounded bg-teal-50 px-2 py-0.5 font-semibold text-teal-700">{article.category || '정책뉴스'}</span>
+                  <span className="font-medium">{formatBriefingDate(article.publishedAt)}</span>
+                </div>
+                <h3 className="mt-2 text-lg font-semibold leading-7 text-zinc-950 md:text-xl md:leading-8">{article.title}</h3>
+                {article.subtitle ? <p className="mt-2 text-sm leading-6 text-zinc-600">{article.subtitle}</p> : null}
               </div>
-              <h3 className="mt-2 text-lg font-semibold leading-7 text-zinc-950 md:text-xl md:leading-8">{article.title}</h3>
-              {article.subtitle ? <p className="mt-2 text-sm leading-6 text-zinc-600">{article.subtitle}</p> : null}
-            </div>
-            <button
-              className="h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-500 hover:text-zinc-900"
-              onClick={onClose}
-              type="button"
-            >
-              닫기
-            </button>
-          </div>
-          <div className="mx-auto mt-4 max-w-2xl rounded-md border border-zinc-100 bg-zinc-50 px-4 py-4 text-sm leading-7 text-zinc-800 md:px-5 md:py-5">
-            {bodyParagraphs.map((paragraph, index) => (
-              <p className={index === 0 ? '' : 'mt-4'} key={`${paragraph.slice(0, 24)}-${index}`}>
-                {paragraph}
-              </p>
-            ))}
-          </div>
-          <div className="mx-auto mt-4 flex max-w-2xl justify-end">
-            {article.originalUrl ? (
-              <a
-                className="inline-flex h-8 items-center rounded-md bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-800"
-                href={article.originalUrl}
-                rel="noreferrer"
-                target="_blank"
+              <button
+                className="h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-500 hover:text-zinc-900"
+                onClick={onClose}
+                type="button"
               >
-                정책브리핑에서 보기
-              </a>
-            ) : null}
+                닫기
+              </button>
+            </div>
+            <div className="mx-auto mt-4 max-w-2xl rounded-md border border-zinc-100 bg-zinc-50 px-4 py-4 text-sm leading-7 text-zinc-800 md:px-5 md:py-5">
+              {bodyParagraphs.map((paragraph, index) => (
+                <p className={index === 0 ? '' : 'mt-4'} key={`${paragraph.slice(0, 24)}-${index}`}>
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+            <div className="mx-auto mt-4 flex max-w-2xl justify-end">
+              {article.originalUrl ? (
+                <a
+                  className="inline-flex h-8 items-center rounded-md bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-800"
+                  href={article.originalUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  정책브리핑에서 보기
+                </a>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 
