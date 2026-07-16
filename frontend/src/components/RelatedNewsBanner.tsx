@@ -4,6 +4,7 @@ import type { NewsArticle } from '../types';
 
 type RelatedNewsBannerProps = {
   topic: 'exchange' | 'indicators';
+  actionSlot?: React.ReactNode;
 };
 
 type RelatedNewsResponse = {
@@ -51,7 +52,7 @@ export function prefetchRelatedNews(topic: RelatedNewsBannerProps['topic']) {
   return request;
 }
 
-export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
+export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps) {
   const cachedResponse = relatedNewsCache.get(topic);
   const [articles, setArticles] = React.useState<NewsArticle[]>(cachedResponse?.articles ?? []);
   const [isConfigured, setIsConfigured] = React.useState(cachedResponse?.configured ?? true);
@@ -59,6 +60,7 @@ export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
   const [previousGroup, setPreviousGroup] = React.useState<number | null>(null);
   const [slideDirection, setSlideDirection] = React.useState<SlideDirection>('next');
   const [isAnimating, setIsAnimating] = React.useState(false);
+  const [isAutoPaused, setIsAutoPaused] = React.useState(false);
   const manualPauseUntilRef = React.useRef(0);
   const animationTimerRef = React.useRef<number | null>(null);
   const groupCount = Math.max(1, Math.ceil(articles.length / 3));
@@ -104,7 +106,7 @@ export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
     }
 
     const timer = window.setInterval(() => {
-      if (Date.now() < manualPauseUntilRef.current) {
+      if (isAutoPaused || Date.now() < manualPauseUntilRef.current) {
         return;
       }
 
@@ -112,7 +114,7 @@ export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
     }, autoAdvanceMs);
 
     return () => window.clearInterval(timer);
-  }, [groupCount]);
+  }, [groupCount, isAutoPaused]);
 
   React.useEffect(() => () => {
     if (animationTimerRef.current !== null) {
@@ -157,9 +159,9 @@ export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
   };
 
   return (
-    <section className="related-news-banner rounded-xl border border-zinc-200 bg-white shadow-sm" aria-label={topicLabels[topic]}>
+    <section className="related-news-banner" aria-label={topicLabels[topic]}>
       <div className="relative">
-        <div className="relative overflow-hidden rounded-xl bg-zinc-200">
+        <div className="relative overflow-hidden rounded-2xl bg-zinc-200 shadow-lg shadow-zinc-950/20">
           {isAnimating && previousGroup !== null ? (
             <div className={`related-news-slide related-news-slide-exit related-news-slide-exit-${slideDirection}`}>
               <RelatedNewsGroup articles={previousArticles} />
@@ -169,27 +171,40 @@ export function RelatedNewsBanner({ topic }: RelatedNewsBannerProps) {
             <RelatedNewsGroup articles={visibleArticles} />
           </div>
         </div>
-        {groupCount > 1 ? (
-          <div className="related-news-controls absolute inset-y-0 left-0 right-0 z-10">
-            <button
-              aria-label="이전 뉴스"
-              className="pointer-events-auto absolute bottom-0 left-0 top-0 grid w-7 place-items-center rounded-l-md border-r border-white/10 bg-zinc-950/15 text-lg font-semibold text-white/80 shadow-lg backdrop-blur-[2px] hover:bg-zinc-950/35 hover:text-white"
-              onClick={() => moveGroup(-1, 'manual')}
-              type="button"
-            >
-              ‹
-            </button>
-            <button
-              aria-label="다음 뉴스"
-              className="pointer-events-auto absolute bottom-0 right-0 top-0 grid w-7 place-items-center rounded-r-md border-l border-white/10 bg-zinc-950/15 text-lg font-semibold text-white/80 shadow-lg backdrop-blur-[2px] hover:bg-zinc-950/35 hover:text-white"
-              onClick={() => moveGroup(1, 'manual')}
-              type="button"
-            >
-              ›
-            </button>
-          </div>
-        ) : null}
       </div>
+      {(actionSlot || groupCount > 1) ? (
+        <div className="mt-3 flex min-h-8 items-center justify-between gap-3">
+          <div className="min-w-0">{actionSlot}</div>
+          {groupCount > 1 ? (
+            <div className="related-news-controls inline-flex rounded-full border border-white/15 bg-zinc-950/35 p-0.5 text-white shadow-lg backdrop-blur-md">
+              <button
+                aria-label="이전 뉴스"
+                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white"
+                onClick={() => moveGroup(-1, 'manual')}
+                type="button"
+              >
+                ‹
+              </button>
+              <button
+                aria-label={isAutoPaused ? '뉴스 자동 넘김 재개' : '뉴스 자동 넘김 일시정지'}
+                className="grid h-7 min-w-7 place-items-center rounded-full px-1.5 text-[11px] font-bold text-white/85 hover:bg-white/15 hover:text-white"
+                onClick={() => setIsAutoPaused((current) => !current)}
+                type="button"
+              >
+                {isAutoPaused ? '▶' : 'Ⅱ'}
+              </button>
+              <button
+                aria-label="다음 뉴스"
+                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white"
+                onClick={() => moveGroup(1, 'manual')}
+                type="button"
+              >
+                ›
+              </button>
+            </div>
+          ) : <div />}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -198,7 +213,7 @@ type SlideDirection = 'next' | 'previous';
 
 function RelatedNewsGroup({ articles }: { articles: NewsArticle[] }) {
   return (
-    <div className="grid gap-px md:grid-cols-3">
+    <div className="grid md:grid-cols-3">
       {articles.map((article) => (
         <RelatedNewsCard article={article} key={`${article.categoryCode}-${article.link}`} />
       ))}
@@ -220,7 +235,7 @@ function RelatedNewsCard({ article }: { article: NewsArticle }) {
       {article.imageUrl ? (
         <img
           alt=""
-          className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-105"
+          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ease-out group-hover:opacity-95"
           loading="lazy"
           src={article.imageUrl}
         />
@@ -233,7 +248,7 @@ function RelatedNewsCard({ article }: { article: NewsArticle }) {
           <span className="rounded bg-white/15 px-1.5 py-0.5">{article.categoryName}</span>
           <span>{formatCompactNewsDate(article.publishedAt)}</span>
         </div>
-        <h2 className="line-clamp-2 text-sm font-semibold leading-5 transition-transform duration-300 ease-out group-hover:translate-x-0.5 group-hover:scale-[1.015]">{article.title}</h2>
+        <h2 className="line-clamp-2 text-sm font-semibold leading-5">{article.title}</h2>
         <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-white/80">{summary}</p>
       </div>
     </a>
@@ -243,7 +258,7 @@ function RelatedNewsCard({ article }: { article: NewsArticle }) {
 function DefaultNewsImage() {
   return (
     <div className="absolute inset-0 overflow-hidden bg-[linear-gradient(135deg,#0f766e,#27272a)]">
-      <div className="absolute inset-0 transition-transform duration-300 ease-out group-hover:scale-105">
+      <div className="absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.16),transparent_28%),linear-gradient(135deg,rgba(15,118,110,0.92),rgba(39,39,42,0.98))]" />
         <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full border border-white/10" />
         <div className="absolute -bottom-10 left-10 h-28 w-28 rounded-full border border-white/10" />
