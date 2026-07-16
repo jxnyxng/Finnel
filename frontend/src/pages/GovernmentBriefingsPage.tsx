@@ -77,54 +77,54 @@ export function GovernmentBriefingsPage({
 
   return (
     <section className="grid gap-3">
-      <header className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+      <header className="glass-card rounded-2xl p-3 shadow-sm">
         <div className="grid gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-teal-700">정책브리핑 공식 콘텐츠</p>
-            <h2 className="text-base font-semibold text-zinc-950">정부 정책</h2>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">
+            <p className="text-[11px] font-semibold text-teal-100">정책브리핑 공식 콘텐츠</p>
+            <h2 className="text-base font-semibold text-white">정부 정책</h2>
+            <p className="mt-1 text-xs leading-5 text-white/60">
               대한민국 정책브리핑 공개 API에서 수집한 정부 부처 공식 발표입니다. 원문 링크와 발행일을 함께 보존해 출처를 확인할 수 있습니다.
             </p>
           </div>
           <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-center md:justify-between">
-            <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
+            <p className="text-[11px] text-white/55">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
             {statusNode}
           </div>
         </div>
-        <form className="mt-3 grid gap-2 border-t border-zinc-100 pt-3 md:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
+        <form className="mt-3 grid gap-2 border-t border-white/10 pt-3 md:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
           <button
             className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold ${
-              isTodayFilterActive ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
+              isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
             }`}
             onClick={applyTodayFilter}
             type="button"
           >
             오늘
           </button>
-          <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
             시작일
             <input
-              className="h-8 rounded-md border border-zinc-200 px-2 text-xs font-medium text-zinc-800 outline-none focus:border-teal-600"
+              className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
               max={draftFilters.toDate || undefined}
               onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
               type="date"
               value={draftFilters.fromDate}
             />
           </label>
-          <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
             종료일
             <input
-              className="h-8 rounded-md border border-zinc-200 px-2 text-xs font-medium text-zinc-800 outline-none focus:border-teal-600"
+              className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
               min={draftFilters.fromDate || undefined}
               onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
               type="date"
               value={draftFilters.toDate}
             />
           </label>
-          <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
             검색어
             <input
-              className="h-8 rounded-md border border-zinc-200 px-2 text-xs font-medium text-zinc-800 outline-none placeholder:text-zinc-400 focus:border-teal-600"
+              className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
               onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
               placeholder="제목, 부제목, 본문 검색"
               type="search"
@@ -134,11 +134,11 @@ export function GovernmentBriefingsPage({
           <button className="h-8 self-end rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
             검색
           </button>
-          <button className="h-8 self-end rounded-full border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-500 hover:text-zinc-900" onClick={resetFilters} type="button">
+          <button className="h-8 self-end rounded-full border border-white/15 bg-white/10 px-3.5 text-xs font-semibold text-white/60 hover:text-white" onClick={resetFilters} type="button">
             초기화
           </button>
         </form>
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-zinc-100 pt-3">
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
           <CategoryButton active={selectedCategory === 'all'} label="전체" onClick={() => onCategoryChange('all')} />
           {categories.map((category) => (
             <CategoryButton
@@ -152,18 +152,18 @@ export function GovernmentBriefingsPage({
       </header>
 
       {!configured ? (
-        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+        <section className="rounded-2xl border border-amber-300/30 bg-amber-400/15 p-4 text-sm text-amber-100 shadow-sm">
           정책브리핑 API 키가 아직 설정되지 않았습니다. `backend/.env`에 `POLICY_BRIEFING_API_KEY`를 추가한 뒤 백엔드를 다시 실행하세요.
         </section>
       ) : null}
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+      <section className="glass-card rounded-2xl p-3 shadow-sm">
         {isLoading ? (
-          <div className="grid min-h-40 place-items-center text-sm text-zinc-400">정부 정책을 불러오는 중입니다.</div>
+          <div className="grid min-h-40 place-items-center text-sm text-white/45">정부 정책을 불러오는 중입니다.</div>
         ) : isPendingInitialLoad ? (
           <div className="min-h-40" />
         ) : articles.length === 0 ? (
-          <div className="grid min-h-40 place-items-center text-sm text-zinc-400">저장된 정부 정책이 없습니다.</div>
+          <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정부 정책이 없습니다.</div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {articles.map((article) => (
@@ -189,7 +189,7 @@ function CategoryButton({ active, label, onClick }: { active: boolean; label: st
   return (
     <button
       className={`h-8 rounded-full border px-3.5 text-xs font-semibold ${
-        active ? 'border-teal-700 bg-teal-700 text-white shadow-md shadow-teal-900/15 ring-1 ring-teal-600/30' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
+        active ? 'border-teal-300/45 bg-teal-600 text-white' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
       }`}
       onClick={onClick}
       type="button"
@@ -214,7 +214,7 @@ function GovernmentBriefingCard({
   return (
     <article
       aria-label={`${article.title} 상세 보기`}
-      className="group/card relative cursor-pointer overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
+      className="glass-list-card group/card relative cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white/12 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-200/50 motion-reduce:transform-none motion-reduce:transition-none"
       onClick={() => onOpen(article)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -235,10 +235,15 @@ function GovernmentBriefingCard({
             src={imageUrl}
           />
         ) : (
-          <div className="grid h-full place-items-center bg-[linear-gradient(135deg,#0f766e,#3f3f46)] text-center text-white">
-            <div>
-              <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white text-lg font-bold text-teal-700">₩</span>
-              <p className="mt-2 text-xs font-semibold">{categoryLabel}</p>
+          <div className="grid h-full place-items-center bg-white px-5 text-center">
+            <div className="grid w-full max-w-[14rem] place-items-center">
+              <img
+                alt=""
+                className="h-auto max-h-12 w-full object-contain"
+                loading="lazy"
+                src="/assets/korea-policy-briefing-logo.png"
+              />
+              <p className="mt-2 text-[11px] font-semibold text-zinc-700">{categoryLabel}</p>
             </div>
           </div>
         )}
@@ -246,14 +251,14 @@ function GovernmentBriefingCard({
       </div>
       <div className="flex min-h-40 flex-col p-3">
         <div className="flex justify-start">
-          <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">{formatBriefingDate(article.publishedAt)}</span>
+          <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/70">{formatBriefingDate(article.publishedAt)}</span>
         </div>
-        <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-zinc-950">{article.title}</h3>
-        {article.subtitle ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-600">{article.subtitle}</p> : null}
+        <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-white">{article.title}</h3>
+        {article.subtitle ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/65">{article.subtitle}</p> : null}
         <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-3">
-          <span className="rounded bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">{categoryLabel}</span>
+          <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/70">{categoryLabel}</span>
           {keywords.map((keyword) => (
-            <span className="text-[11px] font-semibold text-teal-700" key={keyword}>
+            <span className="text-[11px] font-semibold text-teal-100" key={keyword}>
               #{keyword}
             </span>
           ))}
@@ -339,7 +344,7 @@ function GovernmentBriefingModal({
   return createPortal(
     <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/35 px-4 py-6" onClick={onClose}>
       <section
-        className="modal-panel w-full max-w-3xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl"
+        className="modal-panel glass-modal w-full max-w-3xl overflow-hidden rounded-2xl shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="modal-scroll-area max-h-[min(760px,calc(100vh-3rem))] overflow-y-auto">
@@ -347,24 +352,24 @@ function GovernmentBriefingModal({
             <img alt="" className="h-44 w-full object-cover md:h-52" src={imageUrl} />
           ) : null}
           <div className="px-4 py-4 md:px-6 md:py-5">
-            <div className="mx-auto flex max-w-2xl items-start justify-between gap-4 border-b border-zinc-100 pb-4">
+            <div className="mx-auto flex max-w-2xl items-start justify-between gap-4 border-b border-white/10 pb-4">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-                  <span className="rounded bg-teal-50 px-2 py-0.5 font-semibold text-teal-700">{article.category || '정책뉴스'}</span>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/55">
+                  <span className="rounded bg-teal-400/15 px-2 py-0.5 font-semibold text-teal-100">{article.category || '정책뉴스'}</span>
                   <span className="font-medium">{formatBriefingDate(article.publishedAt)}</span>
                 </div>
-                <h3 className="mt-2 text-lg font-semibold leading-7 text-zinc-950 md:text-xl md:leading-8">{article.title}</h3>
-                {article.subtitle ? <p className="mt-2 text-sm leading-6 text-zinc-600">{article.subtitle}</p> : null}
+                <h3 className="mt-2 text-lg font-semibold leading-7 text-white md:text-xl md:leading-8">{article.title}</h3>
+                {article.subtitle ? <p className="mt-2 text-sm leading-6 text-white/65">{article.subtitle}</p> : null}
               </div>
               <button
-                className="h-7 shrink-0 rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-500 hover:text-zinc-900"
+                className="h-7 shrink-0 rounded-md border border-white/15 bg-white/10 px-2 text-xs font-semibold text-white/60 hover:text-white"
                 onClick={onClose}
                 type="button"
               >
                 닫기
               </button>
             </div>
-            <div className="mx-auto mt-4 max-w-2xl rounded-md border border-zinc-100 bg-zinc-50 px-4 py-4 text-sm leading-7 text-zinc-800 md:px-5 md:py-5">
+            <div className="mx-auto mt-4 max-w-2xl rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4 text-sm leading-7 text-slate-800 shadow-sm md:px-5 md:py-5">
               {bodyParagraphs.map((paragraph, index) => (
                 <p className={index === 0 ? '' : 'mt-4'} key={`${paragraph.slice(0, 24)}-${index}`}>
                   {paragraph}
@@ -410,9 +415,9 @@ function Pagination({
   totalPages: number;
 }) {
   return (
-    <div className="mt-4 flex items-center justify-center gap-2 border-t border-zinc-100 pt-4">
+    <div className="mt-4 flex items-center justify-center gap-2 border-t border-white/10 pt-4">
       <PageButton disabled={currentPage <= 1} label="이전" onClick={() => onPageChange(currentPage - 1)} />
-      <span className="px-2 text-xs font-semibold text-zinc-500">{currentPage}/{totalPages}</span>
+      <span className="px-2 text-xs font-semibold text-white/55">{currentPage}/{totalPages}</span>
       <PageButton disabled={currentPage >= totalPages} label="다음" onClick={() => onPageChange(currentPage + 1)} />
     </div>
   );
@@ -429,7 +434,7 @@ function PageButton({
 }) {
   return (
     <button
-      className="h-8 rounded border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40"
+      className="h-8 rounded border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
       disabled={disabled}
       onClick={onClick}
       type="button"

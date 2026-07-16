@@ -3,9 +3,92 @@
 @tailwind utilities;
 
 body {
+  background: #050914;
   margin: 0;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+.app-shell {
+  isolation: isolate;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-shell::before {
+  background:
+    linear-gradient(135deg, rgba(3, 7, 18, 0.9), rgba(8, 18, 38, 0.8) 48%, rgba(14, 30, 58, 0.72)),
+    url("/assets/service-intro-hero.png") center top / cover no-repeat;
+  content: "";
+  filter: blur(10px) saturate(0.78) brightness(0.78);
+  inset: -16px;
+  position: fixed;
+  transform: scale(1.02);
+  z-index: -2;
+}
+
+.app-shell::after {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(59, 130, 246, 0.13), transparent 32%),
+    radial-gradient(circle at 82% 18%, rgba(14, 165, 233, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(8, 13, 28, 0.24), rgba(3, 7, 18, 0.52));
+  content: "";
+  inset: 0;
+  position: fixed;
+  z-index: -1;
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.52));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.28);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+}
+
+.glass-subcard {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.glass-list-card {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.16);
+  backdrop-filter: blur(14px) saturate(1.16);
+  -webkit-backdrop-filter: blur(14px) saturate(1.16);
+}
+
+.glass-field {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.glass-field::placeholder {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.glass-field:focus {
+  border-color: rgba(94, 234, 212, 0.72);
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.18);
+}
+
+.glass-modal {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.82));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.48);
+  backdrop-filter: blur(24px) saturate(1.22);
+  -webkit-backdrop-filter: blur(24px) saturate(1.22);
 }
 
 .chart-help-tooltip {
@@ -13,13 +96,16 @@ body {
 }
 
 .chart-grid-surface {
-  background-color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.74), rgba(20, 83, 78, 0.34)),
+    rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .chart-plot-grid {
   background-image:
-    linear-gradient(rgba(15, 118, 110, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 118, 110, 0.055) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
   background-size: 24px 24px;
   pointer-events: none;
   position: absolute;
@@ -36,12 +122,12 @@ body {
 }
 
 .chart-crosshair-x {
-  border-left: 1px solid rgba(17, 24, 39, 0.38);
+  border-left: 1px solid rgba(255, 255, 255, 0.36);
   transform: translateX(-50%);
 }
 
 .chart-crosshair-y {
-  border-top: 1px solid rgba(17, 24, 39, 0.38);
+  border-top: 1px solid rgba(255, 255, 255, 0.36);
   transform: translateY(-50%);
 }
 
@@ -60,8 +146,8 @@ body {
 }
 
 .related-news-controls {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0.9;
+  pointer-events: auto;
   transition: opacity 160ms ease-out;
 }
 
@@ -334,6 +420,36 @@ body {
   will-change: opacity, transform;
 }
 
+.home-deck {
+  overscroll-behavior: contain;
+}
+
+.home-deck:focus {
+  outline: none;
+}
+
+.home-deck-track {
+  height: 100%;
+  transition: transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.home-copy {
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.home-cta-shine-word {
+  animation: home-cta-shine-word 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  color: rgba(255, 255, 255, 0.68);
+  display: inline-block;
+  will-change: color;
+}
+
+.home-snap-section {
+  backface-visibility: hidden;
+}
+
 .chart-range-enter {
   animation: chart-range-enter 170ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
@@ -341,6 +457,7 @@ body {
 
 .moving-tab-indicator {
   animation: moving-tab-indicator-enter 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: inset 0 0 0 1px rgba(153, 246, 228, 0.2);
   transform-origin: center;
   will-change: transform, width, height, scale, opacity;
 }
@@ -380,11 +497,16 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .page-content-enter,
+  .home-deck-track,
   .chart-range-enter,
   .moving-tab-indicator,
+  .main-tab-color-pulse-even,
+  .main-tab-color-pulse-odd,
+  .home-cta-shine-word,
   .modal-overlay,
   .modal-panel {
     animation: none;
+    transition: none;
   }
 }
 
@@ -409,6 +531,72 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes home-cta-shine-word {
+  0% {
+    color: rgba(255, 255, 255, 0.68);
+  }
+
+  48% {
+    color: rgba(153, 246, 228, 1);
+  }
+
+  100% {
+    color: rgba(255, 255, 255, 0.88);
+  }
+}
+
+.main-tab-color-pulse-even {
+  animation: main-tab-color-pulse-even 1250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.main-tab-color-pulse-odd {
+  animation: main-tab-color-pulse-odd 1250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes main-tab-color-pulse-even {
+  0% {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
+  }
+
+  34% {
+    background-color: rgba(20, 184, 166, 0.2);
+    border-color: rgba(153, 246, 228, 0.48);
+    box-shadow:
+      0 0 0 1px rgba(153, 246, 228, 0.14),
+      0 10px 26px rgba(20, 184, 166, 0.18);
+  }
+
+  100% {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
+  }
+}
+
+@keyframes main-tab-color-pulse-odd {
+  0% {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
+  }
+
+  34% {
+    background-color: rgba(20, 184, 166, 0.2);
+    border-color: rgba(153, 246, 228, 0.48);
+    box-shadow:
+      0 0 0 1px rgba(153, 246, 228, 0.14),
+      0 10px 26px rgba(20, 184, 166, 0.18);
+  }
+
+  100% {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
   }
 }
 

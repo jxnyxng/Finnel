@@ -55,7 +55,7 @@ export function getActiveChartHover(
 }
 
 export function getAxisValueLabelTop(value: number) {
-  return Math.min(chartHeightPx - 10, Math.max(10, value));
+  return Math.min(chartHeightPx - 36, Math.max(10, value));
 }
 
 export function getAxisTimeLabelLeft(value: number) {
@@ -69,8 +69,8 @@ export function UsdKrwTooltip({ active, payload, range }: ChartTooltipProps & { 
   }
 
   return (
-    <div className="chart-hover-tooltip w-44 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs shadow-sm">
-      <p className="font-semibold text-zinc-900">원/달러 환율</p>
+    <div className="chart-hover-tooltip w-44 rounded-xl border border-white/15 bg-zinc-950/85 px-3 py-2 text-xs text-white shadow-lg shadow-zinc-950/30 backdrop-blur-md">
+      <p className="font-semibold text-white">원/달러 환율</p>
       <dl className="mt-2 grid gap-1.5">
         <TooltipRow label="시점" value={formatTooltipDate(point.dateValue, range)} />
         <TooltipRow label="환율" value={`${formatValue(point.value)}원`} />
@@ -98,8 +98,8 @@ export function DollarIndexTooltip({
   }
 
   return (
-    <div className="chart-hover-tooltip w-44 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs shadow-sm">
-      <p className="font-semibold text-zinc-900">{title} 지수</p>
+    <div className="chart-hover-tooltip w-44 rounded-xl border border-white/15 bg-zinc-950/85 px-3 py-2 text-xs text-white shadow-lg shadow-zinc-950/30 backdrop-blur-md">
+      <p className="font-semibold text-white">{title} 지수</p>
       <dl className="mt-2 grid gap-1.5">
         <TooltipRow label="날짜" value={point.dateValue.slice(0, 10)} />
         <TooltipRow label="지수" value={formatValue(point.value)} />
@@ -137,7 +137,7 @@ export function ChartHelpTooltip({
     <div className="group relative">
       <button
         aria-label={ariaLabel}
-        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-white/35 text-[11px] font-semibold text-white/70 hover:border-teal-200 hover:text-white"
         type="button"
       >
         i
@@ -206,12 +206,12 @@ export function RangeSelector<T extends string>({
 
   return (
     <div
-      className={`relative grid h-11 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-zinc-200 bg-zinc-50 p-1`}
+      className={`relative grid h-11 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-white/15 bg-white/10 p-1`}
       ref={containerRef}
     >
       {indicator.width > 0 ? (
         <span
-          className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-700 shadow-md shadow-teal-900/15 ring-1 ring-teal-600/30 transition-[transform,width,height] duration-200 ease-out"
+          className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-600 transition-[transform,width,height] duration-200 ease-out"
           style={{
             height: indicator.height,
             transform: `translate(${indicator.left + 1}px, ${indicator.top - 1}px)`,
@@ -222,7 +222,7 @@ export function RangeSelector<T extends string>({
       {options.map((option) => (
         <button
           className={`relative z-10 inline-flex h-full min-w-0 items-center justify-center rounded-full px-2 text-center text-xs font-semibold leading-none transition-colors ${
-            value === option.key ? 'text-white' : 'text-zinc-500 hover:text-zinc-900'
+            value === option.key ? 'text-white' : 'text-white/60 hover:text-white'
           }`}
           key={option.key}
           onClick={() => onChange(option.key)}
@@ -369,8 +369,8 @@ function getHoverAxisValue(
 function TooltipRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className="min-w-0 font-medium leading-5 text-zinc-800">{value}</dd>
+      <dt className="text-white/45">{label}</dt>
+      <dd className="min-w-0 font-medium leading-5 text-white/85">{value}</dd>
     </div>
   );
 }
