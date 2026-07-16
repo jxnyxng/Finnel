@@ -8,8 +8,10 @@ type NewsroomPageProps = {
   configured: boolean;
   filters: NewsFilters;
   isLoading: boolean;
+  isPendingInitialLoad?: boolean;
   page: number;
   selectedCategory: string;
+  statusNode?: React.ReactNode;
   totalCount: number;
   totalPages: number;
   onCategoryChange: (category: string) => void;
@@ -23,8 +25,10 @@ export function NewsroomPage({
   configured,
   filters,
   isLoading,
+  isPendingInitialLoad = false,
   page,
   selectedCategory,
+  statusNode,
   totalCount,
   totalPages,
   onCategoryChange,
@@ -70,17 +74,23 @@ export function NewsroomPage({
 
   return (
     <section className="grid gap-3">
-      <header className="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      <header className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+        <div className="grid gap-2">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-teal-700">네이버 뉴스 기반</p>
             <h2 className="text-base font-semibold text-zinc-950">뉴스 검색</h2>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">
+              네이버 뉴스 검색 API에서 환율·원화 관련 기사를 수집해 최신 시장 이슈를 확인합니다.
+            </p>
           </div>
-          <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
+          <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-center md:justify-between">
+            <p className="text-[11px] text-zinc-500">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
+            {statusNode}
+          </div>
         </div>
         <form className="mt-2 grid gap-2 border-t border-zinc-100 pt-2 md:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
           <button
-            className={`h-8 self-end rounded-md border px-3 text-xs font-semibold ${
+            className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold ${
               isTodayFilterActive ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
             }`}
             onClick={applyTodayFilter}
@@ -118,10 +128,10 @@ export function NewsroomPage({
               value={draftFilters.keyword}
             />
           </label>
-          <button className="h-8 self-end rounded-md border border-teal-600 bg-teal-600 px-3 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
+          <button className="h-8 self-end rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
             검색
           </button>
-          <button className="h-8 self-end rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-500 hover:text-zinc-900" onClick={resetFilters} type="button">
+          <button className="h-8 self-end rounded-full border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-500 hover:text-zinc-900" onClick={resetFilters} type="button">
             초기화
           </button>
         </form>
@@ -139,14 +149,16 @@ export function NewsroomPage({
       </header>
 
       {!configured ? (
-        <section className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
           네이버 뉴스 API 키가 아직 설정되지 않았습니다. `backend/.env`에 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`을 추가한 뒤 백엔드를 다시 실행하세요.
         </section>
       ) : null}
 
-      <section className="rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+      <section className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
         {isLoading ? (
           <div className="grid min-h-40 place-items-center text-sm text-zinc-400">뉴스를 불러오는 중입니다.</div>
+        ) : isPendingInitialLoad ? (
+          <div className="min-h-40" />
         ) : articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-zinc-400">저장된 뉴스가 없습니다.</div>
         ) : (
@@ -167,8 +179,8 @@ export function NewsroomPage({
 function CategoryButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className={`h-7 rounded-md border px-2.5 text-xs font-semibold ${
-        active ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
+      className={`h-8 rounded-full border px-3.5 text-xs font-semibold ${
+        active ? 'border-teal-700 bg-teal-700 text-white shadow-md shadow-teal-900/15 ring-1 ring-teal-600/30' : 'border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900'
       }`}
       onClick={onClick}
       type="button"
@@ -201,7 +213,7 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
   return (
     <article
-      className="group/card cursor-pointer overflow-hidden rounded-md border border-zinc-100 bg-white shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
+      className="group/card cursor-pointer overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-sm transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-teal-50/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none"
       onClick={openArticle}
       onKeyDown={openArticleWithKeyboard}
       role="link"

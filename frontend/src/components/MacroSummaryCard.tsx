@@ -9,7 +9,7 @@ type MacroSummaryCardProps = {
 
 export function MacroSummaryCard({ metrics, isLoading, latestSyncLabel }: MacroSummaryCardProps) {
   return (
-    <aside className="w-full rounded-md border border-zinc-200 bg-white p-3 shadow-sm">
+    <aside className="w-full rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-xs font-semibold text-zinc-900">금리·외환 여건</h2>
         <span className="text-[10px] font-medium text-zinc-500">저장 데이터 기준</span>

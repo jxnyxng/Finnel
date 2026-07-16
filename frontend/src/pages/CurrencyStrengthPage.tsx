@@ -1,41 +1,49 @@
+import React from 'react';
 import { koreanRegionNames, specialAreaDisplays } from '../constants';
 import type { CurrencyStrengthRank } from '../types';
 import { formatValue } from '../utils/format';
 
-export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] }) {
-  const latestDate = ranks[0]?.baseDate ?? null;
-  const latestReerDate = ranks.find((rank) => rank.reerBaseDate !== null)?.reerBaseDate ?? null;
-  const neerValues = ranks.map((rank) => rank.neerValue);
+export function CurrencyStrengthPage({ ranks, statusNode }: { ranks: CurrencyStrengthRank[]; statusNode?: React.ReactNode }) {
+  const weaknessRanks = React.useMemo(
+    () => [...ranks].sort((a, b) => a.neerValue - b.neerValue),
+    [ranks]
+  );
+  const latestDate = weaknessRanks[0]?.baseDate ?? null;
+  const latestReerDate = weaknessRanks.find((rank) => rank.reerBaseDate !== null)?.reerBaseDate ?? null;
+  const neerValues = weaknessRanks.map((rank) => rank.neerValue);
   const minNeer = neerValues.length > 0 ? Math.min(...neerValues) : 0;
   const maxNeer = neerValues.length > 0 ? Math.max(...neerValues) : 0;
   const benchmarkPosition = getScalePosition(100, minNeer, maxNeer);
 
   return (
     <section className="grid gap-4">
-      <header className="rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-          <div>
+      <header className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-2">
+          <div className="min-w-0">
             <h2 className="text-base font-semibold">화폐 랭킹</h2>
-            <p className="mt-1 text-xs text-zinc-500">BIS broad NEER 기준 통화가치 순위 · 2020=100, 낮을수록 교역상대국 대비 약세입니다.</p>
-            <p className="mt-1 text-xs text-zinc-500">BIS 발표: NEER 주중, REER 월중 · 앱 자동 확인: 평일 09:10/15:10 KST</p>
+            <p className="mt-1 text-xs text-zinc-500">BIS broad NEER 기준입니다. <span className="font-semibold text-rose-700">NEER가 낮아 교역상대국 대비 약한 통화부터</span> 보여줍니다.</p>
+            <p className="mt-1 text-xs text-zinc-500">2020=100 기준선보다 낮으면 상대적 약세로 해석합니다. BIS 발표: NEER 주중, REER 월중 · 앱 자동 확인: 평일 09:10/15:10 KST</p>
           </div>
-          <p className="text-xs font-medium text-zinc-500">
-            NEER {latestDate ?? '-'} · REER {latestReerDate ?? '-'}
-          </p>
+          <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-center md:justify-between">
+            <p className="text-xs font-medium text-zinc-500">
+              NEER {latestDate ?? '-'} · REER {latestReerDate ?? '-'}
+            </p>
+            {statusNode}
+          </div>
         </div>
       </header>
-      {ranks.length === 0 ? (
-        <div className="grid min-h-32 place-items-center rounded-md border border-zinc-200 bg-white text-sm text-zinc-400 shadow-sm">
+      {weaknessRanks.length === 0 ? (
+        <div className="grid min-h-32 place-items-center rounded-xl border border-zinc-200 bg-white text-sm text-zinc-400 shadow-sm">
           표시할 통화 랭킹 데이터가 없습니다.
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white px-4 py-3 text-xs text-zinc-500 shadow-sm">
-            <p>전체 {ranks.length}개 지역 · 순위가 높을수록 NEER가 낮아 상대적으로 약한 통화</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs text-zinc-500 shadow-sm">
+            <p>전체 {weaknessRanks.length}개 지역 · <span className="font-semibold text-rose-700">약세 순 정렬</span></p>
             <p>범위 {formatValue(minNeer, 2)} ~ {formatValue(maxNeer, 2)} · 기준선 100</p>
           </div>
           <div className="grid gap-2">
-            {ranks.map((rank) => {
+            {weaknessRanks.map((rank, index) => {
               const display = getAreaDisplay(rank.areaCode, rank.areaName);
               const valuePosition = getScalePosition(rank.neerValue, minNeer, maxNeer);
               const strengthScore = getStrengthScore(rank.neerValue, minNeer, maxNeer);
@@ -44,18 +52,20 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
               return (
                 <article
                   key={rank.areaCode}
-                  className={`rounded-md border px-3 py-3 shadow-sm ${
-                    isKorea ? 'relative z-10 border-teal-200 bg-teal-50/70' : 'border-zinc-100 bg-white'
+                  className={`rounded-xl border px-3 py-3 shadow-sm ${
+                    isKorea ? 'border-2 border-teal-600 bg-white' : 'border-zinc-100 bg-white'
                   }`}
                 >
-                  <div className="grid gap-3 md:grid-cols-[minmax(190px,250px)_minmax(0,1fr)_105px_120px] md:items-center">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <p className={`w-12 shrink-0 text-right text-lg font-semibold ${isKorea ? 'text-teal-800' : 'text-zinc-500'}`}>#{rank.neerRank}</p>
-                      <span className="shrink-0 text-2xl leading-none" aria-hidden="true">{display.flag}</span>
-                      <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold text-zinc-950">{display.name}</h3>
-                        <p className="mt-0.5 truncate text-xs text-zinc-500">{rank.areaCode} · {rank.neerRank}/{rank.totalCount}</p>
-                      </div>
+                  <div className="grid gap-3 md:grid-cols-[56px_56px_minmax(140px,180px)_minmax(0,1fr)_105px_120px] md:items-center">
+                    <div className="grid h-12 place-items-center rounded-xl border border-zinc-100 bg-zinc-50 px-2 text-center">
+                      <p className={`text-lg font-semibold leading-none ${isKorea ? 'text-teal-700' : 'text-zinc-700'}`}>{index + 1}</p>
+                    </div>
+                    <div className="grid h-12 place-items-center rounded-xl border border-zinc-100 bg-white text-2xl leading-none" aria-hidden="true">
+                      {display.flag}
+                    </div>
+                    <div className="flex h-12 min-w-0 flex-col justify-center">
+                      <h3 className="truncate text-base font-semibold leading-none text-zinc-950">{display.name}</h3>
+                      <p className="mt-1 truncate text-xs text-zinc-500">{rank.areaCode} · BIS 원순위 {rank.neerRank}/{rank.totalCount}</p>
                     </div>
 
                     <div>
@@ -75,14 +85,14 @@ export function CurrencyStrengthPage({ ranks }: { ranks: CurrencyStrengthRank[] 
                       </div>
                     </div>
 
-                    <div className="grid gap-0.5 text-right text-xs">
+                    <div className="grid justify-items-center gap-0.5 text-center text-xs">
                       <p className={`font-semibold ${isWeak ? 'text-rose-700' : 'text-teal-700'}`}>
                         NEER {formatValue(rank.neerValue, 2)}
                       </p>
                       <p className="text-zinc-500">REER {rank.reerValue === null ? '-' : formatValue(rank.reerValue, 2)}</p>
                     </div>
 
-                    <div className="border-t border-zinc-100 pt-2 text-right md:border-l md:border-t-0 md:py-1 md:pl-4">
+                    <div className="flex h-full flex-col justify-center border-t border-zinc-100 pt-2 text-center md:border-l md:border-t-0 md:py-1 md:pl-4">
                       <p className="text-[11px] font-medium text-zinc-500">100점 만점</p>
                       <p className="text-2xl font-semibold leading-none text-zinc-950">{strengthScore}점</p>
                     </div>
