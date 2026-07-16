@@ -20,6 +20,7 @@ import { RelatedNewsBanner, prefetchRelatedNews } from './components/RelatedNews
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
 import { GovernmentBriefingsPage as GovernmentBriefingsPageView } from './pages/GovernmentBriefingsPage';
+import { HomePage as HomePageView } from './pages/HomePage';
 import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
 import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
 import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
@@ -80,7 +81,7 @@ function App() {
   const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [dollarIndexRange, setDollarIndexRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [activeTab, setActiveTab] = React.useState<MainTabKey>('dashboard');
-  const [activePage, setActivePage] = React.useState<PageKey>('dashboard');
+  const [activePage, setActivePage] = React.useState<PageKey>('home');
   const [activeUsdKrwHover, setActiveUsdKrwHover] = React.useState<ChartHoverState | null>(null);
   const [activeAdvancedDollarHover, setActiveAdvancedDollarHover] = React.useState<ChartHoverState | null>(null);
   const [activeBroadDollarHover, setActiveBroadDollarHover] = React.useState<ChartHoverState | null>(null);
@@ -107,10 +108,34 @@ function App() {
   const [governmentBriefingsTotalCount, setGovernmentBriefingsTotalCount] = React.useState(0);
   const [governmentBriefingsTotalPages, setGovernmentBriefingsTotalPages] = React.useState(0);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
-  const isMainAppPage = activePage === 'dashboard' || activePage === 'exchangeGuide' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom' || activePage === 'governmentBriefings';
+  const isMainAppPage = activePage === 'home' || activePage === 'dashboard' || activePage === 'exchangeGuide' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom' || activePage === 'governmentBriefings';
   const mainTabNavRef = React.useRef<HTMLElement | null>(null);
   const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
   const [mainTabIndicator, setMainTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
+  const mainTabHighlightTimeoutRef = React.useRef<number | null>(null);
+  const [isMainTabHighlightActive, setIsMainTabHighlightActive] = React.useState(false);
+  const [mainTabHighlightKey, setMainTabHighlightKey] = React.useState(0);
+  const goDashboard = React.useCallback(() => {
+    setActiveTab('dashboard');
+    setActivePage('dashboard');
+  }, []);
+  const highlightMainTabs = React.useCallback(() => {
+    if (mainTabHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(mainTabHighlightTimeoutRef.current);
+    }
+    setIsMainTabHighlightActive(true);
+    setMainTabHighlightKey((current) => current + 1);
+    mainTabHighlightTimeoutRef.current = window.setTimeout(() => {
+      setIsMainTabHighlightActive(false);
+      mainTabHighlightTimeoutRef.current = null;
+    }, 1300);
+  }, []);
+
+  React.useEffect(() => () => {
+    if (mainTabHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(mainTabHighlightTimeoutRef.current);
+    }
+  }, []);
 
   React.useLayoutEffect(() => {
     if (!isMainAppPage) {
@@ -122,6 +147,7 @@ function App() {
       const nav = mainTabNavRef.current;
       const button = mainTabButtonRefs.current[activeKey];
       if (!nav || !button) {
+        setMainTabIndicator({ height: 0, left: 0, top: 0, width: 0 });
         return;
       }
 
@@ -356,6 +382,19 @@ function App() {
     syncStatus
   });
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
+  const marketDailyStatusFailed = syncStatus?.latestStatus
+    ? syncStatus.latestStatus !== 'SUCCESS' && syncStatus.latestStatus !== 'PARTIAL_SUCCESS' && !syncStatus.latestStatus.startsWith('SKIPPED')
+    : false;
+  const marketDailyStatusLabel = marketDailyStatusFailed ? '업데이트 점검' : (syncStatus?.latestStatus ? '업데이트 원활' : '업데이트 대기');
+  const marketDailyStatusTone = marketDailyStatusFailed ? 'error' : (syncStatus?.latestStatus ? 'healthy' : 'idle');
+  const usdKrwStatusNode = (
+    <UpdateStatusBox
+      interval={usdKrwRange === '1D' ? '환율 1분봉 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
+      statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatusLabel}
+      todayLabel={todayLabel}
+      tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatusTone}
+    />
+  );
   const showPageStatus = activePage !== 'exchangeGuide' && activePage !== 'serviceGuide';
   const activeStatusNode = showPageStatus ? (
     <UpdateStatusBox
@@ -435,53 +474,32 @@ function App() {
   }, [loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
 
   return (
-    <main className="min-h-screen bg-zinc-50 text-zinc-950">
-      <div className="w-full bg-teal-700 text-white">
-        <div className="mx-auto flex h-11 w-full max-w-6xl items-center justify-between gap-3 px-5">
+    <main className="app-shell min-h-screen bg-transparent text-zinc-950">
+      <header className="pt-4">
+        <div className="mx-auto flex min-h-[58px] w-full max-w-6xl items-center justify-between gap-3 px-3 pr-5 sm:px-4 sm:pr-5">
           <button
-            className="flex min-w-0 items-center gap-2"
+            className="flex min-w-0 items-center gap-3 py-1 text-white"
             onClick={() => {
-              setActiveTab('dashboard');
-              setActivePage('dashboard');
+              setActivePage('home');
             }}
             type="button"
           >
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white text-xs font-bold text-teal-700">₩</span>
-            <span className="truncate text-sm font-semibold tracking-normal">코리아원 · 환율 모니터링 서비스</span>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-500 text-xl font-black text-white shadow-lg shadow-teal-950/25">₩</span>
+            <span className="truncate text-lg font-extrabold tracking-normal drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]">코리아원</span>
           </button>
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              className={`h-7 whitespace-nowrap rounded px-2.5 text-xs font-semibold ${
-                activePage === 'exchangeGuide' ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600'
+          {isMainAppPage ? (
+            <nav
+              className={`relative flex max-w-[calc(100vw-9.5rem)] flex-wrap justify-end gap-1 rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md sm:max-w-none ${
+                activePage === 'home' && isMainTabHighlightActive && mainTabHighlightKey > 0
+                  ? mainTabHighlightKey % 2 === 0 ? 'main-tab-color-pulse-even' : 'main-tab-color-pulse-odd'
+                  : ''
               }`}
-              onClick={() => {
-                setActiveTab('exchangeGuide');
-                setActivePage('exchangeGuide');
-              }}
-              type="button"
+              aria-label="주요 화면"
+              ref={mainTabNavRef}
             >
-              환율이란
-            </button>
-            {/* 서비스 소개 페이지는 완성도 보완 후 다시 노출합니다. */}
-            {false ? <button
-              className={`h-7 whitespace-nowrap rounded px-2.5 text-xs font-semibold ${
-                activePage === 'serviceGuide' ? 'bg-white text-teal-700' : 'text-teal-50 hover:bg-teal-600'
-              }`}
-              onClick={() => setActivePage('serviceGuide')}
-              type="button"
-            >
-              서비스 소개
-            </button> : null}
-          </div>
-        </div>
-      </div>
-      {isMainAppPage ? (
-        <div className="bg-zinc-50 pt-2">
-          <div className="mx-auto w-full max-w-6xl px-5">
-            <nav className="relative flex flex-wrap gap-1 rounded-full border border-zinc-200 bg-white p-1 shadow-sm" aria-label="주요 화면" ref={mainTabNavRef}>
               {mainTabIndicator.width > 0 ? (
                 <span
-                  className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-700 shadow-md shadow-teal-900/15 ring-1 ring-teal-600/30 transition-[transform,width,height] duration-200 ease-out"
+                  className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-600 transition-[transform,width,height] duration-200 ease-out"
                   style={{
                     height: mainTabIndicator.height,
                     transform: `translate(${mainTabIndicator.left + 1}px, ${mainTabIndicator.top - 1}px)`,
@@ -492,7 +510,7 @@ function App() {
               {mainTabs.map((tab) => (
                 <button
                   className={`relative z-10 inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
-                    activePage === tab.key ? 'text-white' : 'text-zinc-500 hover:text-zinc-900'
+                    activePage === tab.key ? 'text-white' : 'text-white/70 hover:text-white'
                   }`}
                   key={tab.key}
                   onClick={() => {
@@ -508,11 +526,36 @@ function App() {
                 </button>
               ))}
             </nav>
-          </div>
+          ) : null}
         </div>
-      ) : null}
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-3">
-        {activePage === 'dashboard' ? <RelatedNewsBanner topic="exchange" /> : null}
+      </header>
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4">
+        {activePage === 'home' ? (
+          <HomePageView
+            onGoDashboard={goDashboard}
+            onReachLastSection={highlightMainTabs}
+          />
+        ) : null}
+
+        {activePage === 'dashboard' ? (
+          <RelatedNewsBanner
+            actionSlot={(
+              <button
+                className="inline-flex h-7 items-center gap-1 rounded-full border border-white/15 bg-zinc-950/35 px-2.5 text-[11px] font-semibold text-white shadow-lg backdrop-blur-md hover:bg-white/15"
+                onClick={() => {
+                  setActiveTab('exchangeGuide');
+                  setActivePage('exchangeGuide');
+                }}
+                type="button"
+              >
+                <span aria-hidden="true">❓</span>
+                <span>환율이 무엇인가요?</span>
+                <span aria-hidden="true">&gt;</span>
+              </button>
+            )}
+            topic="exchange"
+          />
+        ) : null}
         {activePage === 'koreaStatus' ? <RelatedNewsBanner topic="indicators" /> : null}
 
         {activePage === 'dashboard' ? (
@@ -530,7 +573,7 @@ function App() {
               )}
               helpTitle="USD/KRW 그래프"
               hover={activeUsdKrwHover}
-              lineStroke="#0f766e"
+              lineStroke="#5eead4"
               metric={usdKrwMetric}
               onHoverChange={setActiveUsdKrwHover}
               onRangeChange={setUsdKrwRange}
@@ -541,10 +584,10 @@ function App() {
               range={usdKrwRange}
               rangeColumns={4}
               rangeOptions={rangeOptions}
-              referenceStroke="#0f766e"
+              referenceStroke="#5eead4"
               series={visibleUsdKrwSeries}
-              statusClassName={usdKrwRange === '1D' ? 'text-teal-700' : 'text-transparent'}
-              statusNode={activeStatusNode}
+              statusClassName={usdKrwRange === '1D' ? 'text-teal-100' : 'text-transparent'}
+              statusNode={usdKrwStatusNode}
               statusText={usdKrwRange === '1D' ? intradayStatusLabel : '상태 영역'}
               subtitle={usdKrwRange === '1D' ? '09:00~익일 02:00 실시간 수집 환율' : `${getRangeLabel(usdKrwRange)} 일별 기준 환율`}
               title="실시간 원달러 환율"
@@ -570,7 +613,7 @@ function App() {
                 helpTitle="선진국 달러 지수"
                 helpWidthClassName="w-80"
                 hover={activeAdvancedDollarHover}
-                lineStroke="#52525b"
+                lineStroke="#cbd5e1"
                 metric={dxyMetric}
                 onHoverChange={setActiveAdvancedDollarHover}
                 onRangeChange={setDxyRange}
@@ -581,7 +624,7 @@ function App() {
                 range={dxyRange}
                 rangeColumns={3}
                 rangeOptions={longRangeOptions}
-                referenceStroke="#52525b"
+                referenceStroke="#cbd5e1"
                 series={visibleDxyIndexSeries}
                 statusClassName="text-transparent"
                 statusText="상태 영역"
@@ -589,7 +632,7 @@ function App() {
                 title="선진국 달러 지수"
                 tooltipContent={<DollarIndexTooltip title="선진국 달러" />}
                 xAxisHeight={dailyXAxisHeightPx}
-                xAxisPadding={{ left: 16, right: 16 }}
+                xAxisPadding={{ left: 0, right: 0 }}
                 xDomain={dxyIndexXDomain}
                 xTickFormatter={(value) => formatDailyXTick(value, dxyRange)}
                 xTicks={dxyIndexXTicks}
@@ -607,7 +650,7 @@ function App() {
                 )}
                 helpTitle="광의 달러 지수"
                 hover={activeBroadDollarHover}
-                lineStroke="#52525b"
+                lineStroke="#cbd5e1"
                 metric={dollarIndexMetric}
                 onHoverChange={setActiveBroadDollarHover}
                 onRangeChange={setDollarIndexRange}
@@ -618,7 +661,7 @@ function App() {
                 range={dollarIndexRange}
                 rangeColumns={3}
                 rangeOptions={longRangeOptions}
-                referenceStroke="#52525b"
+                referenceStroke="#cbd5e1"
                 series={visibleDollarIndexSeries}
                 statusClassName="text-transparent"
                 statusText="상태 영역"
@@ -626,7 +669,7 @@ function App() {
                 title="광의 달러 지수"
                 tooltipContent={<DollarIndexTooltip title="광의 달러" />}
                 xAxisHeight={dailyXAxisHeightPx}
-                xAxisPadding={{ left: 16, right: 16 }}
+                xAxisPadding={{ left: 0, right: 0 }}
                 xDomain={dollarIndexXDomain}
                 xTickFormatter={(value) => formatDailyXTick(value, dollarIndexRange)}
                 xTicks={dollarIndexXTicks}
@@ -636,7 +679,22 @@ function App() {
           </section>
         ) : null}
 
-        {activePage === 'exchangeGuide' ? <div className="page-content-enter"><ExchangeRateGuidePageView /></div> : null}
+        {activePage === 'exchangeGuide' ? (
+          <div className="page-content-enter grid gap-3">
+            <button
+              className="inline-flex w-fit items-center gap-1 rounded-full border border-white/15 bg-zinc-950/35 px-3 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur-md hover:bg-white/15"
+              onClick={() => {
+                setActiveTab('dashboard');
+                setActivePage('dashboard');
+              }}
+              type="button"
+            >
+              <span aria-hidden="true">&lt;</span>
+              <span>환율 현황으로 돌아가기</span>
+            </button>
+            <ExchangeRateGuidePageView />
+          </div>
+        ) : null}
 
         {activePage === 'koreaStatus' ? (
           <div className="page-content-enter">
@@ -698,7 +756,7 @@ function App() {
 
       </section>
       <ExchangeRateCalculator rates={foreignExchangeRates} />
-      {activePage !== 'serviceGuide' ? <AppFooter /> : null}
+      {activePage !== 'home' && activePage !== 'serviceGuide' ? <AppFooter /> : null}
     </main>
   );
 }
@@ -737,7 +795,7 @@ function UpdateStatusBox({
   tone: string;
 }) {
   return (
-    <div className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[10px] font-medium text-zinc-500">
+    <div className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[10px] font-medium text-white/60">
       <span className="inline-flex max-w-full min-w-0 items-center">
         <span className="truncate">{interval}</span>
       </span>
@@ -755,7 +813,7 @@ function UpdateStatusBox({
 function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
   if (rates.length === 0) {
     return (
-      <section className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-400 shadow-sm">
+      <section className="glass-card rounded-2xl px-4 py-3 text-sm text-white/50 shadow-sm">
         주요 통화 환율을 확인 중입니다.
       </section>
     );
@@ -767,28 +825,28 @@ function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
     .sort((a, b) => b - a)[0] ?? null;
 
   return (
-    <section className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-1 border-b border-zinc-100 px-4 py-3 md:flex-row md:items-center md:justify-between">
+    <section className="glass-card overflow-hidden rounded-2xl shadow-sm">
+      <div className="flex flex-col gap-1 border-b border-white/10 px-4 py-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-950">주요 통화 환율</h2>
-          <p className="mt-0.5 text-[11px] text-zinc-500">실시간 스트리밍이 아닌 최근 수집값입니다. 주요 통화는 약 1시간 주기로 갱신됩니다.</p>
+          <h2 className="text-sm font-semibold text-white">주요 통화 환율</h2>
+          <p className="mt-0.5 text-[11px] text-white/60">실시간 스트리밍이 아닌 최근 수집값입니다. 주요 통화는 약 1시간 주기로 갱신됩니다.</p>
         </div>
-        <p className="text-[11px] font-medium text-zinc-500">
+        <p className="text-[11px] font-medium text-white/60">
           최근 업데이트 {latestFetchedAt === null ? '-' : formatForeignExchangeUpdatedAt(new Date(latestFetchedAt))}
         </p>
       </div>
-      <div className="grid gap-2 p-3 md:grid-cols-2 md:gap-y-2 md:[&>article:nth-child(even)]:border-l md:[&>article:nth-child(even)]:border-zinc-100">
+      <div className="grid gap-2 p-3 md:grid-cols-2 md:gap-y-2 md:[&>article:nth-child(even)]:border-l md:[&>article:nth-child(even)]:border-white/10">
         {rates.map((rate) => (
-          <article className="grid grid-cols-[48px_minmax(0,1fr)_minmax(104px,auto)] items-center gap-3 rounded-xl border border-zinc-100 bg-white px-3 py-2.5" key={rate.currencyCode}>
-            <div className="grid h-12 w-12 place-items-center rounded-xl border border-zinc-100 bg-white text-2xl leading-none" aria-hidden="true">
+          <article className="glass-subcard grid grid-cols-[48px_minmax(0,1fr)_minmax(104px,auto)] items-center gap-3 rounded-2xl px-3 py-2.5" key={rate.currencyCode}>
+            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/15 bg-white/10 text-2xl leading-none" aria-hidden="true">
               {getCurrencyFlag(rate.displayCode)}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</p>
-              <p className="mt-0.5 truncate text-[11px] font-medium text-zinc-500">{getCurrencyDetailText(rate)}</p>
+              <p className="truncate text-sm font-semibold text-white">{getCurrencyShortLabel(rate.displayCode)}</p>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-white/60">{getCurrencyDetailText(rate)}</p>
             </div>
             <div className="text-right">
-              <p className="text-base font-bold text-teal-800">{formatValue(rate.dealBasRate, 2)}원</p>
+              <p className="text-base font-bold text-teal-100">{formatValue(rate.dealBasRate, 2)}원</p>
             </div>
           </article>
         ))}
@@ -927,7 +985,7 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
       >
       {isClosing ? (
         <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-          <CalculatorIcon className="h-7 w-7 text-zinc-950" />
+          <CalculatorIcon className="h-7 w-7 text-white" />
         </div>
       ) : null}
       {shouldShowPanel ? (
@@ -935,14 +993,14 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
           aria-label="환율 계산기"
           className={`transition-opacity duration-200 ease-out ${isClosing || isOpening ? 'opacity-0' : 'opacity-100'}`}
         >
-          <div className="flex items-start justify-between gap-3 border-b border-zinc-100 px-4 py-3">
+          <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-zinc-950">환율 계산기</h2>
-              <p className="mt-1 text-[11px] leading-4 text-zinc-500">수수료와 은행별 스프레드는 제외한 기준 환율 계산입니다.</p>
+              <h2 className="text-sm font-semibold text-white">환율 계산기</h2>
+              <p className="mt-1 text-[11px] leading-4 text-white/55">수수료와 은행별 스프레드는 제외한 기준 환율 계산입니다.</p>
             </div>
             <button
               aria-label="환율 계산기 닫기"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-zinc-200 text-sm font-semibold text-zinc-500 hover:bg-zinc-100"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-white/15 bg-white/10 text-sm font-semibold text-white/60 hover:bg-white/15 hover:text-white"
               onClick={closeCalculator}
               type="button"
             >
@@ -953,9 +1011,9 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
           {selectedRate ? (
             <div className="grid gap-3 px-4 py-3">
               <label className="grid gap-1.5">
-                <span className="text-[11px] font-semibold text-zinc-500">통화</span>
+                <span className="text-[11px] font-semibold text-white/55">통화</span>
                 <select
-                  className="h-9 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  className="glass-field h-9 w-full rounded-md px-3 text-sm font-semibold outline-none"
                   onChange={(event) => handleCurrencyChange(event.target.value)}
                   value={selectedRate.currencyCode}
                 >
@@ -969,12 +1027,12 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
 
               <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
                 <label className="grid gap-1.5">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-white/55">
                     <span className="text-sm leading-none" aria-hidden="true">{getCurrencyFlag(selectedRate.displayCode)}</span>
                     {selectedRate.displayCode}
                   </span>
                   <input
-                    className="h-10 min-w-0 rounded-md border border-zinc-200 px-3 text-right text-sm font-semibold text-zinc-950 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className="glass-field h-10 min-w-0 rounded-md px-3 text-right text-sm font-semibold outline-none"
                     inputMode="decimal"
                     onChange={(event) => handleForeignInputChange(event.target.value)}
                     placeholder="0"
@@ -982,12 +1040,12 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
                   />
                 </label>
                 <label className="grid gap-1.5">
-                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-white/55">
                     <span className="text-sm leading-none" aria-hidden="true">🇰🇷</span>
                     KRW
                   </span>
                   <input
-                    className="h-10 min-w-0 rounded-md border border-zinc-200 px-3 text-right text-sm font-semibold text-zinc-950 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                    className="glass-field h-10 min-w-0 rounded-md px-3 text-right text-sm font-semibold outline-none"
                     inputMode="decimal"
                     onChange={(event) => handleKrwInputChange(event.target.value)}
                     placeholder="0"
@@ -996,26 +1054,26 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
                 </label>
               </div>
 
-              <div className="rounded border border-zinc-100 bg-zinc-50 px-3 py-2 text-[11px] leading-5 text-zinc-500">
-                <p className="font-medium text-zinc-700">
+              <div className="rounded border border-white/10 bg-white/8 px-3 py-2 text-[11px] leading-5 text-white/55">
+                <p className="font-medium text-white/75">
                   1 {selectedRate.displayCode} = {formatValue(selectedRate.dealBasRate / selectedRate.unitSize, 2)}원
                 </p>
                 <p>기준 시각 {formatForeignExchangeUpdatedAt(new Date(selectedRate.fetchedAt))}</p>
               </div>
             </div>
           ) : (
-            <div className="px-4 py-5 text-sm text-zinc-400">제공 중인 주요 통화 환율을 확인 중입니다.</div>
+            <div className="px-4 py-5 text-sm text-white/45">제공 중인 주요 통화 환율을 확인 중입니다.</div>
           )}
         </section>
       ) : (
         <button
           aria-label="환율 계산기 열기"
           aria-pressed={isOpen}
-          className="flex h-14 w-full cursor-pointer items-center gap-2.5 bg-white px-[13px] text-left text-teal-800 transition-colors hover:bg-teal-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-teal-200"
+          className="flex h-14 w-full cursor-pointer items-center gap-2.5 bg-white/10 px-[13px] text-left text-teal-100 transition-colors hover:bg-white/15 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-teal-200/40"
           onClick={openCalculator}
           type="button"
         >
-          <CalculatorIcon className="h-7 w-7 shrink-0 text-zinc-950" />
+          <CalculatorIcon className="h-7 w-7 shrink-0 text-white" />
           <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-24 group-hover:opacity-100">
             환율계산기
           </span>
@@ -1053,7 +1111,7 @@ function CalculatorIcon({ className }: { className?: string }) {
 }
 
 function getCalculatorContainerClassName(isOpen: boolean, isClosing: boolean, isHoverExpansionPaused: boolean) {
-  const baseClassName = 'relative overflow-hidden border-2 border-teal-700 bg-white shadow-lg transition-[width,height,border-radius,box-shadow] ease-out';
+  const baseClassName = 'glass-modal relative overflow-hidden border-2 border-teal-300/40 shadow-lg transition-[width,height,border-radius,box-shadow] ease-out';
 
   if (isOpen) {
     return `${baseClassName} duration-[600ms] w-[min(22rem,calc(100vw-2rem))] rounded-md shadow-xl`;
