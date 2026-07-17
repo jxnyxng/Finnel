@@ -112,6 +112,7 @@ function App() {
   const mainTabNavRef = React.useRef<HTMLElement | null>(null);
   const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
   const [mainTabIndicator, setMainTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
+  const [mainTabButtonWidth, setMainTabButtonWidth] = React.useState(0);
   const mainTabHighlightTimeoutRef = React.useRef<number | null>(null);
   const [isMainTabHighlightActive, setIsMainTabHighlightActive] = React.useState(false);
   const [mainTabHighlightKey, setMainTabHighlightKey] = React.useState(0);
@@ -146,6 +147,12 @@ function App() {
     const updateIndicator = () => {
       const nav = mainTabNavRef.current;
       const button = mainTabButtonRefs.current[activeKey];
+      const maxButtonWidth = Math.ceil(Math.max(
+        0,
+        ...mainTabs.map((tab) => mainTabButtonRefs.current[tab.key]?.scrollWidth ?? 0)
+      ));
+      setMainTabButtonWidth((current) => current === maxButtonWidth ? current : maxButtonWidth);
+
       if (!nav || !button) {
         setMainTabIndicator({ height: 0, left: 0, top: 0, width: 0 });
         return;
@@ -175,7 +182,7 @@ function App() {
     updateIndicator();
     window.addEventListener('resize', updateIndicator);
     return () => window.removeEventListener('resize', updateIndicator);
-  }, [activePage, isMainAppPage]);
+  }, [activePage, isMainAppPage, mainTabButtonWidth]);
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
     if (showLoading) {
@@ -395,7 +402,7 @@ function App() {
       tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatusTone}
     />
   );
-  const showPageStatus = activePage !== 'exchangeGuide' && activePage !== 'serviceGuide';
+  const showPageStatus = activePage !== 'exchangeGuide' && activePage !== 'serviceGuide' && activePage !== 'dataSources';
   const activeStatusNode = showPageStatus ? (
     <UpdateStatusBox
       interval={activeServiceUpdateInterval}
@@ -475,10 +482,10 @@ function App() {
 
   return (
     <main className="app-shell min-h-screen bg-transparent text-zinc-950">
-      <header className="pt-4">
-        <div className="mx-auto flex min-h-[58px] w-full max-w-6xl items-center justify-between gap-3 px-3 pr-5 sm:px-4 sm:pr-5">
+      <header className="py-3 sm:pb-0 sm:pt-4">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-3 px-3 sm:min-h-[58px] sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:pr-5">
           <button
-            className="flex min-w-0 items-center gap-3 py-1 text-white"
+            className="flex min-w-0 items-center justify-center gap-3 text-white sm:justify-start sm:py-1"
             onClick={() => {
               setActivePage('home');
             }}
@@ -489,7 +496,7 @@ function App() {
           </button>
           {isMainAppPage ? (
             <nav
-              className={`relative flex max-w-[calc(100vw-9.5rem)] flex-wrap justify-end gap-1 rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md sm:max-w-none ${
+              className={`scrollbar-none relative mx-auto flex w-fit max-w-full flex-nowrap justify-center gap-1 overflow-x-auto rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md sm:mx-0 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible ${
                 activePage === 'home' && isMainTabHighlightActive && mainTabHighlightKey > 0
                   ? mainTabHighlightKey % 2 === 0 ? 'main-tab-color-pulse-even' : 'main-tab-color-pulse-odd'
                   : ''
@@ -520,6 +527,7 @@ function App() {
                   ref={(node) => {
                     mainTabButtonRefs.current[tab.key] = node;
                   }}
+                  style={mainTabButtonWidth > 0 ? { width: mainTabButtonWidth } : undefined}
                   type="button"
                 >
                   {tab.label}
@@ -529,7 +537,7 @@ function App() {
           ) : null}
         </div>
       </header>
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4">
+      <section className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-5 sm:py-4">
         {activePage === 'home' ? (
           <HomePageView
             onGoDashboard={goDashboard}
@@ -540,18 +548,31 @@ function App() {
         {activePage === 'dashboard' ? (
           <RelatedNewsBanner
             actionSlot={(
-              <button
-                className="inline-flex h-7 items-center gap-1 rounded-full border border-white/15 bg-zinc-950/35 px-2.5 text-[11px] font-semibold text-white shadow-lg backdrop-blur-md hover:bg-white/15"
-                onClick={() => {
-                  setActiveTab('exchangeGuide');
-                  setActivePage('exchangeGuide');
-                }}
-                type="button"
-              >
-                <span aria-hidden="true">❓</span>
-                <span>환율이 무엇인가요?</span>
-                <span aria-hidden="true">&gt;</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  className="inline-flex h-7 items-center gap-1 rounded-full border border-white/15 bg-zinc-950/35 px-2.5 text-[11px] font-semibold text-white shadow-lg backdrop-blur-md hover:bg-white/15"
+                  onClick={() => {
+                    setActiveTab('exchangeGuide');
+                    setActivePage('exchangeGuide');
+                  }}
+                  type="button"
+                >
+                  <span aria-hidden="true">❓</span>
+                  <span>환율이 무엇인가요?</span>
+                  <span aria-hidden="true">&gt;</span>
+                </button>
+                <button
+                  className="inline-flex h-7 items-center gap-1 rounded-full border border-white/15 bg-zinc-950/35 px-2.5 text-[11px] font-semibold text-white shadow-lg backdrop-blur-md hover:bg-white/15"
+                  onClick={() => {
+                    setActivePage('dataSources');
+                  }}
+                  type="button"
+                >
+                  <span aria-hidden="true">📚</span>
+                  <span>데이터 출처</span>
+                  <span aria-hidden="true">&gt;</span>
+                </button>
+              </div>
             )}
             topic="exchange"
           />
@@ -675,7 +696,6 @@ function App() {
                 xTicks={dollarIndexXTicks}
                 yDomain={dollarIndexDomain}
               />
-            <DataSourceGuideView dataSources={dataSources} />
           </section>
         ) : null}
 
@@ -699,7 +719,6 @@ function App() {
         {activePage === 'koreaStatus' ? (
           <div className="page-content-enter">
             <KoreaStatusPageView
-              dataSources={dataSources}
               indicators={domesticIndicators}
               isLoading={isLoading}
               latestSyncLabel={latestSyncLabel}
@@ -754,9 +773,26 @@ function App() {
 
         {activePage === 'serviceGuide' ? <div className="page-content-enter"><ServiceGuidePageView /></div> : null}
 
+        {activePage === 'dataSources' ? (
+          <div className="page-content-enter grid gap-3">
+            <button
+              className="inline-flex w-fit items-center gap-1 rounded-full border border-white/15 bg-zinc-950/35 px-3 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur-md hover:bg-white/15"
+              onClick={() => {
+                setActiveTab('dashboard');
+                setActivePage('dashboard');
+              }}
+              type="button"
+            >
+              <span aria-hidden="true">&lt;</span>
+              <span>환율 현황으로 돌아가기</span>
+            </button>
+            <DataSourceGuideView dataSources={dataSources} />
+          </div>
+        ) : null}
+
       </section>
       <ExchangeRateCalculator rates={foreignExchangeRates} />
-      {activePage !== 'home' && activePage !== 'serviceGuide' ? <AppFooter /> : null}
+      {activePage !== 'home' && activePage !== 'serviceGuide' && activePage !== 'dataSources' ? <AppFooter /> : null}
     </main>
   );
 }
@@ -825,9 +861,9 @@ function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
     .sort((a, b) => b - a)[0] ?? null;
 
   return (
-    <section className="glass-card overflow-hidden rounded-2xl shadow-sm">
-      <div className="flex flex-col gap-1 border-b border-white/10 px-4 py-3 md:flex-row md:items-center md:justify-between">
-        <div>
+    <section className="glass-card min-w-0 overflow-hidden rounded-2xl shadow-sm">
+      <div className="flex min-w-0 flex-col gap-1 border-b border-white/10 px-3 py-3 sm:px-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-white">주요 통화 환율</h2>
           <p className="mt-0.5 text-[11px] text-white/60">실시간 스트리밍이 아닌 최근 수집값입니다. 주요 통화는 약 1시간 주기로 갱신됩니다.</p>
         </div>
@@ -835,10 +871,10 @@ function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
           최근 업데이트 {latestFetchedAt === null ? '-' : formatForeignExchangeUpdatedAt(new Date(latestFetchedAt))}
         </p>
       </div>
-      <div className="grid gap-2 p-3 md:grid-cols-2 md:gap-y-2 md:[&>article:nth-child(even)]:border-l md:[&>article:nth-child(even)]:border-white/10">
+      <div className="grid min-w-0 gap-2 p-2.5 sm:p-3 md:grid-cols-2 md:gap-y-2 md:[&>article:nth-child(even)]:border-l md:[&>article:nth-child(even)]:border-white/10">
         {rates.map((rate) => (
-          <article className="glass-subcard grid grid-cols-[48px_minmax(0,1fr)_minmax(104px,auto)] items-center gap-3 rounded-2xl px-3 py-2.5" key={rate.currencyCode}>
-            <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/15 bg-white/10 text-2xl leading-none" aria-hidden="true">
+          <article className="glass-subcard grid min-w-0 grid-cols-[40px_minmax(0,1fr)_minmax(82px,auto)] items-center gap-2 rounded-2xl px-2.5 py-2.5 sm:grid-cols-[48px_minmax(0,1fr)_minmax(104px,auto)] sm:gap-3 sm:px-3" key={rate.currencyCode}>
+            <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-xl leading-none sm:h-12 sm:w-12 sm:rounded-2xl sm:text-2xl" aria-hidden="true">
               {getCurrencyFlag(rate.displayCode)}
             </div>
             <div className="min-w-0">
@@ -846,7 +882,7 @@ function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
               <p className="mt-0.5 truncate text-[11px] font-medium text-white/60">{getCurrencyDetailText(rate)}</p>
             </div>
             <div className="text-right">
-              <p className="text-base font-bold text-teal-100">{formatValue(rate.dealBasRate, 2)}원</p>
+              <p className="text-sm font-bold text-teal-100 sm:text-base">{formatValue(rate.dealBasRate, 2)}원</p>
             </div>
           </article>
         ))}
@@ -973,7 +1009,7 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
   const containerHeight = isOpen ? 306 : 56;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-2rem)] justify-end">
+    <div className="fixed bottom-3 right-3 z-40 flex max-w-[calc(100vw-1.5rem)] justify-end sm:bottom-4 sm:right-4 sm:max-w-[calc(100vw-2rem)]">
       <div
         className={containerClassName}
         style={{ height: `${containerHeight}px` }}

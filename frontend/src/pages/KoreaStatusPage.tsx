@@ -3,13 +3,12 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartEmptyState } from '../components/ChartElements';
-import type { DataSourceInfo, DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
+import type { DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
 import { formatMetricUnit, formatValue } from '../utils/format';
 import { lockBodyScroll } from '../utils/scrollLock';
 
 type KoreaStatusPageProps = {
   indicators: DomesticIndicator[];
-  dataSources: DataSourceInfo[];
   isLoading: boolean;
   latestSyncLabel: string;
   statusNode?: React.ReactNode;
@@ -65,9 +64,10 @@ const sectionTabs = [
   { key: 'external', label: '대외수급' },
   { key: 'policy', label: '정책' },
   { key: 'inflation', label: '물가·원자재' },
-  { key: 'risk', label: '자본·리스크' },
-  { key: 'sources', label: '데이터 출처' }
+  { key: 'risk', label: '자본·리스크' }
 ];
+
+const sectionTabMinButtonWidth = 96;
 
 const historyRangeOptions: Array<{ key: HistoryRangeKey; label: string }> = [
   { key: '1Y', label: '1년' },
@@ -75,13 +75,14 @@ const historyRangeOptions: Array<{ key: HistoryRangeKey; label: string }> = [
   { key: '5Y', label: '5년' }
 ];
 
-export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSyncLabel, statusNode }: KoreaStatusPageProps) {
+export function KoreaStatusPage({ indicators, isLoading, latestSyncLabel, statusNode }: KoreaStatusPageProps) {
   const [activeSectionKey, setActiveSectionKey] = React.useState(sectionTabs[0].key);
   const [viewMode, setViewMode] = React.useState<'card' | 'list'>('list');
   const [selectedIndicator, setSelectedIndicator] = React.useState<DomesticIndicator | null>(null);
   const sectionTabNavRef = React.useRef<HTMLDivElement | null>(null);
   const sectionTabButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
   const [sectionTabIndicator, setSectionTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
+  const [sectionTabButtonWidth, setSectionTabButtonWidth] = React.useState(sectionTabMinButtonWidth);
   const indicatorMap = new Map(indicators.map((indicator) => [indicator.code, indicator]));
   const collectedIndicators = indicators.filter((indicator) => indicator.value !== null);
   const visibleSections = activeSectionKey === 'all' ? sections : sections.filter((section) => section.key === activeSectionKey);
@@ -90,6 +91,12 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
     const updateIndicator = () => {
       const nav = sectionTabNavRef.current;
       const button = sectionTabButtonRefs.current[activeSectionKey];
+      const maxButtonWidth = Math.ceil(Math.max(
+        sectionTabMinButtonWidth,
+        ...sectionTabs.map((tab) => sectionTabButtonRefs.current[tab.key]?.scrollWidth ?? 0)
+      ));
+      setSectionTabButtonWidth((current) => current === maxButtonWidth ? current : maxButtonWidth);
+
       if (!nav || !button) {
         return;
       }
@@ -118,11 +125,11 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
     updateIndicator();
     window.addEventListener('resize', updateIndicator);
     return () => window.removeEventListener('resize', updateIndicator);
-  }, [activeSectionKey]);
+  }, [activeSectionKey, sectionTabButtonWidth]);
 
   return (
-    <section className="grid gap-4">
-      <header className="glass-card rounded-2xl px-4 py-3 shadow-sm">
+    <section className="grid min-w-0 gap-4">
+      <header className="glass-card min-w-0 rounded-2xl px-4 py-3 shadow-sm">
         <div className="grid gap-2">
           <div className="min-w-0 leading-tight">
             <p className="text-[11px] font-semibold text-teal-100">관련 지표</p>
@@ -138,21 +145,21 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
         </div>
       </header>
 
-      <nav className="glass-card flex flex-wrap items-center justify-between gap-2 rounded-full p-1 shadow-sm" aria-label="국내 현황 범주">
-        <div className="relative flex flex-wrap gap-1" ref={sectionTabNavRef}>
+      <nav className="glass-card flex min-w-0 flex-col items-stretch gap-2 rounded-2xl p-1 shadow-sm lg:flex-row lg:items-center lg:justify-between lg:rounded-full" aria-label="국내 현황 범주">
+        <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto lg:overflow-visible" ref={sectionTabNavRef}>
           {sectionTabIndicator.width > 0 ? (
             <span
               className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-600 transition-[transform,width,height] duration-200 ease-out"
               style={{
-                height: sectionTabIndicator.height,
-                transform: `translate(${sectionTabIndicator.left + 1}px, ${sectionTabIndicator.top - 1}px)`,
+                height: Math.max(0, sectionTabIndicator.height - 2),
+                transform: `translate(${sectionTabIndicator.left + 1}px, ${sectionTabIndicator.top + 1}px)`,
                 width: Math.max(0, sectionTabIndicator.width - 2)
               }}
             />
           ) : null}
           {sectionTabs.map((tab) => (
             <button
-              className={`relative z-10 h-10 rounded-full px-4 text-xs font-semibold transition-colors duration-150 ${
+              className={`relative z-10 h-10 rounded-full px-3 text-xs font-semibold transition-colors duration-150 sm:px-4 ${
                 activeSectionKey === tab.key ? 'text-white' : 'text-white/60 hover:text-white'
               }`}
               key={tab.key}
@@ -160,19 +167,20 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
               ref={(node) => {
                 sectionTabButtonRefs.current[tab.key] = node;
               }}
+              style={sectionTabButtonWidth > 0 ? { width: sectionTabButtonWidth } : undefined}
               type="button"
             >
               {tab.label}
             </button>
           ))}
         </div>
-        {activeSectionKey !== 'sources' ? <ViewModeToggle value={viewMode} onChange={setViewMode} /> : null}
+        <ViewModeToggle value={viewMode} onChange={setViewMode} />
       </nav>
 
       {isLoading ? (
-        <div className="glass-card rounded-2xl p-6 text-sm text-white/60 shadow-sm">국내 정책 지표를 확인 중입니다.</div>
-      ) : activeSectionKey !== 'sources' ? (
-        <div className="page-content-enter grid gap-4" key={activeSectionKey}>
+        <div className="glass-card min-w-0 rounded-2xl p-6 text-sm text-white/60 shadow-sm">국내 정책 지표를 확인 중입니다.</div>
+      ) : (
+        <div className="page-content-enter grid min-w-0 gap-4" key={activeSectionKey}>
           {visibleSections.map((section) => {
             const sectionIndicators = section.codes
               .map((code) => indicatorMap.get(code))
@@ -183,13 +191,13 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
             }
 
             return (
-              <section className="glass-card rounded-2xl p-4 shadow-sm" key={section.title}>
+              <section className="glass-card min-w-0 rounded-2xl p-4 shadow-sm" key={section.title}>
                 <div className="mb-3 border-b border-white/10 pb-3">
                   <h3 className="text-sm font-semibold text-white">{section.title}</h3>
                   <p className="mt-1 text-xs text-white/60">{section.description}</p>
                 </div>
                 {viewMode === 'card' ? (
-                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-3">
                     {sectionIndicators.map((indicator) => (
                       <PolicyIndicatorCard indicator={indicator} key={indicator.code} onInfoOpen={setSelectedIndicator} />
                     ))}
@@ -202,9 +210,8 @@ export function KoreaStatusPage({ indicators, dataSources, isLoading, latestSync
             );
           })}
         </div>
-      ) : null}
+      )}
 
-      {activeSectionKey === 'sources' ? <div className="page-content-enter"><DataSourceSection dataSources={dataSources} /></div> : null}
       <IndicatorInfoPanel indicator={selectedIndicator} onClose={() => setSelectedIndicator(null)} />
     </section>
   );
@@ -245,32 +252,6 @@ function ViewModeToggle({
   );
 }
 
-function DataSourceSection({ dataSources }: { dataSources: DataSourceInfo[] }) {
-  return (
-    <section className="glass-card rounded-2xl p-4 shadow-sm">
-      <div className="border-b border-white/10 pb-3">
-        <h3 className="text-sm font-semibold text-white">데이터 확보 경로</h3>
-        <p className="mt-1 text-xs text-white/60">실제 수집 중인 API와 추가 연동이 필요한 API를 구분합니다.</p>
-      </div>
-      <div className="mt-3 grid gap-2 md:grid-cols-3">
-        {dataSources
-          .filter((source) => ['USD_KRW', 'MACRO', 'FISCAL_POLICY', 'CURRENCY_STRENGTH', 'CAPITAL_FLOW'].includes(source.code))
-          .map((source) => (
-            <article className="glass-subcard rounded-2xl p-3" key={source.code}>
-              <h4 className="text-xs font-semibold text-white">{source.title}</h4>
-              <p className="mt-2 text-[11px] leading-5 text-white/55">{source.api}</p>
-              <p className="mt-2 border-t border-white/10 pt-2 text-[11px] leading-5 text-white/65">{source.updatePolicy}</p>
-            </article>
-          ))}
-        <article className="rounded border border-teal-100 bg-teal-50 p-3">
-          <h4 className="text-xs font-semibold text-teal-900">무료 공개 소스 사용</h4>
-          <p className="mt-2 text-[11px] leading-5 text-teal-800">남은 지표는 ECOS, FRED, 한국은행 공식 페이지 기반으로 수집합니다. 한국 CDS는 무료 공식 API가 없어 신용스프레드 프록시로 표시합니다.</p>
-        </article>
-      </div>
-    </section>
-  );
-}
-
 function SummaryBox({ label, value }: { label: string; value: string }) {
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-white/55">
@@ -292,7 +273,7 @@ function PolicyIndicatorCard({
   return (
     <article
       aria-label={`${indicator.title} 상세 보기`}
-      className={`group/card cursor-pointer rounded-2xl border p-3 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white/12 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none ${isPending ? 'border-amber-300/40 bg-amber-400/15' : 'border-white/10 bg-white/8 shadow-sm'}`}
+      className={`group/card min-w-0 cursor-pointer rounded-2xl border p-3 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white/12 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-100 motion-reduce:transform-none motion-reduce:transition-none ${isPending ? 'border-amber-300/40 bg-amber-400/15' : 'border-white/10 bg-white/8 shadow-sm'}`}
       onClick={() => onInfoOpen(indicator)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -303,19 +284,19 @@ function PolicyIndicatorCard({
       role="button"
       tabIndex={0}
     >
-      <div className="transition-transform duration-150 ease-out group-hover/card:scale-[1.01] motion-reduce:transform-none motion-reduce:transition-none">
-        <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0 transition-transform duration-150 ease-out group-hover/card:scale-[1.01] motion-reduce:transform-none motion-reduce:transition-none">
+        <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="text-[10px] font-semibold text-white/45">{indicator.category}</div>
             <h4 className="mt-0.5 truncate text-sm font-semibold text-white">{indicator.title}</h4>
           </div>
-          <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${collectionStatusClassName(indicator)}`}>
+          <span className={`shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold sm:px-2 ${collectionStatusClassName(indicator)}`}>
             {collectionStatusLabel(indicator)}
           </span>
         </div>
 
         <div className="mt-3 min-w-0">
-          <div className="truncate text-xl font-semibold text-white">{formatIndicatorValue(indicator)}</div>
+          <div className="break-words text-lg font-semibold text-white sm:text-xl">{formatIndicatorValue(indicator)}</div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-white/55">
             <span>{formatMetricUnit(indicator.unit)}</span>
             <span>기준 {indicator.baseDate ?? '-'}</span>
@@ -339,9 +320,9 @@ function PolicyIndicatorTable({
   onInfoOpen: (indicator: DomesticIndicator) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-      <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] table-fixed border-separate border-spacing-0 text-left">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+      <div className="min-w-0 overflow-x-auto">
+      <table className="w-full min-w-full table-fixed border-separate border-spacing-0 text-left sm:min-w-[680px]">
         <thead>
           <tr className="text-[11px] font-semibold text-white/45">
             <th className="w-[36%] border-b border-white/10 px-2 py-2">지표</th>
@@ -370,13 +351,13 @@ function PolicyIndicatorTable({
               >
                 <td className="border-b border-white/10 px-2 py-2">
                   <div className="min-w-0 transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
-                    <div className="truncate text-xs font-semibold text-white">{indicator.title}</div>
-                    <div className="truncate text-[10px] font-medium text-white/45">{indicator.category} · {indicator.status} · 클릭해서 자세히 보기</div>
+                    <div className="break-words text-xs font-semibold text-white sm:truncate">{indicator.title}</div>
+                    <div className="break-words text-[10px] font-medium text-white/45 sm:truncate">{indicator.category} · {indicator.status} · 클릭해서 자세히 보기</div>
                   </div>
                 </td>
                 <td className="border-b border-white/10 px-2 py-2 text-right">
                   <div className="transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
-                    <div className="truncate text-sm font-semibold text-white">
+                    <div className="break-words text-xs font-semibold text-white sm:truncate sm:text-sm">
                       {formatIndicatorValue(indicator)} <span className="text-[11px] font-medium text-white/45">{formatMetricUnit(indicator.unit)}</span>
                     </div>
                   </div>
@@ -387,7 +368,7 @@ function PolicyIndicatorTable({
                   </div>
                 </td>
                 <td className="border-b border-white/10 px-2 py-2 text-right">
-                  <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${collectionStatusClassName(indicator)}`}>
+                  <span className={`inline-flex min-w-0 break-words rounded-full px-1.5 py-1 text-[10px] font-semibold sm:px-2 sm:text-[11px] ${collectionStatusClassName(indicator)}`}>
                     {collectionStatusLabel(indicator)}
                   </span>
                 </td>

@@ -1,33 +1,63 @@
 import type { DataSourceInfo } from '../types';
 
+const sourceIcons: Record<string, string> = {
+  ADVANCED_DOLLAR_INDEX: '🏛️',
+  BROAD_DOLLAR_INDEX: '🌐',
+  CAPITAL_FLOW: '💸',
+  CURRENCY_STRENGTH: '📊',
+  FISCAL_POLICY: '🏦',
+  FOREIGN_EXCHANGE: '💱',
+  MACRO: '📈',
+  USD_KRW: '💵'
+};
+
 export function DataSourceGuide({ dataSources }: { dataSources: DataSourceInfo[] }) {
   return (
-    <section className="glass-card rounded-2xl p-4 shadow-sm">
-      <div className="border-b border-white/10 pb-3">
-        <h2 className="text-base font-semibold text-white">데이터 출처와 업데이트</h2>
-        <p className="mt-1 text-xs text-white/60">화면은 외부 API를 직접 호출하지 않고, 백엔드 배치가 DB에 저장한 최신 데이터를 조회합니다.</p>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+    <section className="grid min-w-0 gap-4">
+      <header className="glass-card min-w-0 rounded-2xl p-5 shadow-sm">
+        <p className="text-xs font-semibold text-teal-100">DATA SOURCES</p>
+        <h2 className="mt-2 text-xl font-semibold text-white">데이터 출처</h2>
+        <p className="mt-3 text-sm leading-6 text-white/70">
+          코리아원은 화면에서 외부 서비스를 직접 호출하지 않습니다. 백엔드 수집 작업이 아래 공개 API와 데이터 파일에서 값을 가져와 DB에 저장하고, 화면은 저장된 최신 값을 조회합니다.
+        </p>
+      </header>
+
+      <div className="grid min-w-0 gap-3 md:grid-cols-2">
         {dataSources.map((source) => (
-          <article key={source.code} className="glass-subcard rounded-2xl p-3">
-            <h3 className="text-sm font-semibold text-white">{source.title}</h3>
-            <dl className="mt-3 grid gap-2 text-xs">
-              <div className="flex gap-3">
-                <dt className="w-16 shrink-0 text-white/55">API</dt>
-                <dd className="min-w-0 font-medium leading-5 text-white/85">{source.api}</dd>
+          <article key={source.code} className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
+            <div className="flex min-w-0 items-start gap-3 border-b border-white/10 pb-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-xl" aria-hidden="true">
+                {sourceIcons[source.code] ?? '🔎'}
+              </span>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-white">{source.title}</h3>
+                <p className="mt-1 break-words text-[11px] font-medium leading-5 text-teal-100">{source.api}</p>
               </div>
-              <div className="flex gap-3">
-                <dt className="w-16 shrink-0 text-white/55">업데이트</dt>
-                <dd className="min-w-0 font-medium leading-5 text-white/85">{source.updatePolicy}</dd>
+            </div>
+            <dl className="mt-3 grid gap-3 text-xs">
+              <div>
+                <dt className="font-semibold text-white/55">어디서 가져오나요</dt>
+                <dd className="mt-1 break-words leading-5 text-white/85">{source.api}</dd>
               </div>
-              <div className="flex gap-3">
-                <dt className="w-16 shrink-0 text-white/55">비고</dt>
-                <dd className="min-w-0 leading-5 text-white/70">{source.note}</dd>
+              <div>
+                <dt className="font-semibold text-white/55">언제 갱신하나요</dt>
+                <dd className="mt-1 break-words leading-5 text-white/80">{source.updatePolicy}</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-white/55">화면에서 어떻게 쓰나요</dt>
+                <dd className="mt-1 break-words leading-5 text-white/65">{source.note}</dd>
               </div>
             </dl>
           </article>
         ))}
       </div>
+
+      <section className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
+        <h3 className="text-sm font-semibold text-white">확인 기준</h3>
+        <p className="mt-2 text-xs leading-5 text-white/65">
+          최신 표시일, 발표 주기, API 제한 때문에 지표별 최신 날짜가 다를 수 있습니다. 각 값은 수집 시점에 DB에 저장된 값을 기준으로 보여주며, 실패한 수집은 기존 최신값을 유지합니다.
+        </p>
+      </section>
     </section>
   );
 }

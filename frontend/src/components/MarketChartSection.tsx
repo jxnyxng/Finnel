@@ -109,8 +109,8 @@ export function MarketChartSection<T extends RangeKey>({
   return (
     <div className={`relative ${headerAction ? 'pt-7' : ''}`}>
       {headerAction ? <div className="absolute right-1 top-0">{headerAction}</div> : null}
-      <article className="glass-card rounded-2xl shadow-sm">
-        <div className="grid gap-4 p-4">
+      <article className="glass-card min-w-0 rounded-2xl shadow-sm">
+        <div className="grid gap-3 p-3 sm:gap-4 sm:p-4">
           <div className="grid gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <h2 className="text-base font-semibold text-white">{title}</h2>
@@ -124,8 +124,8 @@ export function MarketChartSection<T extends RangeKey>({
             </div>
           </div>
 
-          <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
-            <div className="chart-grid-surface relative h-full min-h-96 min-w-0 overflow-hidden rounded-2xl">
+          <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
+            <div className="chart-grid-surface relative h-72 min-w-0 overflow-hidden rounded-2xl sm:h-80 lg:h-full lg:min-h-96">
               <div className="chart-range-enter absolute inset-0" key={range}>
                 <ChartPlotGrid bottom={chartBottom} left={plotInsetLeft} right={axisWidth} top={chartTopMarginPx} />
                 {series.length === 0 ? (
@@ -210,7 +210,7 @@ export function MarketChartSection<T extends RangeKey>({
               </div>
             </div>
 
-            <aside className="glass-subcard flex min-h-96 flex-col justify-between rounded-2xl p-3">
+            <aside className="glass-subcard flex min-w-0 flex-col justify-between rounded-2xl p-3 lg:min-h-96">
               <div className="grid gap-3">
                 <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
                 {statusNode ? (
@@ -220,7 +220,7 @@ export function MarketChartSection<T extends RangeKey>({
                 ) : null}
                 <div>
                   <div className="mt-3 flex items-end justify-between gap-3">
-                    <p className="text-3xl font-semibold tracking-normal text-white">{metric ? formatMetricValue(metric) : '-'}</p>
+                    <p className="min-w-0 break-words text-2xl font-semibold tracking-normal text-white sm:text-3xl">{metric ? formatMetricValue(metric) : '-'}</p>
                     <span className="shrink-0 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
                   </div>
                 </div>
