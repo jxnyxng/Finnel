@@ -31,4 +31,12 @@ public class DashboardController {
     ) {
         return dashboardService.domesticIndicatorHistory(code, range);
     }
+
+    @GetMapping("/exchange-rate-snapshot")
+    public DashboardService.ExchangeRateSnapshotResponse exchangeRateSnapshot(
+        @RequestParam String currencyCode,
+        @RequestParam String date
+    ) {
+        return dashboardService.exchangeRateSnapshot(currencyCode, java.time.LocalDate.parse(date));
+    }
 }

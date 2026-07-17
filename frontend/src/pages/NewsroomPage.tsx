@@ -36,6 +36,7 @@ export function NewsroomPage({
   onPageChange
 }: NewsroomPageProps) {
   const [draftFilters, setDraftFilters] = React.useState(filters);
+  const [isFilterOpen, setIsFilterOpen] = React.useState(false);
 
   React.useEffect(() => {
     setDraftFilters(filters);
@@ -74,66 +75,64 @@ export function NewsroomPage({
 
   return (
     <section className="grid min-w-0 gap-3">
-      <header className="glass-card min-w-0 rounded-2xl p-3 shadow-sm">
-        <div className="grid gap-2">
+      <header className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
+        <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-teal-100">네이버 뉴스 기반</p>
             <h2 className="text-base font-semibold text-white">뉴스 검색</h2>
-            <p className="mt-1 text-xs leading-5 text-white/60">
+            <p className="mt-1 hidden text-xs leading-5 text-white/60 sm:block">
               네이버 뉴스 검색 API에서 환율·원화 관련 기사를 수집해 최신 시장 이슈를 확인합니다.
             </p>
           </div>
-          <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-center md:justify-between">
-            <p className="text-[11px] text-white/55">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
-            {statusNode}
+          <div className="flex shrink-0 items-center gap-2">
+            <p className="hidden text-[11px] text-white/55 sm:block">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
           </div>
         </div>
-        <form className="mt-2 grid min-w-0 gap-2 border-t border-white/10 pt-2 sm:grid-cols-2 lg:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
-          <button
-            className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold sm:col-span-2 lg:col-span-1 ${
-              isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
-            }`}
-            onClick={applyTodayFilter}
-            type="button"
-          >
-            오늘
-          </button>
-          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
-            시작일
-            <input
-              className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
-              max={draftFilters.toDate || undefined}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
-              type="date"
-              value={draftFilters.fromDate}
-            />
-          </label>
-          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
-            종료일
-            <input
-              className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
-              min={draftFilters.fromDate || undefined}
-              onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
-              type="date"
-              value={draftFilters.toDate}
-            />
-          </label>
-          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
-            제목
-            <input
-              className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
-              onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
-              placeholder="제목 또는 설명 검색"
-              type="search"
-              value={draftFilters.keyword}
-            />
-          </label>
-          <button className="h-8 self-end rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700" type="submit">
-            검색
-          </button>
-          <button className="h-8 self-end rounded-full border border-white/15 bg-white/10 px-3.5 text-xs font-semibold text-white/60 hover:text-white" onClick={resetFilters} type="button">
-            초기화
-          </button>
+        {statusNode ? <div className="mt-1 flex justify-end">{statusNode}</div> : null}
+        <form className="mt-2 grid min-w-0 gap-2 border-t border-white/10 pt-2" onSubmit={submitFilters}>
+          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-1.5 lg:gap-2">
+            <button
+              aria-label="기간 필터"
+              className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
+                isFilterOpen || filters.fromDate || filters.toDate ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/65 hover:text-white'
+              }`}
+              onClick={() => setIsFilterOpen((current) => !current)}
+              title="기간 필터"
+              type="button"
+            >
+              ⚙
+            </button>
+            <label className="grid gap-1 text-[10px] font-semibold text-white/55">
+              <span className="sr-only">제목</span>
+              <input
+                className="glass-field h-9 rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
+                onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
+                placeholder="제목 또는 설명 검색"
+                type="search"
+                value={draftFilters.keyword}
+              />
+            </label>
+            <button className="h-9 rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700 lg:h-8" type="submit">
+              검색
+            </button>
+            <button className="h-9 rounded-full border border-white/15 bg-white/10 px-3.5 text-xs font-semibold text-white/60 hover:text-white lg:h-8" onClick={resetFilters} type="button">
+              초기화
+            </button>
+          </div>
+          {isFilterOpen ? (
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
+              <button
+                className={`h-8 self-end rounded-full border px-3 text-xs font-semibold ${
+                  isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
+                }`}
+                onClick={applyTodayFilter}
+                type="button"
+              >
+                오늘
+              </button>
+              <DateFilterFields draftFilters={draftFilters} setDraftFilters={setDraftFilters} />
+            </div>
+          ) : null}
         </form>
         <div className="scrollbar-none mt-2 flex flex-nowrap gap-1.5 overflow-x-auto border-t border-white/10 pt-2 sm:flex-wrap sm:overflow-visible">
           <CategoryButton active={selectedCategory === 'all'} label="전체" onClick={() => onCategoryChange('all')} />
@@ -173,6 +172,39 @@ export function NewsroomPage({
         ) : null}
       </section>
     </section>
+  );
+}
+
+function DateFilterFields({
+  draftFilters,
+  setDraftFilters
+}: {
+  draftFilters: NewsFilters;
+  setDraftFilters: React.Dispatch<React.SetStateAction<NewsFilters>>;
+}) {
+  return (
+    <>
+      <label className="grid gap-1 text-[10px] font-semibold text-white/55">
+        시작일
+        <input
+          className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
+          max={draftFilters.toDate || undefined}
+          onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
+          type="date"
+          value={draftFilters.fromDate}
+        />
+      </label>
+      <label className="grid gap-1 text-[10px] font-semibold text-white/55">
+        종료일
+        <input
+          className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
+          min={draftFilters.fromDate || undefined}
+          onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
+          type="date"
+          value={draftFilters.toDate}
+        />
+      </label>
+    </>
   );
 }
 
