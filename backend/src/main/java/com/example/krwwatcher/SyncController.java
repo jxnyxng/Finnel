@@ -33,6 +33,11 @@ public class SyncController {
         return marketDataSyncService.requestDailyBackfill();
     }
 
+    @PostMapping("/exchange-rates/history/backfill")
+    public MarketDataSyncService.SyncResult backfillExchangeRateHistory() {
+        return marketDataSyncService.requestExchangeRateHistoryBackfill();
+    }
+
     @GetMapping("/market-data/status")
     public MarketDataSyncService.SyncStatus syncMarketDataStatus() {
         return marketDataSyncService.status();
@@ -46,5 +51,10 @@ public class SyncController {
     @GetMapping("/daily-exchange/backfill/status")
     public MarketDataSyncService.SyncStatus dailyExchangeBackfillStatus() {
         return marketDataSyncService.dailyBackfillStatus();
+    }
+
+    @GetMapping("/exchange-rates/history/backfill/status")
+    public MarketDataSyncService.SyncStatus exchangeRateHistoryBackfillStatus() {
+        return marketDataSyncService.exchangeRateHistoryBackfillStatus();
     }
 }

@@ -540,6 +540,8 @@ function App() {
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-5 sm:py-4">
         {activePage === 'home' ? (
           <HomePageView
+            calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
+            rates={foreignExchangeRates}
             onGoDashboard={goDashboard}
             onReachLastSection={highlightMainTabs}
           />
@@ -791,7 +793,7 @@ function App() {
         ) : null}
 
       </section>
-      <ExchangeRateCalculator rates={foreignExchangeRates} />
+      {activePage !== 'home' ? <ExchangeRateCalculator rates={foreignExchangeRates} /> : null}
       {activePage !== 'home' && activePage !== 'serviceGuide' && activePage !== 'dataSources' ? <AppFooter /> : null}
     </main>
   );

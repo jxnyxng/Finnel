@@ -42,6 +42,20 @@ export type ForeignExchangeRate = {
   unitSize: number;
   source: string;
   fetchedAt: string;
+  historyStartDate: string;
+  historyEndDate: string;
+};
+
+export type ExchangeRateCalculatorMeta = {
+  earliestAllowedDate: string;
+  latestAllowedDate: string;
+};
+
+export type ExchangeRateSnapshotResponse = {
+  currencyCode: string;
+  requestedDate: string;
+  historicalRate: ForeignExchangeRate | null;
+  currentRate: ForeignExchangeRate | null;
 };
 
 export type DataSourceInfo = {
@@ -90,6 +104,7 @@ export type DailyDashboardResponse = {
   dollarIndexSeries: TimeSeriesPoint[];
   currencyStrengthRanks: CurrencyStrengthRank[];
   foreignExchangeRates: ForeignExchangeRate[];
+  exchangeRateCalculator: ExchangeRateCalculatorMeta;
   domesticIndicators: DomesticIndicator[];
   dataSources: DataSourceInfo[];
 };

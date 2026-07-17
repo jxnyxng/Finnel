@@ -14,8 +14,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.IntSupplier;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -41,7 +43,9 @@ public class MarketDataSyncService {
     private static final String JOB_NAME = "MARKET_DATA_SYNC";
     private static final String INTRADAY_JOB_NAME = "INTRADAY_EXCHANGE_SYNC";
     private static final String DAILY_BACKFILL_JOB_NAME = "DAILY_EXCHANGE_BACKFILL_SYNC";
+    private static final String EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME = "EXCHANGE_RATE_HISTORY_BACKFILL_SYNC";
     private static final String CURRENT_EXCHANGE_RATE_JOB_NAME = "CURRENT_EXCHANGE_RATE_SYNC";
+    private static final LocalDate EXCHANGE_RATE_HISTORY_START_DATE = LocalDate.of(1999, 1, 1);
     private static final LocalTime INTRADAY_SESSION_START = LocalTime.of(9, 0);
     private static final LocalTime INTRADAY_SESSION_END = LocalTime.of(2, 0);
     private static final int RECENT_MONTH_REFRESH_OVERLAP = 6;
@@ -76,6 +80,7 @@ public class MarketDataSyncService {
     private final ReentrantLock syncLock = new ReentrantLock();
     private final ReentrantLock intradaySyncLock = new ReentrantLock();
     private final ReentrantLock dailyBackfillLock = new ReentrantLock();
+    private final ReentrantLock exchangeRateHistoryBackfillLock = new ReentrantLock();
     private final ReentrantLock currentExchangeRateLock = new ReentrantLock();
 
     public MarketDataSyncService(
@@ -133,6 +138,16 @@ public class MarketDataSyncService {
         }
 
         return syncDailyBackfillNow(SyncTrigger.DAILY_BACKFILL);
+    }
+
+    public SyncResult requestExchangeRateHistoryBackfill() {
+        Instant now = Instant.now();
+        SyncWindow syncWindow = currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), now);
+        if (!syncWindow.canSync()) {
+            return skipped("SKIPPED_COOLDOWN", "Exchange rate history backfill cooldown is active", SyncTrigger.EXCHANGE_RATE_HISTORY_BACKFILL, syncWindow);
+        }
+
+        return syncExchangeRateHistoryBackfillNow(SyncTrigger.EXCHANGE_RATE_HISTORY_BACKFILL);
     }
 
     @Scheduled(cron = "${app.sync.market-data.cron}", zone = "${app.sync.market-data.zone}")
@@ -251,6 +266,20 @@ public class MarketDataSyncService {
         );
     }
 
+    public SyncStatus exchangeRateHistoryBackfillStatus() {
+        SyncWindow syncWindow = currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
+        LatestJob latestJob = findLatestJob(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME);
+        return new SyncStatus(
+            latestJob == null ? null : latestJob.status(),
+            latestJob == null ? null : latestJob.startedAt(),
+            latestJob == null ? null : latestJob.endedAt(),
+            latestJob == null ? null : latestJob.message(),
+            syncWindow.nextAllowedAt(),
+            syncWindow.remainingCooldownSeconds(),
+            syncWindow.canSync() && !exchangeRateHistoryBackfillLock.isLocked()
+        );
+    }
+
     private SyncResult syncNow(SyncTrigger trigger) {
         if (!syncLock.tryLock()) {
             return skipped("SKIPPED_RUNNING", "Market data sync is already running", trigger, currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now()));
@@ -285,6 +314,18 @@ public class MarketDataSyncService {
             return runDailyBackfill(trigger);
         } finally {
             dailyBackfillLock.unlock();
+        }
+    }
+
+    private SyncResult syncExchangeRateHistoryBackfillNow(SyncTrigger trigger) {
+        if (!exchangeRateHistoryBackfillLock.tryLock()) {
+            return skipped("SKIPPED_RUNNING", "Exchange rate history backfill is already running", trigger, currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now()));
+        }
+
+        try {
+            return runExchangeRateHistoryBackfill(trigger);
+        } finally {
+            exchangeRateHistoryBackfillLock.unlock();
         }
     }
 
@@ -354,6 +395,21 @@ public class MarketDataSyncService {
     }
 
     @Transactional
+    protected SyncResult runExchangeRateHistoryBackfill(SyncTrigger trigger) {
+        Instant startedAt = Instant.now();
+        Long jobId = startJob(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, startedAt, trigger);
+        SyncCounter counter = new SyncCounter();
+
+        int exchangeRows = runSource("exchangeRateHistoryBackfill", counter, this::syncExchangeRatesFromFred);
+
+        String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
+        String message = "exchangeRateHistoryBackfill=" + exchangeRows + counter.message;
+        finishJob(jobId, status, Instant.now(), message);
+        SyncWindow syncWindow = currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
+        return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
+    }
+
+    @Transactional
     protected SyncResult runCurrentExchangeRateSync(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(CURRENT_EXCHANGE_RATE_JOB_NAME, startedAt, trigger);
@@ -380,8 +436,9 @@ public class MarketDataSyncService {
     private int syncExchangeRates() {
         LocalDate targetDate = LocalDate.now(SEOUL_ZONE);
         int currentRows = syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE);
-        if (currentRows > 0) {
-            return currentRows;
+        int historicalRows = syncExchangeRatesFromFred();
+        if (currentRows > 0 || historicalRows > 0) {
+            return currentRows + historicalRows;
         }
 
         if (hasAnyCurrentForeignExchangeRate()) {
@@ -536,11 +593,15 @@ public class MarketDataSyncService {
 
     private int syncUsdKrwFromFred() {
         String seriesId = properties.fred().usdKrwSeriesId();
-        LocalDate observationStart = findLatestDailyUsdKrwDate();
-        if (observationStart == null) {
-            observationStart = LocalDate.now(SEOUL_ZONE).minusYears(5);
+        LocalDate latestDate = findLatestDailyUsdKrwDate();
+        LocalDate earliestDate = findEarliestDailyExchangeRateDate("USD");
+        LocalDate observationStart;
+        if (earliestDate == null || earliestDate.isAfter(EXCHANGE_RATE_HISTORY_START_DATE)) {
+            observationStart = EXCHANGE_RATE_HISTORY_START_DATE;
+        } else if (latestDate == null) {
+            observationStart = EXCHANGE_RATE_HISTORY_START_DATE;
         } else {
-            observationStart = observationStart.minusDays(7);
+            observationStart = latestDate.minusDays(7);
         }
         List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
         return observations.stream()
@@ -565,23 +626,43 @@ public class MarketDataSyncService {
 
     private int syncExchangeRatesFromFred() {
         int rows = syncUsdKrwFromFred();
-        LatestExchangeRate usdKrw = findLatestDailyExchangeRate("USD");
-        if (usdKrw == null) {
+        NavigableMap<LocalDate, BigDecimal> usdKrwRates = findDailyExchangeRateMap("USD", EXCHANGE_RATE_HISTORY_START_DATE);
+        if (usdKrwRates.isEmpty()) {
             return rows;
         }
 
-        LocalDate observationStart = usdKrw.baseDate().minusDays(14);
         return rows + fredExchangeSpecs().stream()
-            .mapToInt(spec -> fredClient.fetchObservations(spec.seriesId(), observationStart).stream()
-                .reduce((first, second) -> second)
-                .map(payload -> upsertExchangeRate(
-                    payload.baseDate().isAfter(usdKrw.baseDate()) ? usdKrw.baseDate() : payload.baseDate(),
+            .mapToInt(spec -> syncFredExchangeSpec(spec, usdKrwRates))
+            .sum();
+    }
+
+    private int syncFredExchangeSpec(FredExchangeSpec spec, NavigableMap<LocalDate, BigDecimal> usdKrwRates) {
+        LocalDate latestDate = findLatestDailyExchangeRateDate(spec.currencyCode());
+        LocalDate earliestDate = findEarliestDailyExchangeRateDate(spec.currencyCode());
+        LocalDate observationStart;
+        if (earliestDate == null || earliestDate.isAfter(EXCHANGE_RATE_HISTORY_START_DATE)) {
+            observationStart = EXCHANGE_RATE_HISTORY_START_DATE;
+        } else if (latestDate == null) {
+            observationStart = EXCHANGE_RATE_HISTORY_START_DATE;
+        } else {
+            observationStart = latestDate.minusDays(7);
+        }
+
+        return fredClient.fetchObservations(spec.seriesId(), observationStart).stream()
+            .mapToInt(payload -> {
+                var usdEntry = usdKrwRates.floorEntry(payload.baseDate());
+                if (usdEntry == null) {
+                    return 0;
+                }
+
+                return upsertExchangeRate(
+                    payload.baseDate(),
                     spec.currencyCode(),
                     spec.currencyName(),
-                    spec.toKrwRate(usdKrw.rate(), payload.value()),
+                    spec.toKrwRate(usdEntry.getValue(), payload.value()),
                     "FRED:" + properties.fred().usdKrwSeriesId() + "/" + spec.seriesId()
-                ))
-                .orElse(0))
+                );
+            })
             .sum();
     }
 
@@ -623,6 +704,47 @@ public class MarketDataSyncService {
             (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
             "USD"
         ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private LocalDate findLatestDailyExchangeRateDate(String currencyCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT MAX(base_date)
+                FROM exchange_rates
+                WHERE currency_code = ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            currencyCode
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private LocalDate findEarliestDailyExchangeRateDate(String currencyCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT MIN(base_date)
+                FROM exchange_rates
+                WHERE currency_code = ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            currencyCode
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private NavigableMap<LocalDate, BigDecimal> findDailyExchangeRateMap(String currencyCode, LocalDate startDate) {
+        NavigableMap<LocalDate, BigDecimal> rates = new TreeMap<>();
+        jdbcTemplate.query(
+            """
+                SELECT base_date, deal_bas_rate
+                FROM exchange_rates
+                WHERE currency_code = ?
+                  AND base_date >= ?
+                ORDER BY base_date ASC
+                """,
+            (org.springframework.jdbc.core.RowCallbackHandler) rs -> rates.put(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("deal_bas_rate")),
+            currencyCode,
+            startDate
+        );
+        return rates;
     }
 
     private List<LocalDate> findDailyUsdKrwDates(LocalDate startDate, LocalDate endDate) {
@@ -1534,6 +1656,7 @@ public class MarketDataSyncService {
         INTRADAY,
         SCHEDULED_INTRADAY,
         DAILY_BACKFILL,
+        EXCHANGE_RATE_HISTORY_BACKFILL,
         SCHEDULED_DAILY_BACKFILL,
         SCHEDULED_CURRENT_EXCHANGE
     }
