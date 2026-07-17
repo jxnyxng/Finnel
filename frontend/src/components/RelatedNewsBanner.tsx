@@ -20,6 +20,7 @@ const topicLabels = {
 const autoAdvanceMs = 7000;
 const manualPauseMs = 10000;
 const slideDurationMs = 420;
+const relatedNewsDesktopMediaQuery = '(min-width: 768px)';
 const relatedNewsCache = new Map<RelatedNewsBannerProps['topic'], RelatedNewsResponse>();
 const relatedNewsRequestCache = new Map<RelatedNewsBannerProps['topic'], Promise<RelatedNewsResponse>>();
 
@@ -61,11 +62,29 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
   const [slideDirection, setSlideDirection] = React.useState<SlideDirection>('next');
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isAutoPaused, setIsAutoPaused] = React.useState(false);
+  const [groupSize, setGroupSize] = React.useState(() => getResponsiveGroupSize());
   const manualPauseUntilRef = React.useRef(0);
   const animationTimerRef = React.useRef<number | null>(null);
-  const groupCount = Math.max(1, Math.ceil(articles.length / 3));
-  const visibleArticles = getArticleGroup(articles, activeGroup);
-  const previousArticles = previousGroup === null ? [] : getArticleGroup(articles, previousGroup);
+  const groupCount = Math.max(1, Math.ceil(articles.length / groupSize));
+  const visibleArticles = getArticleGroup(articles, activeGroup, groupSize);
+  const previousArticles = previousGroup === null ? [] : getArticleGroup(articles, previousGroup, groupSize);
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia(relatedNewsDesktopMediaQuery);
+    const updateGroupSize = () => {
+      setGroupSize(mediaQuery.matches ? 3 : 1);
+    };
+
+    updateGroupSize();
+    mediaQuery.addEventListener('change', updateGroupSize);
+    return () => mediaQuery.removeEventListener('change', updateGroupSize);
+  }, []);
+
+  React.useEffect(() => {
+    setActiveGroup((current) => Math.min(current, Math.max(0, groupCount - 1)));
+    setPreviousGroup(null);
+    setIsAnimating(false);
+  }, [groupCount, groupSize]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -224,6 +243,11 @@ function RelatedNewsGroup({ articles }: { articles: NewsArticle[] }) {
 function RelatedNewsCard({ article }: { article: NewsArticle }) {
   const articleUrl = article.link || article.originLink || '#';
   const summary = article.aiSummary || article.description || article.categoryName;
+  const [hasImageError, setHasImageError] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasImageError(false);
+  }, [article.imageUrl]);
 
   return (
     <a
@@ -232,11 +256,12 @@ function RelatedNewsCard({ article }: { article: NewsArticle }) {
       rel="noreferrer"
       target="_blank"
     >
-      {article.imageUrl ? (
+      {article.imageUrl && !hasImageError ? (
         <img
           alt=""
           className="absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ease-out group-hover:opacity-95"
           loading="lazy"
+          onError={() => setHasImageError(true)}
           src={article.imageUrl}
         />
       ) : (
@@ -274,8 +299,16 @@ function DefaultNewsImage() {
   );
 }
 
-function getArticleGroup(articles: NewsArticle[], group: number) {
-  return articles.slice(group * 3, group * 3 + 3);
+function getArticleGroup(articles: NewsArticle[], group: number, groupSize: number) {
+  return articles.slice(group * groupSize, group * groupSize + groupSize);
+}
+
+function getResponsiveGroupSize() {
+  if (typeof window === 'undefined') {
+    return 3;
+  }
+
+  return window.matchMedia(relatedNewsDesktopMediaQuery).matches ? 3 : 1;
 }
 
 function formatCompactNewsDate(value: string | null) {

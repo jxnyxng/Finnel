@@ -39,6 +39,7 @@ export function GovernmentBriefingsPage({
 }: GovernmentBriefingsPageProps) {
   const [draftFilters, setDraftFilters] = React.useState(filters);
   const [selectedArticle, setSelectedArticle] = React.useState<GovernmentBriefingArticle | null>(null);
+  const categoryScrollerRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     setDraftFilters(filters);
@@ -74,10 +75,16 @@ export function GovernmentBriefingsPage({
     });
   };
   const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
+  const scrollCategories = (direction: -1 | 1) => {
+    categoryScrollerRef.current?.scrollBy({
+      behavior: 'smooth',
+      left: direction * 180
+    });
+  };
 
   return (
-    <section className="grid gap-3">
-      <header className="glass-card rounded-2xl p-3 shadow-sm">
+    <section className="grid min-w-0 gap-3">
+      <header className="glass-card min-w-0 rounded-2xl p-3 shadow-sm">
         <div className="grid gap-2">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-teal-100">정책브리핑 공식 콘텐츠</p>
@@ -91,9 +98,9 @@ export function GovernmentBriefingsPage({
             {statusNode}
           </div>
         </div>
-        <form className="mt-3 grid gap-2 border-t border-white/10 pt-3 md:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
+        <form className="mt-3 grid min-w-0 gap-2 border-t border-white/10 pt-3 sm:grid-cols-2 lg:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
           <button
-            className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold ${
+            className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold sm:col-span-2 lg:col-span-1 ${
               isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
             }`}
             onClick={applyTodayFilter}
@@ -138,16 +145,20 @@ export function GovernmentBriefingsPage({
             초기화
           </button>
         </form>
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/10 pt-3">
-          <CategoryButton active={selectedCategory === 'all'} label="전체" onClick={() => onCategoryChange('all')} />
-          {categories.map((category) => (
-            <CategoryButton
-              active={selectedCategory === category.code}
-              key={category.code}
-              label={`${category.name} ${category.articleCount}`}
-              onClick={() => onCategoryChange(category.code)}
-            />
-          ))}
+        <div className="mt-3 grid grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 border-t border-white/10 pt-3 sm:block">
+          <CategoryScrollButton direction="left" onClick={() => scrollCategories(-1)} />
+          <div className="scrollbar-none flex min-w-0 flex-nowrap gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible" ref={categoryScrollerRef}>
+            <CategoryButton active={selectedCategory === 'all'} label="전체" onClick={() => onCategoryChange('all')} />
+            {categories.map((category) => (
+              <CategoryButton
+                active={selectedCategory === category.code}
+                key={category.code}
+                label={`${category.name} ${category.articleCount}`}
+                onClick={() => onCategoryChange(category.code)}
+              />
+            ))}
+          </div>
+          <CategoryScrollButton direction="right" onClick={() => scrollCategories(1)} />
         </div>
       </header>
 
@@ -157,7 +168,7 @@ export function GovernmentBriefingsPage({
         </section>
       ) : null}
 
-      <section className="glass-card rounded-2xl p-3 shadow-sm">
+      <section className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
         {isLoading ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">정부 정책을 불러오는 중입니다.</div>
         ) : isPendingInitialLoad ? (
@@ -165,7 +176,7 @@ export function GovernmentBriefingsPage({
         ) : articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정부 정책이 없습니다.</div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
             {articles.map((article) => (
               <GovernmentBriefingCard
                 article={article}
@@ -185,10 +196,23 @@ export function GovernmentBriefingsPage({
   );
 }
 
+function CategoryScrollButton({ direction, onClick }: { direction: 'left' | 'right'; onClick: () => void }) {
+  return (
+    <button
+      aria-label={direction === 'left' ? '이전 카테고리 보기' : '다음 카테고리 보기'}
+      className="grid h-7 w-7 place-items-center rounded-full border border-white/15 bg-white/10 text-sm font-semibold text-white/70 shadow-sm hover:bg-white/15 hover:text-white sm:hidden"
+      onClick={onClick}
+      type="button"
+    >
+      {direction === 'left' ? '‹' : '›'}
+    </button>
+  );
+}
+
 function CategoryButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className={`h-8 rounded-full border px-3.5 text-xs font-semibold ${
+      className={`h-8 shrink-0 rounded-full border px-3.5 text-xs font-semibold ${
         active ? 'border-teal-300/45 bg-teal-600 text-white' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
       }`}
       onClick={onClick}
@@ -214,7 +238,7 @@ function GovernmentBriefingCard({
   return (
     <article
       aria-label={`${article.title} 상세 보기`}
-      className="glass-list-card group/card relative cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white/12 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-200/50 motion-reduce:transform-none motion-reduce:transition-none"
+      className="glass-list-card group/card relative min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white/12 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-200/50 motion-reduce:transform-none motion-reduce:transition-none"
       onClick={() => onOpen(article)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -226,7 +250,7 @@ function GovernmentBriefingCard({
       tabIndex={0}
     >
       {isNew ? <NewBadge /> : null}
-      <div className="relative h-32 overflow-hidden bg-zinc-800">
+      <div className="relative h-28 overflow-hidden bg-zinc-800 sm:h-32">
         {imageUrl ? (
           <img
             alt=""
@@ -249,7 +273,7 @@ function GovernmentBriefingCard({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/55 to-transparent" />
       </div>
-      <div className="flex min-h-40 flex-col p-3">
+      <div className="flex min-h-36 flex-col p-3 sm:min-h-40">
         <div className="flex justify-start">
           <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/70">{formatBriefingDate(article.publishedAt)}</span>
         </div>

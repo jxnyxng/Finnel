@@ -73,8 +73,8 @@ export function NewsroomPage({
   const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
 
   return (
-    <section className="grid gap-3">
-      <header className="glass-card rounded-2xl p-3 shadow-sm">
+    <section className="grid min-w-0 gap-3">
+      <header className="glass-card min-w-0 rounded-2xl p-3 shadow-sm">
         <div className="grid gap-2">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-teal-100">네이버 뉴스 기반</p>
@@ -88,9 +88,9 @@ export function NewsroomPage({
             {statusNode}
           </div>
         </div>
-        <form className="mt-2 grid gap-2 border-t border-white/10 pt-2 md:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
+        <form className="mt-2 grid min-w-0 gap-2 border-t border-white/10 pt-2 sm:grid-cols-2 lg:grid-cols-[auto_140px_140px_minmax(180px,1fr)_auto_auto]" onSubmit={submitFilters}>
           <button
-            className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold ${
+            className={`h-8 self-end rounded-full border px-3.5 text-xs font-semibold sm:col-span-2 lg:col-span-1 ${
               isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
             }`}
             onClick={applyTodayFilter}
@@ -135,7 +135,7 @@ export function NewsroomPage({
             초기화
           </button>
         </form>
-        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/10 pt-2">
+        <div className="scrollbar-none mt-2 flex flex-nowrap gap-1.5 overflow-x-auto border-t border-white/10 pt-2 sm:flex-wrap sm:overflow-visible">
           <CategoryButton active={selectedCategory === 'all'} label="전체" onClick={() => onCategoryChange('all')} />
           {categories.map((category) => (
             <CategoryButton
@@ -154,7 +154,7 @@ export function NewsroomPage({
         </section>
       ) : null}
 
-      <section className="glass-card rounded-2xl p-3 shadow-sm">
+      <section className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
         {isLoading ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">뉴스를 불러오는 중입니다.</div>
         ) : isPendingInitialLoad ? (
@@ -162,7 +162,7 @@ export function NewsroomPage({
         ) : articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 뉴스가 없습니다.</div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid min-w-0 gap-2.5 sm:gap-3">
             {articles.map((article) => (
               <NewsArticleCard article={article} key={`${article.categoryCode}-${article.link}`} />
             ))}
@@ -179,7 +179,7 @@ export function NewsroomPage({
 function CategoryButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className={`h-8 rounded-full border px-3.5 text-xs font-semibold ${
+      className={`h-8 shrink-0 rounded-full border px-3.5 text-xs font-semibold ${
         active ? 'border-teal-300/45 bg-teal-600 text-white' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
       }`}
       onClick={onClick}
@@ -213,15 +213,15 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
   return (
     <article
-      className="glass-list-card group/card cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-white/10 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-200/50 motion-reduce:transition-none"
+      className="glass-list-card group/card min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-white/10 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-200/50 motion-reduce:transition-none"
       onClick={openArticle}
       onKeyDown={openArticleWithKeyboard}
       role="link"
       tabIndex={0}
     >
-      <div className="grid sm:grid-cols-[144px_minmax(0,1fr)]">
+      <div className="grid sm:grid-cols-[128px_minmax(0,1fr)] md:grid-cols-[144px_minmax(0,1fr)]">
         <NewsThumbnail article={article} isNew={isNew} />
-        <div className="min-w-0 p-3">
+        <div className="min-w-0 p-3 sm:p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/55">
@@ -267,14 +267,21 @@ function NewBadge() {
 }
 
 function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolean }) {
-  if (article.imageUrl) {
+  const [hasImageError, setHasImageError] = React.useState(false);
+
+  React.useEffect(() => {
+    setHasImageError(false);
+  }, [article.imageUrl]);
+
+  if (article.imageUrl && !hasImageError) {
     return (
-      <div className="relative h-32 w-full overflow-hidden bg-zinc-900/50 sm:h-full sm:min-h-32">
+      <div className="relative h-28 w-full overflow-hidden bg-zinc-900/50 sm:h-full sm:min-h-32">
         {isNew ? <NewBadge /> : null}
         <img
           alt=""
           className="h-full w-full object-cover transition-opacity duration-200 ease-out group-hover/card:opacity-95"
           loading="lazy"
+          onError={() => setHasImageError(true)}
           src={article.imageUrl}
         />
       </div>
@@ -282,7 +289,7 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
   }
 
   return (
-    <div className="relative grid h-32 w-full place-items-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#3f3f46)] text-center text-white sm:h-full sm:min-h-32">
+    <div className="relative grid h-28 w-full place-items-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#3f3f46)] text-center text-white sm:h-full sm:min-h-32">
       {isNew ? <NewBadge /> : null}
       <div>
         <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white text-lg font-bold text-teal-700">₩</span>

@@ -116,7 +116,7 @@ public class NewsImageClient {
         try {
             URI resolved = URI.create(pageUrl).resolve(imageUrl);
             String value = resolved.toString();
-            return isHttpUrl(value) ? Optional.of(value) : Optional.empty();
+            return isHttpUrl(value) && isLikelyImageUrl(resolved) ? Optional.of(value) : Optional.empty();
         } catch (IllegalArgumentException exception) {
             return Optional.empty();
         }
@@ -137,5 +137,25 @@ public class NewsImageClient {
             && !lowerValue.contains("logo")
             && !lowerValue.contains("snslogo")
             && !lowerValue.contains("apple-touch-icon");
+    }
+
+    private boolean isLikelyImageUrl(URI uri) {
+        String path = uri.getPath();
+        if (!StringUtils.hasText(path) || "/".equals(path)) {
+            return false;
+        }
+
+        String lowerPath = path.toLowerCase(Locale.ROOT);
+        return lowerPath.endsWith(".jpg")
+            || lowerPath.endsWith(".jpeg")
+            || lowerPath.endsWith(".png")
+            || lowerPath.endsWith(".webp")
+            || lowerPath.endsWith(".gif")
+            || lowerPath.endsWith(".avif")
+            || lowerPath.contains("/image/")
+            || lowerPath.contains("/images/")
+            || lowerPath.contains("/photo/")
+            || lowerPath.contains("/photos/")
+            || lowerPath.contains("/thumbnail/");
     }
 }
