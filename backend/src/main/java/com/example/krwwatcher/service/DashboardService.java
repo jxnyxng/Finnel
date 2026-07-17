@@ -114,8 +114,18 @@ public class DashboardService {
             dollarIndexSeries,
             currencyStrengthRanks,
             foreignExchangeRates,
+            exchangeRateCalculatorMeta(foreignExchangeRates),
             domesticIndicators(latestUsdKrw, latestUsdKrwDaily, usdKrwIntradaySeries, latestKrRate, latestUsRate, latestForeignReserve, currencyStrengthRanks),
             dataSourceInfos()
+        );
+    }
+
+    public ExchangeRateSnapshotResponse exchangeRateSnapshot(String currencyCode, LocalDate date) {
+        return new ExchangeRateSnapshotResponse(
+            currencyCode,
+            date,
+            findForeignExchangeRateAtOrBefore(currencyCode, date),
+            findLatestForeignExchangeRate(currencyCode)
         );
     }
 
@@ -896,7 +906,8 @@ public class DashboardService {
         List<ForeignExchangeRate> rows = jdbcTemplate.query(
             """
                 SELECT exchange_rates.base_date, exchange_rates.currency_code, exchange_rates.currency_name,
-                       exchange_rates.deal_bas_rate, exchange_rates.source, exchange_rates.fetched_at
+                       exchange_rates.deal_bas_rate, exchange_rates.source, exchange_rates.fetched_at,
+                       coverage.history_start_date, coverage.history_end_date
                 FROM exchange_rates
                 JOIN (
                     SELECT currency_code, MAX(base_date) AS latest_base_date
@@ -918,6 +929,12 @@ public class DashboardService {
                 ) latest_rates
                   ON latest_rates.currency_code = exchange_rates.currency_code
                  AND latest_rates.latest_base_date = exchange_rates.base_date
+                JOIN (
+                    SELECT currency_code, MIN(base_date) AS history_start_date, MAX(base_date) AS history_end_date
+                    FROM exchange_rates
+                    GROUP BY currency_code
+                ) coverage
+                  ON coverage.currency_code = exchange_rates.currency_code
                 """,
             (rs, rowNum) -> {
                 String rawCode = rs.getString("currency_code");
@@ -930,7 +947,9 @@ public class DashboardService {
                     rs.getBigDecimal("deal_bas_rate"),
                     currencyUnitSize(rawCode),
                     rs.getString("source"),
-                    rs.getTimestamp("fetched_at").toInstant()
+                    rs.getTimestamp("fetched_at").toInstant(),
+                    rs.getDate("history_start_date").toLocalDate(),
+                    rs.getDate("history_end_date").toLocalDate()
                 );
             }
         );
@@ -938,6 +957,101 @@ public class DashboardService {
         return rows.stream()
             .sorted(Comparator.comparingInt(row -> foreignExchangeOrder(row.displayCode())))
             .toList();
+    }
+
+    private ForeignExchangeRate findLatestForeignExchangeRate(String currencyCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT er.base_date, er.currency_code, er.currency_name, er.deal_bas_rate, er.source, er.fetched_at,
+                       coverage.history_start_date, coverage.history_end_date
+                FROM exchange_rates er
+                JOIN (
+                    SELECT currency_code, MIN(base_date) AS history_start_date, MAX(base_date) AS history_end_date
+                    FROM exchange_rates
+                    WHERE currency_code = ?
+                    GROUP BY currency_code
+                ) coverage
+                  ON coverage.currency_code = er.currency_code
+                WHERE er.currency_code = ?
+                ORDER BY er.base_date DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> mapForeignExchangeRate(
+                rs.getDate("base_date").toLocalDate(),
+                rs.getString("currency_code"),
+                rs.getString("currency_name"),
+                rs.getBigDecimal("deal_bas_rate"),
+                rs.getString("source"),
+                rs.getTimestamp("fetched_at").toInstant(),
+                rs.getDate("history_start_date").toLocalDate(),
+                rs.getDate("history_end_date").toLocalDate()
+            ),
+            currencyCode,
+            currencyCode
+        ).stream().findFirst().orElse(null);
+    }
+
+    private ForeignExchangeRate findForeignExchangeRateAtOrBefore(String currencyCode, LocalDate date) {
+        return jdbcTemplate.query(
+            """
+                SELECT er.base_date, er.currency_code, er.currency_name, er.deal_bas_rate, er.source, er.fetched_at,
+                       coverage.history_start_date, coverage.history_end_date
+                FROM exchange_rates er
+                JOIN (
+                    SELECT currency_code, MIN(base_date) AS history_start_date, MAX(base_date) AS history_end_date
+                    FROM exchange_rates
+                    WHERE currency_code = ?
+                    GROUP BY currency_code
+                ) coverage
+                  ON coverage.currency_code = er.currency_code
+                WHERE er.currency_code = ?
+                  AND er.base_date <= ?
+                ORDER BY er.base_date DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> mapForeignExchangeRate(
+                rs.getDate("base_date").toLocalDate(),
+                rs.getString("currency_code"),
+                rs.getString("currency_name"),
+                rs.getBigDecimal("deal_bas_rate"),
+                rs.getString("source"),
+                rs.getTimestamp("fetched_at").toInstant(),
+                rs.getDate("history_start_date").toLocalDate(),
+                rs.getDate("history_end_date").toLocalDate()
+            ),
+            currencyCode,
+            currencyCode,
+            date
+        ).stream().findFirst().orElse(null);
+    }
+
+    private ForeignExchangeRate mapForeignExchangeRate(LocalDate baseDate, String rawCode, String currencyName, BigDecimal dealBasRate, String source, Instant fetchedAt, LocalDate historyStartDate, LocalDate historyEndDate) {
+        return new ForeignExchangeRate(
+            baseDate,
+            rawCode,
+            displayCurrencyCode(rawCode),
+            currencyName,
+            dealBasRate,
+            currencyUnitSize(rawCode),
+            source,
+            fetchedAt,
+            historyStartDate,
+            historyEndDate
+        );
+    }
+
+    private ExchangeRateCalculatorMeta exchangeRateCalculatorMeta(List<ForeignExchangeRate> rates) {
+        LocalDate latestAllowedDate = rates.stream()
+            .map(ForeignExchangeRate::historyEndDate)
+            .filter(Objects::nonNull)
+            .max(LocalDate::compareTo)
+            .orElse(LocalDate.now(SEOUL_ZONE));
+        LocalDate earliestAllowedDate = rates.stream()
+            .map(ForeignExchangeRate::historyStartDate)
+            .filter(Objects::nonNull)
+            .min(LocalDate::compareTo)
+            .orElse(latestAllowedDate.minusYears(5));
+        return new ExchangeRateCalculatorMeta(earliestAllowedDate, latestAllowedDate);
     }
 
     private int foreignExchangeOrder(String currencyCode) {
@@ -1042,6 +1156,7 @@ public class DashboardService {
         List<TimeSeriesPoint> dollarIndexSeries,
         List<CurrencyStrengthRank> currencyStrengthRanks,
         List<ForeignExchangeRate> foreignExchangeRates,
+        ExchangeRateCalculatorMeta exchangeRateCalculator,
         List<DomesticIndicator> domesticIndicators,
         List<DataSourceInfo> dataSources
     ) {
@@ -1143,7 +1258,23 @@ public class DashboardService {
         BigDecimal dealBasRate,
         int unitSize,
         String source,
-        Instant fetchedAt
+        Instant fetchedAt,
+        LocalDate historyStartDate,
+        LocalDate historyEndDate
+    ) {
+    }
+
+    public record ExchangeRateCalculatorMeta(
+        LocalDate earliestAllowedDate,
+        LocalDate latestAllowedDate
+    ) {
+    }
+
+    public record ExchangeRateSnapshotResponse(
+        String currencyCode,
+        LocalDate requestedDate,
+        ForeignExchangeRate historicalRate,
+        ForeignExchangeRate currentRate
     ) {
     }
 

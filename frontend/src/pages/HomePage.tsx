@@ -1,25 +1,28 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
+import axios from 'axios';
+import type { ExchangeRateCalculatorMeta, ExchangeRateSnapshotResponse, ForeignExchangeRate } from '../types';
 
 const servicePoints = [
   {
     emoji: '💸',
-    title: '환전 타이밍',
-    body: '여행, 유학, 송금 전에 지금 원화가 비싼지 싼지 먼저 봅니다.'
+    title: '환차익 확인',
+    body: '예전에 바꾼 외화가 지금 원화로 얼마나 달라졌는지 바로 확인합니다.'
   },
   {
     emoji: '📈',
-    title: '해외 주식 투자',
-    body: '주가만큼 중요한 환율 비용을 원화 관점에서 함께 확인합니다.'
+    title: '원화 기준 비교',
+    body: '달러, 엔, 유로처럼 자주 보는 통화를 원화 기준으로 나란히 비교합니다.'
   },
   {
     emoji: '🧭',
-    title: '원화 가치 흐름',
-    body: '달러 강세인지, 한국 고유 요인인지 나눠서 읽습니다.'
+    title: '흩어진 지표 정리',
+    body: '달러 지수, 금리, 물가처럼 환율을 볼 때 필요한 숫자를 한곳에 모읍니다.'
   },
   {
     emoji: '📰',
-    title: '정책·뉴스 팔로우',
-    body: '매일 업데이트되는 정부정책과 최신 뉴스를 편하게 따라갑니다.'
+    title: '정책·뉴스 감지',
+    body: '투자자가 민감하게 봐야 할 정부 브리핑과 최신 뉴스를 빠르게 확인합니다.'
   }
 ];
 
@@ -54,12 +57,15 @@ const tabHints = [
 const ctaWords = ['상단', '탭에서', '바로', '이어서', '확인하세요.'];
 
 type HomePageProps = {
+  calculatorMeta?: ExchangeRateCalculatorMeta | null;
+  rates?: ForeignExchangeRate[];
   onGoDashboard?: () => void;
   onReachLastSection?: () => void;
 };
 
-export function HomePage({ onGoDashboard, onReachLastSection }: HomePageProps) {
+export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLastSection }: HomePageProps) {
   const [activeSection, setActiveSection] = React.useState(0);
+  const [isCalculatorModalOpen, setIsCalculatorModalOpen] = React.useState(false);
   const [ctaHighlightKey, setCtaHighlightKey] = React.useState(0);
   const lastMoveAtRef = React.useRef(0);
   const onReachLastSectionRef = React.useRef(onReachLastSection);
@@ -89,6 +95,12 @@ export function HomePage({ onGoDashboard, onReachLastSection }: HomePageProps) {
   }, [moveSection]);
 
   const handleKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLElement>) => {
+    if (isCalculatorModalOpen) {
+      if (event.key === 'Escape') {
+        setIsCalculatorModalOpen(false);
+      }
+      return;
+    }
     if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
       event.preventDefault();
       moveSection(1);
@@ -97,13 +109,19 @@ export function HomePage({ onGoDashboard, onReachLastSection }: HomePageProps) {
       event.preventDefault();
       moveSection(-1);
     }
-  }, [moveSection]);
+  }, [isCalculatorModalOpen, moveSection]);
 
   const handleTouchStart = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
+    if (isCalculatorModalOpen) {
+      return;
+    }
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
-  }, []);
+  }, [isCalculatorModalOpen]);
 
   const handleTouchEnd = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
+    if (isCalculatorModalOpen) {
+      return;
+    }
     const startY = touchStartYRef.current;
     const endY = event.changedTouches[0]?.clientY;
     touchStartYRef.current = null;
@@ -111,7 +129,7 @@ export function HomePage({ onGoDashboard, onReachLastSection }: HomePageProps) {
       return;
     }
     moveSection(startY > endY ? 1 : -1);
-  }, [moveSection]);
+  }, [isCalculatorModalOpen, moveSection]);
 
   React.useEffect(() => {
     let tabHighlightTimeout: number | undefined;
@@ -137,43 +155,64 @@ export function HomePage({ onGoDashboard, onReachLastSection }: HomePageProps) {
       onKeyDown={handleKeyDown}
       onTouchEnd={handleTouchEnd}
       onTouchStart={handleTouchStart}
-      onWheel={handleWheel}
+      onWheel={isCalculatorModalOpen ? undefined : handleWheel}
       tabIndex={0}
     >
       <div
         className="home-deck-track"
       style={{ transform: `translate3d(0, -${activeSection * 100}%, 0)` }}
       >
-      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-6xl content-center py-8 sm:h-[calc(100vh-86px)] sm:py-14">
-        <div className="max-w-5xl sm:-translate-y-8 md:-translate-y-10">
-          <div className="text-5xl leading-none md:text-7xl" aria-hidden="true">₩</div>
-          <p className="mt-5 text-xs font-bold tracking-[0.2em] text-teal-100/80 sm:mt-8 sm:text-sm sm:tracking-[0.24em]">KOREA WON MONITOR</p>
-          <h1 className="mt-4 max-w-[980px] text-3xl font-extrabold leading-[1.22] tracking-normal sm:mt-5 sm:text-4xl md:text-6xl md:leading-[1.12]">
-            환전하기 전, 원화의 위치부터.
-          </h1>
-          <p className="mt-5 max-w-4xl text-sm font-medium leading-7 text-white/72 sm:mt-7 sm:text-base sm:leading-8 md:text-lg md:leading-8">
-            코리아원은 환전을 자주 하거나 해외 주식에 투자하는 사람이 환율을 더 똑똑하게 볼 수 있도록 만든 원화 중심 모니터입니다.
+      <section className="home-snap-section home-copy relative mx-auto grid h-[calc(100vh-112px)] max-w-6xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-10 lg:justify-items-stretch lg:text-left">
+        <div className="grid w-full min-w-0 -translate-y-8 gap-6 lg:-translate-y-7 lg:grid-cols-[minmax(0,0.86fr)_minmax(340px,0.58fr)] lg:items-center lg:gap-x-7 lg:gap-y-3">
+          <div className="min-w-0 lg:-translate-y-14">
+            <div className="text-3xl leading-none sm:text-4xl md:text-6xl" aria-hidden="true">₩</div>
+            <p className="mt-3 text-xs font-bold tracking-[0.2em] text-teal-100/80 sm:mt-4 sm:text-sm sm:tracking-[0.24em]">KOREA WON MONITOR</p>
+            <h1 className="mt-3 max-w-[760px] text-3xl font-extrabold leading-[1.18] tracking-normal sm:text-4xl md:text-5xl md:leading-[1.12]">
+              그때 환전한 돈, 지금은 얼마일까요?
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-white/72 sm:text-base sm:leading-8">
+              과거 환전 시점의 환율과 현재 환율을 비교해
+              <br />
+              환차익과 환차손을 바로 계산합니다.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+              <button
+                className="inline-flex h-10 items-center justify-center rounded-full border border-teal-200/30 bg-teal-300/18 px-4 text-sm font-extrabold text-white shadow-lg shadow-teal-950/20 backdrop-blur-md transition-colors duration-150 hover:bg-teal-300/28 lg:hidden"
+                onClick={() => setIsCalculatorModalOpen(true)}
+                type="button"
+              >
+                환차익 계산하기
+              </button>
+            </div>
+          </div>
+          <div className="hidden justify-self-end lg:block lg:w-[420px] lg:translate-y-12 xl:w-[450px]">
+            <ExchangeProfitCalculator calculatorMeta={calculatorMeta} rates={rates} />
+          </div>
+          <p className="inline-flex w-full max-w-md translate-y-4 flex-col items-center justify-center gap-1 justify-self-center px-4 text-center text-xs font-semibold leading-5 text-teal-100/78 lg:col-start-1 lg:row-start-2 lg:w-fit lg:max-w-2xl lg:translate-y-7 lg:justify-self-start lg:px-0">
+            <span>스크롤해서 더 많은 정보를 확인할 수 있습니다.</span>
+            <span className="home-scroll-cue" aria-hidden="true">⌄</span>
           </p>
         </div>
       </section>
 
-      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-6xl content-center py-8 sm:h-[calc(100vh-86px)] sm:py-14">
-        <div className="grid gap-6 md:grid-cols-[0.95fr_1.05fr] md:items-center md:gap-10">
+      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-5xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14 md:justify-items-stretch md:text-left">
+        <div className="grid gap-6 md:grid-cols-[0.95fr_1fr] md:items-center md:gap-8">
           <div>
-            <h2 className="max-w-[760px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
-              환율은 매번 찾아보기 어렵습니다.
+            <p className="text-xs font-bold tracking-[0.22em] text-teal-100/75">ABOUT KOREAWON</p>
+            <h2 className="max-w-[680px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
+              코리아원은 원화 기준으로 환율을 읽는 도구입니다.
             </h2>
             <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base md:text-lg">
-              정책, 뉴스, 지표, 달러 흐름이 흩어져 있으면 환전 판단은 느려집니다.
+              환차익 계산에서 시작해 주요 통화, 달러 흐름, 관련 지표와 뉴스를 한 화면 흐름으로 이어 봅니다.
             </p>
           </div>
-          <div className="grid gap-4 sm:gap-6">
+          <div className="grid w-full max-w-md grid-cols-2 gap-3 sm:max-w-none sm:grid-cols-1 sm:gap-6">
             {servicePoints.map((point) => (
-              <section className="grid grid-cols-[2.75rem_1fr] items-start gap-3 sm:grid-cols-[3.5rem_1fr] sm:gap-5" key={point.title}>
-                <span className="text-3xl leading-none sm:text-4xl md:text-5xl" aria-hidden="true">{point.emoji}</span>
+              <section className="grid justify-items-center gap-1.5 rounded-xl bg-white/7 px-2.5 py-3 sm:grid-cols-[3.5rem_1fr] sm:justify-items-start sm:gap-5 sm:bg-transparent sm:p-0" key={point.title}>
+                <span className="text-2xl leading-none sm:text-4xl md:text-5xl" aria-hidden="true">{point.emoji}</span>
                 <span>
-                  <h3 className="text-base font-extrabold tracking-normal text-white sm:text-lg md:text-xl">{point.title}</h3>
-                  <p className="mt-1 max-w-xl text-sm font-medium leading-6 text-white/64 sm:mt-2 sm:leading-7 md:text-base">{point.body}</p>
+                  <h3 className="text-sm font-extrabold tracking-normal text-white sm:text-lg md:text-xl">{point.title}</h3>
+                  <p className="hidden mt-1 max-w-sm text-xs font-medium leading-5 text-white/64 min-[430px]:block sm:mt-2 sm:max-w-xl sm:text-sm sm:leading-7 md:text-base">{point.body}</p>
                 </span>
               </section>
             ))}
@@ -181,32 +220,32 @@ export function HomePage({ onGoDashboard, onReachLastSection }: HomePageProps) {
         </div>
       </section>
 
-      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-6xl content-center py-8 sm:h-[calc(100vh-86px)] sm:py-14">
-        <div className="max-w-5xl">
-          <h2 className="max-w-[840px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
-            필요한 정보만 한 흐름으로 봅니다.
+      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-5xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14">
+        <div className="grid max-w-4xl justify-items-center">
+          <h2 className="max-w-[760px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
+            환율과 정책 흐름을 함께 봅니다.
           </h2>
-          <p className="mt-4 max-w-4xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
-            숫자를 먼저 보고, 이유가 궁금할 때만 지표와 정책, 뉴스로 한 단계 더 들어갑니다.
+          <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
+            현재 환율과 앞으로 영향을 줄 정부 정책 방향을 따라가며 투자 판단과 경제 공부에 필요한 맥락을 쌓습니다.
           </p>
         </div>
-        <div className="mt-7 grid gap-4 sm:mt-12 sm:grid-cols-2 sm:gap-7 lg:grid-cols-3">
+        <div className="mt-6 grid w-full max-w-md grid-cols-2 gap-3 sm:mt-10 sm:max-w-none sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {tabHints.map((hint) => (
-            <section className="grid gap-3" key={hint.title}>
-              <span className="text-3xl leading-none sm:text-5xl" aria-hidden="true">{hint.emoji}</span>
-              <h3 className="text-base font-extrabold tracking-normal text-teal-100 sm:text-lg md:text-xl">{hint.title}</h3>
-              <p className="max-w-lg text-sm font-medium leading-6 text-white/64 sm:leading-7">{hint.body}</p>
+            <section className="grid justify-items-center gap-1.5 rounded-xl bg-white/7 px-2.5 py-3 text-center sm:bg-transparent sm:p-0" key={hint.title}>
+              <span className="text-2xl leading-none sm:text-5xl" aria-hidden="true">{hint.emoji}</span>
+              <h3 className="text-sm font-extrabold tracking-normal text-teal-100 sm:text-lg md:text-xl">{hint.title}</h3>
+              <p className="hidden max-w-lg text-sm font-medium leading-6 text-white/64 sm:block sm:leading-7">{hint.body}</p>
             </section>
           ))}
         </div>
       </section>
 
-      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-6xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14">
-        <div className="grid max-w-5xl justify-items-center">
-          <h2 className="max-w-[840px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
+      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-5xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14">
+        <div className="grid max-w-4xl justify-items-center">
+          <h2 className="max-w-[760px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
             정답 대신, 판단 재료를 모읍니다.
           </h2>
-          <p className="mt-4 max-w-4xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
+          <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
             오늘 환율만 보고 끝내도 좋습니다. 정부정책과 최신 뉴스까지 팔로우하고 싶다면,
             <br className="hidden sm:block" />
             <span className="inline-flex flex-wrap gap-x-1.5">
@@ -231,16 +270,550 @@ export function HomePage({ onGoDashboard, onReachLastSection }: HomePageProps) {
         </div>
       </section>
       </div>
-      <div className="pointer-events-none absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 sm:bottom-7" aria-hidden="true">
-        {Array.from({ length: sectionCount }).map((_, index) => (
-          <span
-            className={`h-1.5 rounded-full transition-all duration-300 ${
-              activeSection === index ? 'w-8 bg-white' : 'w-1.5 bg-white/35'
-            }`}
-            key={index}
+      {isCalculatorModalOpen && typeof document !== 'undefined' ? createPortal((
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-[1000] isolate grid place-items-center bg-zinc-950/90 px-3 py-3 backdrop-blur-xl lg:hidden"
+          onClick={() => setIsCalculatorModalOpen(false)}
+          onTouchEnd={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+          role="dialog"
+        >
+          <div
+            className="max-h-[calc(100vh-1.5rem)] w-full max-w-[430px] overflow-y-auto"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <ExchangeProfitCalculator calculatorMeta={calculatorMeta} onClose={() => setIsCalculatorModalOpen(false)} rates={rates} />
+          </div>
+        </div>
+      ), document.body) : null}
+    </section>
+  );
+}
+
+function ExchangeProfitCalculator({
+  calculatorMeta,
+  onClose,
+  rates
+}: {
+  calculatorMeta?: ExchangeRateCalculatorMeta | null;
+  onClose?: () => void;
+  rates: ForeignExchangeRate[];
+}) {
+  const [currencyCode, setCurrencyCode] = React.useState('');
+  const [exchangeDate, setExchangeDate] = React.useState(() => shiftYear(calculatorMeta?.latestAllowedDate ?? new Date().toISOString().slice(0, 10), -1));
+  const [amountInputMode, setAmountInputMode] = React.useState<'foreign' | 'krw'>('foreign');
+  const [foreignAmount, setForeignAmount] = React.useState('');
+  const [krwAmount, setKrwAmount] = React.useState('');
+  const [snapshot, setSnapshot] = React.useState<ExchangeRateSnapshotResponse | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const selectedRate = rates.find((rate) => rate.currencyCode === currencyCode) ?? null;
+  const latestAllowedDate = selectedRate?.historyEndDate ?? calculatorMeta?.latestAllowedDate ?? new Date().toISOString().slice(0, 10);
+  const earliestAllowedDate = selectedRate?.historyStartDate ?? calculatorMeta?.earliestAllowedDate ?? shiftYear(latestAllowedDate, -5);
+
+  React.useEffect(() => {
+    if (exchangeDate < earliestAllowedDate) {
+      setExchangeDate(earliestAllowedDate);
+    } else if (exchangeDate > latestAllowedDate) {
+      setExchangeDate(latestAllowedDate);
+    }
+  }, [earliestAllowedDate, exchangeDate, latestAllowedDate]);
+
+  React.useEffect(() => {
+    if (!currencyCode || !exchangeDate) {
+      setSnapshot(null);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoading(true);
+    axios.get<ExchangeRateSnapshotResponse>('/api/v1/dashboard/exchange-rate-snapshot', {
+      params: {
+        currencyCode,
+        date: exchangeDate
+      }
+    }).then((response) => {
+      if (!ignore) {
+        setSnapshot(response.data);
+      }
+    }).catch(() => {
+      if (!ignore) {
+        setSnapshot(null);
+      }
+    }).finally(() => {
+      if (!ignore) {
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currencyCode, exchangeDate]);
+
+  const historicalRate = snapshot?.historicalRate ?? null;
+  const currentRate = snapshot?.currentRate ?? selectedRate;
+  const foreignInputAmount = parseNumber(foreignAmount);
+  const krwInputAmount = parseNumber(krwAmount);
+  const calculatedForeignAmount = amountInputMode === 'foreign' ? foreignInputAmount : calculateForeignAmountFromKrw(krwInputAmount, historicalRate);
+  const historicalKrw = amountInputMode === 'foreign' ? calculateKrwAmount(foreignInputAmount, historicalRate) : krwInputAmount;
+  const currentKrw = calculateKrwAmount(calculatedForeignAmount, currentRate);
+  const profit = historicalKrw === null || currentKrw === null ? null : currentKrw - historicalKrw;
+  const returnRate = profit === null || historicalKrw === null || historicalKrw === 0 ? null : (profit / historicalKrw) * 100;
+  const resultTone = profit === null ? 'text-white' : profit >= 0 ? 'text-teal-100' : 'text-rose-200';
+  const hasResult = historicalKrw !== null && currentKrw !== null;
+  const selectedDateParts = splitDate(exchangeDate);
+  const availableYears = buildYearOptions(earliestAllowedDate, latestAllowedDate);
+  const availableMonths = buildMonthOptions(selectedDateParts.year, earliestAllowedDate, latestAllowedDate);
+  const availableDays = buildDayOptions(selectedDateParts.year, selectedDateParts.month, earliestAllowedDate, latestAllowedDate);
+  const selectedDisplayCode = selectedRate?.displayCode ?? currentRate?.displayCode ?? '';
+
+  const updateDatePart = (part: 'year' | 'month' | 'day', value: number) => {
+    const nextParts = {
+      ...selectedDateParts,
+      [part]: value
+    };
+    const maxDay = daysInMonth(nextParts.year, nextParts.month);
+    const nextDate = formatDateParts(nextParts.year, nextParts.month, Math.min(nextParts.day, maxDay));
+    setExchangeDate(clampDate(nextDate, earliestAllowedDate, latestAllowedDate));
+  };
+
+  return (
+    <section className="glass-card grid min-h-[32rem] min-w-0 content-start rounded-[1.35rem] p-3 shadow-xl shadow-zinc-950/20 lg:min-h-[36.5rem] lg:rounded-[1.6rem] lg:p-4">
+      <div className="border-b border-white/10 pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="text-base font-extrabold leading-tight text-white sm:text-lg">환차익 계산기</p>
+              <span className="info-tooltip-trigger relative grid h-5 w-5 place-items-center rounded-full border border-white/15 bg-white/10 text-[11px] font-black text-white/65" tabIndex={0}>
+                i
+                <span className="info-tooltip-panel" role="tooltip">
+                  날짜가 휴일이면 선택일 이전의 가장 가까운 저장 환율을 사용합니다. 수수료와 은행별 스프레드는 제외한 기준 환율 계산입니다.
+                </span>
+              </span>
+            </div>
+            <h2 className="mt-1.5 text-[11px] font-semibold text-white/55 sm:text-xs">과거 환전과 현재 가치 비교</h2>
+          </div>
+          <span className="hidden shrink-0 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-semibold text-white/55 min-[380px]:inline-flex">
+            {earliestAllowedDate}~{latestAllowedDate}
+          </span>
+          {onClose ? (
+            <button
+              aria-label="환차익 계산기 닫기"
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-zinc-950/55 px-3 text-xs font-extrabold text-white shadow-lg transition-colors duration-150 hover:bg-white/12"
+              onClick={onClose}
+              type="button"
+            >
+              닫기
+            </button>
+          ) : null}
+        </div>
+        <span className="mt-2 inline-flex rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-semibold text-white/55 min-[380px]:hidden">
+          {earliestAllowedDate}~{latestAllowedDate}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-2 text-[10px] font-semibold text-white/55">
+          <span className="flex h-5 items-center gap-2">
+            통화
+          </span>
+          <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
+            <span className="grid h-9 place-items-center rounded-md border border-white/15 bg-white/10 text-xl" aria-hidden="true">
+              {selectedRate ? getCurrencyFlag(selectedRate.displayCode) : '💱'}
+            </span>
+            <select
+              className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
+              onChange={(event) => setCurrencyCode(event.target.value)}
+              value={currencyCode}
+            >
+              <option value="">통화 선택</option>
+              {rates.map((rate) => (
+                <option key={rate.currencyCode} value={rate.currencyCode}>
+                  {getCurrencyFlag(rate.displayCode)} {rate.displayCode} · {getCurrencyKoreanName(rate.displayCode)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </label>
+        <label className="grid gap-2 text-[10px] font-semibold text-white/55">
+          <span className="flex min-h-6 items-center justify-between gap-2">
+            <span>{amountInputMode === 'foreign' ? '환전한 외화 금액' : '당시 사용한 원화 금액'}</span>
+            <span className="relative grid h-6 w-[4.75rem] grid-cols-2 rounded-full border border-white/10 bg-white/10 p-0.5 shadow-sm">
+              <span
+                className={`pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 w-[calc((100%-0.25rem)/2)] rounded-full bg-teal-600 transition-transform duration-150 ease-out ${
+                  amountInputMode === 'krw' ? 'translate-x-full' : 'translate-x-0'
+                }`}
+                aria-hidden="true"
+              />
+              {(['foreign', 'krw'] as const).map((mode) => (
+                <button
+                  className={`relative z-10 h-5 rounded-full px-2 text-[10px] font-extrabold leading-5 transition-colors duration-150 ${
+                    amountInputMode === mode ? 'text-white' : 'text-white/50 hover:text-white'
+                  }`}
+                  key={mode}
+                  onClick={() => setAmountInputMode(mode)}
+                  type="button"
+                >
+                  {mode === 'foreign' ? '외화' : '원화'}
+                </button>
+              ))}
+            </span>
+          </span>
+          <span className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+            <input
+              className="glass-field h-9 min-w-0 rounded-md px-3 text-center text-sm font-semibold outline-none"
+              inputMode="decimal"
+              onChange={(event) => {
+                const nextValue = sanitizeNumberInput(event.target.value);
+                if (amountInputMode === 'foreign') {
+                  setForeignAmount(nextValue);
+                } else {
+                  setKrwAmount(nextValue);
+                }
+              }}
+              placeholder="금액 입력"
+              value={amountInputMode === 'foreign' ? foreignAmount : krwAmount}
+            />
+            <span className="grid h-9 min-w-12 place-items-center rounded-md border border-white/10 bg-white/8 px-2 text-xs font-extrabold text-white/45">
+              {amountInputMode === 'foreign' ? selectedDisplayCode || '단위' : 'KRW'}
+            </span>
+          </span>
+        </label>
+        <label className="grid gap-2 text-[10px] font-semibold text-white/55 sm:col-span-2">
+          <span className="flex h-5 items-center">환전한 날짜</span>
+          <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)] gap-1.5">
+            <select
+              aria-label="환전 연도"
+              className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
+              onChange={(event) => updateDatePart('year', Number(event.target.value))}
+              value={selectedDateParts.year}
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>{year}년</option>
+              ))}
+            </select>
+            <select
+              aria-label="환전 월"
+              className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
+              onChange={(event) => updateDatePart('month', Number(event.target.value))}
+              value={selectedDateParts.month}
+            >
+              {availableMonths.map((month) => (
+                <option key={month} value={month}>{month}월</option>
+              ))}
+            </select>
+            <select
+              aria-label="환전 일"
+              className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
+              onChange={(event) => updateDatePart('day', Number(event.target.value))}
+              value={selectedDateParts.day}
+            >
+              {availableDays.map((day) => (
+                <option key={day} value={day}>{day}일</option>
+              ))}
+            </select>
+          </div>
+        </label>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-white/10 bg-white/7 p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold text-teal-100">계산에 사용한 환율</p>
+          </div>
+          <span className="shrink-0 text-[10px] font-semibold text-white/40">
+            {isLoading ? '조회 중' : `${selectedRate ? getCurrencyFlag(selectedRate.displayCode) : '💱'} 저장 환율`}
+          </span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 divide-x divide-white/10">
+          <RateSnapshotCard
+            fallbackDate={exchangeDate}
+            label="환전 당시 환율"
+            rate={historicalRate}
           />
-        ))}
+          <RateSnapshotCard
+            fallbackDate={latestAllowedDate}
+            label="현재 기준 환율"
+            rate={currentRate}
+          />
+        </div>
+
+        {isLoading ? (
+          <p className="mt-1.5 rounded-lg bg-black/15 px-2.5 py-1.5 text-[10px] leading-4 text-white/45 sm:mt-2">
+            과거 환율을 조회하고 있습니다.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mt-3 min-h-[7.5rem] rounded-xl border border-white/10 bg-white/10 p-3 lg:min-h-[8.4rem]">
+        <p className="text-left text-[11px] font-semibold text-white/55">계산 결과</p>
+        <div className="mt-2 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(9.5rem,9.5rem)] sm:items-center">
+          <div className="min-w-0">
+            <p className="grid min-h-14 content-center justify-items-start gap-1 text-white" title={hasResult ? formatResultSentence(historicalKrw, currentKrw) : '환전 시점과 금액을 입력해 주세요.'}>
+              {!hasResult ? (
+                <span className="text-[0.9rem] font-extrabold text-white/58">환전 시점과 금액을 입력해 주세요.</span>
+              ) : (
+                <>
+                  <span className="block max-w-full truncate text-[0.88rem] font-extrabold leading-none text-white/75">{formatKrw(historicalKrw)}</span>
+                  <span className="block text-sm font-black leading-none text-white/45" aria-hidden="true">↓</span>
+                  <span className="block max-w-full truncate text-[1.18rem] font-extrabold leading-none text-teal-100">{formatKrw(currentKrw)}</span>
+                </>
+              )}
+            </p>
+          </div>
+          <div className="grid min-w-0 place-items-center gap-1.5 overflow-hidden rounded-lg bg-black/15 p-2.5 text-center sm:w-[9.5rem]">
+            <div className="min-w-0 max-w-full">
+              <p className="text-[9px] font-semibold text-white/45">환차익/환차손</p>
+              <p className={`mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-extrabold ${resultTone}`} title={formatKrw(profit)}>
+                {profit === null ? '-' : `${profit >= 0 ? '+' : ''}${formatKrw(profit)}`}
+              </p>
+            </div>
+            <div className="min-w-0 max-w-full">
+              <p className="text-[9px] font-semibold text-white/45">수익률</p>
+              <p className={`mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-extrabold ${resultTone}`}>
+                {returnRate === null ? '-' : `${returnRate >= 0 ? '+' : ''}${returnRate.toFixed(2)}%`}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
+}
+
+function RateSnapshotCard({
+  fallbackDate,
+  label,
+  rate
+}: {
+  fallbackDate: string;
+  label: string;
+  rate: ForeignExchangeRate | null;
+}) {
+  const displayCode = rate?.displayCode ?? '';
+  const currencyLabel = displayCode ? getCurrencyKoreanName(displayCode) : '통화';
+
+  return (
+    <article className="min-w-0 rounded-lg bg-white/8 p-1.5 sm:p-2">
+      <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-1.5 sm:grid-cols-[28px_minmax(0,1fr)] sm:gap-2">
+        <span className="grid h-6 w-6 place-items-center rounded-md border border-white/10 bg-white/10 text-sm leading-none sm:h-7 sm:w-7 sm:text-base" aria-hidden="true">
+          {displayCode ? getCurrencyFlag(displayCode) : '💱'}
+        </span>
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-[10px] font-semibold text-white/55 sm:text-[11px]">{label}</p>
+            <span className="shrink-0 text-[9px] font-semibold text-white/40 sm:text-[10px]">{rate?.baseDate ?? fallbackDate}</span>
+          </div>
+          <p className="mt-0.5 truncate text-xs font-extrabold text-white sm:text-sm">{currencyLabel} {displayCode}</p>
+        </div>
+      </div>
+      <div className="mt-1.5">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold text-white/40">{rate ? formatRateUnit(rate) : '-'}</p>
+          <p className="mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(0.8rem,3.5vw,1rem)] font-extrabold leading-tight text-teal-100" title={rate ? formatRate(rate) : '-'}>
+            {rate ? formatRate(rate) : '-'}
+          </p>
+        </div>
+      </div>
+      <p className="mt-1.5 truncate text-[10px] font-medium text-white/35">
+        {rate?.source ?? '저장 환율 없음'} · {rate ? formatSnapshotUpdatedAt(new Date(rate.fetchedAt)) : '-'}
+      </p>
+    </article>
+  );
+}
+
+function calculateKrwAmount(amount: number | null, rate: ForeignExchangeRate | null) {
+  if (amount === null || !rate || rate.unitSize === 0) {
+    return null;
+  }
+
+  return (amount * rate.dealBasRate) / rate.unitSize;
+}
+
+function calculateForeignAmountFromKrw(amount: number | null, rate: ForeignExchangeRate | null) {
+  if (amount === null || !rate || rate.dealBasRate === 0) {
+    return null;
+  }
+
+  return (amount * rate.unitSize) / rate.dealBasRate;
+}
+
+function formatKrw(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return '-';
+  }
+
+  return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(Math.round(value))}원`;
+}
+
+function formatResultSentence(previousValue: number | null, currentValue: number | null) {
+  if (previousValue === null || currentValue === null) {
+    return '-';
+  }
+
+  return `한국돈으로 ${formatKrw(previousValue)}이 ${formatKrw(currentValue)}이 되었어요!`;
+}
+
+function formatRate(rate: ForeignExchangeRate | null) {
+  if (!rate) {
+    return '-';
+  }
+
+  return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(rate.dealBasRate)}원`;
+}
+
+function formatRateUnit(rate: ForeignExchangeRate) {
+  return rate.unitSize > 1 ? `${rate.unitSize}${rate.displayCode} 기준` : `1${rate.displayCode} 기준`;
+}
+
+function formatSnapshotUpdatedAt(date: Date) {
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Seoul'
+  }).format(date);
+}
+
+function parseNumber(value: string) {
+  if (value.trim() === '') {
+    return null;
+  }
+
+  const parsed = Number(value.replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sanitizeNumberInput(value: string) {
+  return value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+}
+
+function shiftYear(dateValue: string, amount: number) {
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  date.setFullYear(date.getFullYear() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function splitDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    const now = new Date();
+    return {
+      day: now.getDate(),
+      month: now.getMonth() + 1,
+      year: now.getFullYear()
+    };
+  }
+
+  return { day, month, year };
+}
+
+function formatDateParts(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function clampDate(value: string, minDate: string, maxDate: string) {
+  if (value < minDate) {
+    return minDate;
+  }
+
+  if (value > maxDate) {
+    return maxDate;
+  }
+
+  return value;
+}
+
+function buildYearOptions(minDate: string, maxDate: string) {
+  const minYear = splitDate(minDate).year;
+  const maxYear = splitDate(maxDate).year;
+  const years = [];
+  for (let year = maxYear; year >= minYear; year -= 1) {
+    years.push(year);
+  }
+  return years;
+}
+
+function buildMonthOptions(year: number, minDate: string, maxDate: string) {
+  const min = splitDate(minDate);
+  const max = splitDate(maxDate);
+  const startMonth = year === min.year ? min.month : 1;
+  const endMonth = year === max.year ? max.month : 12;
+  const months = [];
+  for (let month = startMonth; month <= endMonth; month += 1) {
+    months.push(month);
+  }
+  return months;
+}
+
+function buildDayOptions(year: number, month: number, minDate: string, maxDate: string) {
+  const min = splitDate(minDate);
+  const max = splitDate(maxDate);
+  const startDay = year === min.year && month === min.month ? min.day : 1;
+  const endDay = year === max.year && month === max.month ? max.day : daysInMonth(year, month);
+  const days = [];
+  for (let day = startDay; day <= endDay; day += 1) {
+    days.push(day);
+  }
+  return days;
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+function getCurrencyFlag(code: string) {
+  const regionCode = {
+    AUD: 'AU',
+    CAD: 'CA',
+    CHF: 'CH',
+    CNY: 'CN',
+    CNH: 'CN',
+    EUR: 'EU',
+    GBP: 'GB',
+    HKD: 'HK',
+    JPY: 'JP',
+    SGD: 'SG',
+    USD: 'US'
+  }[code];
+
+  if (!regionCode) {
+    return '💱';
+  }
+
+  if (regionCode === 'EU') {
+    return '🇪🇺';
+  }
+
+  return regionCode
+    .split('')
+    .map((character) => String.fromCodePoint(127397 + character.charCodeAt(0)))
+    .join('');
+}
+
+function getCurrencyKoreanName(code: string) {
+  return {
+    AUD: '호주 달러',
+    CAD: '캐나다 달러',
+    CHF: '스위스 프랑',
+    CNY: '중국 위안',
+    CNH: '역외 위안',
+    EUR: '유로',
+    GBP: '영국 파운드',
+    HKD: '홍콩 달러',
+    JPY: '일본 엔',
+    SGD: '싱가포르 달러',
+    USD: '미국 달러'
+  }[code] ?? code;
 }
