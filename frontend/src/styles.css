@@ -486,6 +486,15 @@ body,
   background: rgba(113, 113, 122, 0.4);
 }
 
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 .modal-overlay {
   animation: modal-overlay-enter 140ms ease-out;
 }
