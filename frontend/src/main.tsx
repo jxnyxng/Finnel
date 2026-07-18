@@ -360,7 +360,7 @@ function App() {
   const latestUsdKrwPoint = visibleUsdKrwSeries[visibleUsdKrwSeries.length - 1] ?? null;
   const usdKrwDomain = getValueDomain(visibleUsdKrwSeries, 5);
   const usdKrwXDomain = getXDomain(visibleUsdKrwSeries, usdKrwRange);
-  const usdKrwXTicks = usdKrwRange === '1D' ? getUsdKrwXTicks(usdKrwRange) : getDailyXTicks(visibleUsdKrwSeries);
+  const usdKrwXTicks = usdKrwRange === '1D' ? getUsdKrwXTicks(usdKrwRange, visibleUsdKrwSeries) : getDailyXTicks(visibleUsdKrwSeries);
   const visibleDxyIndexSeries = buildVisibleDailySeries(dxyIndexSeries, dxyRange);
   const latestDxyIndexPoint = visibleDxyIndexSeries[visibleDxyIndexSeries.length - 1] ?? null;
   const dxyIndexDomain = getValueDomain(visibleDxyIndexSeries, 1);
@@ -588,7 +588,7 @@ function App() {
           <section className="page-content-enter grid gap-4">
             <MarketChartSection
               emptyText={usdKrwRange === '1D'
-                ? '09:00~다음날 02:00 세션 환율 데이터를 확인 중입니다.'
+                ? '주중 24시간 세션 환율 데이터를 확인 중입니다.'
                 : '표시할 환율 데이터가 없습니다.'}
               helpAriaLabel="USD/KRW 그래프 안내"
               helpContent={(
@@ -613,10 +613,10 @@ function App() {
               referenceStroke="#5eead4"
               series={visibleUsdKrwSeries}
               showLatestValueDot={showUsdKrwLatestValueDot}
-              statusClassName={usdKrwRange === '1D' ? 'text-teal-100' : 'text-transparent'}
+              statusClassName="text-teal-100"
               statusNode={usdKrwStatusNode}
-              statusText={usdKrwRange === '1D' ? intradayStatusLabel : '상태 영역'}
-              subtitle={usdKrwRange === '1D' ? '09:00~익일 02:00 실시간 수집 환율' : `${getRangeLabel(usdKrwRange)} 일별 기준 환율`}
+              statusText={usdKrwRange === '1D' ? intradayStatusLabel : null}
+              subtitle={usdKrwRange === '1D' ? '주중 24시간 실시간 수집 환율' : `${getRangeLabel(usdKrwRange)} 일별 기준 환율`}
               title="실시간 원달러 환율"
               tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
               xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
@@ -655,7 +655,7 @@ function App() {
                 series={visibleDxyIndexSeries}
                 showLatestValueDot={false}
                 statusClassName="text-transparent"
-                statusText="상태 영역"
+                statusText={null}
                 subtitle={getRangeLabel(dxyRange)}
                 title="선진국 달러 지수"
                 tooltipContent={<DollarIndexTooltip title="선진국 달러" />}
@@ -693,7 +693,7 @@ function App() {
                 series={visibleDollarIndexSeries}
                 showLatestValueDot={false}
                 statusClassName="text-transparent"
-                statusText="상태 영역"
+                statusText={null}
                 subtitle={getRangeLabel(dollarIndexRange)}
                 title="광의 달러 지수"
                 tooltipContent={<DollarIndexTooltip title="광의 달러" />}
