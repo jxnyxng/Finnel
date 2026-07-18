@@ -157,7 +157,7 @@ public class NewsService {
     }
 
     public RelatedNewsResponse related(String topic, int limit) {
-        int normalizedLimit = Math.max(1, Math.min(limit, 9));
+        int normalizedLimit = Math.max(1, Math.min(limit, 30));
         List<NewsArticle> candidates = jdbcTemplate.query(
             """
             SELECT n.category_code, n.category_name, n.query_text, n.title, n.description, n.origin_link, n.link, n.publisher, n.published_at, n.ai_summary, n.market_sentiment, n.image_url, n.fetched_at
