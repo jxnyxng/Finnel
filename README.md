@@ -70,7 +70,8 @@ cd frontend && npm run build
 - API keys must never be committed or printed.
 - USD/KRW 1-day chart must use real Twelve Data intraday rows only. Do not fabricate flat projected rows.
 - On weekends/non-business days, show the latest displayable weekday intraday session. Avoid stale flat weekend sessions.
-- Current business-day logic is Monday-Friday only. A real FX holiday calendar is still needed.
+- Business-day logic excludes weekends and Korean public holidays from KASI `SpcdeInfoService`.
+- USD/KRW has no single official exchange-style holiday calendar because it is primarily OTC. Use Korean public holidays first, then add US bank/Fed holidays, and keep data-availability fallback as the final guard.
 - OpenFiscal works through `https://www.openfiscaldata.go.kr/openApi/preview/{serviceName}` with `OPENFISCAL_API_KEY`.
 - OpenFiscal values used here are monthly fiscal balance and central-government debt in trillion KRW.
 - KRX server-side calls returned `LOGOUT`; use ECOS-backed official alternatives until a stable KRX path is proven.
@@ -83,7 +84,6 @@ cd frontend && npm run build
 
 ## Next
 
-- Add an FX holiday calendar.
+- Add `US_FED` holidays to the FX calendar and keep actual data-availability fallback as the final guard.
 - Improve MPC document parsing/sentiment only after a stable official feed is confirmed.
 - Keep README and CODEX concise; move long PR notes or investigations out of permanent docs.
-

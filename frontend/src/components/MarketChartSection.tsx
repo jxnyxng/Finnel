@@ -64,6 +64,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   panelFooterText?: string;
   statusNode?: ReactNode;
   headerAction?: ReactNode;
+  showLatestValueDot?: boolean;
 };
 
 export function MarketChartSection<T extends RangeKey>({
@@ -80,6 +81,7 @@ export function MarketChartSection<T extends RangeKey>({
   panelDetails = [],
   panelFooterText,
   headerAction,
+  showLatestValueDot = false,
   plotLeft,
   plotRight,
   range,
@@ -187,14 +189,16 @@ export function MarketChartSection<T extends RangeKey>({
                         activeDot={{ r: 4, strokeWidth: 2 }}
                         isAnimationActive={false}
                       />
-                      <Line
-                        type="monotone"
-                        dataKey="latestValue"
-                        stroke="transparent"
-                        dot={<LatestValueDot />}
-                        activeDot={false}
-                        isAnimationActive={false}
-                      />
+                      {showLatestValueDot ? (
+                        <Line
+                          type="monotone"
+                          dataKey="latestValue"
+                          stroke="transparent"
+                          dot={<LatestValueDot />}
+                          activeDot={false}
+                          isAnimationActive={false}
+                        />
+                      ) : null}
                     </LineChart>
                   </ResponsiveContainer>
                 )}

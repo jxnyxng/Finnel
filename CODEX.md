@@ -28,6 +28,8 @@
 - 외부 API 호출은 유저 요청 경로가 아니라 batch/scheduler 경로에서 처리합니다.
 - 외부 API는 지표별 1일 1회 또는 발표 주기별 체크를 기본으로 하며, DB 저장 데이터가 화면 조회의 기준입니다.
 - 주말/공휴일 데이터 공백은 latest available data 정책으로 처리합니다.
+- USD/KRW는 거래소 주식시장처럼 공식 단일 휴장일 캘린더가 있다고 보지 않습니다. OTC 성격을 감안해 한국 공휴일, 미국 bank/Fed holiday, 실제 데이터 유무 fallback을 조합합니다.
+- FX 캘린더는 `KR_PUBLIC`을 먼저 적용했습니다. 다음 단계는 `US_FED` 추가입니다.
 - DB 쓰기는 upsert 기준으로 설계합니다.
 - DB 스키마는 Flyway migration으로 관리하고, Hibernate `ddl-auto`는 `validate`를 유지합니다.
 - 운영/배포 환경에서 Hibernate `create`, `update`를 사용하지 않습니다.
