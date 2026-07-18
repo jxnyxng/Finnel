@@ -5,7 +5,6 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -45,8 +44,6 @@ public class MarketDataSyncService {
     private static final String EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME = "EXCHANGE_RATE_HISTORY_BACKFILL_SYNC";
     private static final String CURRENT_EXCHANGE_RATE_JOB_NAME = "CURRENT_EXCHANGE_RATE_SYNC";
     private static final LocalDate EXCHANGE_RATE_HISTORY_START_DATE = LocalDate.of(1999, 1, 1);
-    private static final LocalTime INTRADAY_SESSION_START = LocalTime.of(9, 0);
-    private static final LocalTime INTRADAY_SESSION_END = LocalTime.of(2, 0);
     private static final int RECENT_MONTH_REFRESH_OVERLAP = 6;
     private static final int RECENT_QUARTER_REFRESH_MONTH_OVERLAP = 12;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
@@ -122,8 +119,8 @@ public class MarketDataSyncService {
     public SyncResult requestIntradayRefresh() {
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), now);
-        if (!isBusinessDayNow() && !needsPreviousBusinessSessionBackfill()) {
-            return skipped("SKIPPED_NON_BUSINESS_DAY", "Intraday sync runs only on business days", SyncTrigger.INTRADAY, syncWindow);
+        if (!shouldRunIntradaySyncNow()) {
+            return skipped("SKIPPED_NON_BUSINESS_DAY", "Intraday sync runs only during USD/KRW trading sessions or while backfill is needed", SyncTrigger.INTRADAY, syncWindow);
         }
         if (!syncWindow.canSync()) {
             return skipped("SKIPPED_COOLDOWN", "Intraday sync cooldown is active", SyncTrigger.INTRADAY, syncWindow);
@@ -909,23 +906,25 @@ public class MarketDataSyncService {
 
     private int syncUsdKrwIntraday() {
         List<TwelveDataClient.IntradayExchangePayload> observations;
-        if (!isBusinessDayNow() && needsPreviousBusinessSessionBackfill()) {
-            observations = fetchPreviousBusinessSessionFromTwelveData();
-        } else {
-            observations = fetchCurrentBusinessSessionFromTwelveData();
-            if (observations.isEmpty() && isBusinessDayNow()) {
-                observations = fetchPreviousBusinessSessionFromTwelveData();
+        LocalDate activeSessionStartDate = UsdKrwIntradaySession.activeSessionStartDate(LocalDateTime.now(SEOUL_ZONE));
+        if (activeSessionStartDate != null) {
+            observations = fetchUsdKrwSessionFromTwelveData(activeSessionStartDate, true);
+            if (observations.isEmpty() && needsPreviousUsdKrwSessionBackfill()) {
+                observations = fetchPreviousUsdKrwSessionFromTwelveData();
             }
+        } else if (needsPreviousUsdKrwSessionBackfill()) {
+            observations = fetchPreviousUsdKrwSessionFromTwelveData();
+        } else {
+            observations = List.of();
         }
         return upsertIntradayExchangeRates(observations);
     }
 
-    private List<TwelveDataClient.IntradayExchangePayload> fetchCurrentBusinessSessionFromTwelveData() {
-        LocalDate sessionStartDate = currentBusinessSessionStartDate();
-        LocalDateTime sessionStart = LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START);
-        LocalDateTime sessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END);
+    private List<TwelveDataClient.IntradayExchangePayload> fetchUsdKrwSessionFromTwelveData(LocalDate sessionStartDate, boolean capAtNow) {
+        LocalDateTime sessionStart = UsdKrwIntradaySession.startDateTime(sessionStartDate);
+        LocalDateTime sessionEnd = UsdKrwIntradaySession.endDateTime(sessionStartDate);
         LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
-        if (now.isAfter(sessionStart) && now.isBefore(sessionEnd)) {
+        if (capAtNow && now.isAfter(sessionStart) && now.isBefore(sessionEnd)) {
             sessionEnd = now;
         }
 
@@ -935,44 +934,21 @@ public class MarketDataSyncService {
             .toList();
     }
 
-    private LocalDate currentBusinessSessionStartDate() {
-        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
-        if (now.toLocalTime().isBefore(INTRADAY_SESSION_END)) {
-            return previousBusinessDay(now.toLocalDate());
-        }
-
-        if (now.toLocalTime().isBefore(INTRADAY_SESSION_START)) {
-            return previousBusinessDay(now.toLocalDate());
-        }
-
-        return businessDayService.isKoreanBusinessDay(now.toLocalDate()) ? now.toLocalDate() : previousBusinessDay(now.toLocalDate().plusDays(1));
-    }
-
-    private List<TwelveDataClient.IntradayExchangePayload> fetchPreviousBusinessSessionFromTwelveData() {
+    private List<TwelveDataClient.IntradayExchangePayload> fetchPreviousUsdKrwSessionFromTwelveData() {
         LocalDate sessionStartDate = resolveBackfillSessionStartDate();
-        LocalDateTime sessionStart = LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START);
-        LocalDateTime sessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END);
-        return twelveDataClient.fetchUsdKrwIntradayBetween(sessionStart, sessionEnd).stream()
-            .filter(payload -> !payload.observedAt().isBefore(sessionStart) && !payload.observedAt().isAfter(sessionEnd))
-            .toList();
+        return fetchUsdKrwSessionFromTwelveData(sessionStartDate, false);
     }
 
     private LocalDate resolveBackfillSessionStartDate() {
         LocalDateTime latestObservedAt = findLatestIntradayObservedAt();
         if (latestObservedAt != null) {
-            LocalDate latestSessionStartDate = latestObservedAt.toLocalTime().isBefore(INTRADAY_SESSION_START)
-                ? latestObservedAt.toLocalDate().minusDays(1)
-                : latestObservedAt.toLocalDate();
-            if (businessDayService.isKoreanBusinessDay(latestSessionStartDate) && isSessionIncomplete(latestSessionStartDate, latestObservedAt)) {
+            LocalDate latestSessionStartDate = UsdKrwIntradaySession.sessionStartDate(latestObservedAt);
+            if (UsdKrwIntradaySession.canStartSession(latestSessionStartDate) && isSessionIncomplete(latestSessionStartDate, latestObservedAt)) {
                 return latestSessionStartDate;
             }
         }
 
-        return previousBusinessDay(LocalDate.now(SEOUL_ZONE));
-    }
-
-    private LocalDate previousBusinessDay(LocalDate date) {
-        return businessDayService.previousKoreanBusinessDay(date);
+        return UsdKrwIntradaySession.previousSessionStartDate(LocalDate.now(SEOUL_ZONE));
     }
 
     private int upsertIntradayExchangeRates(List<TwelveDataClient.IntradayExchangePayload> observations) {
@@ -1449,21 +1425,13 @@ public class MarketDataSyncService {
         return new SyncResult(0, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), null, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
-    private boolean isBusinessDayNow() {
-        return businessDayService.isKoreanBusinessDay(LocalDate.now(SEOUL_ZONE));
-    }
-
     private boolean shouldRunIntradaySyncNow() {
-        return isBusinessDayNow() || isPreviousBusinessSessionStillOpenNow() || needsPreviousBusinessSessionBackfill();
+        return UsdKrwIntradaySession.activeSessionStartDate(LocalDateTime.now(SEOUL_ZONE)) != null
+            || needsPreviousUsdKrwSessionBackfill();
     }
 
-    private boolean isPreviousBusinessSessionStillOpenNow() {
-        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
-        return !now.toLocalTime().isAfter(INTRADAY_SESSION_END) && businessDayService.isKoreanBusinessDay(now.toLocalDate().minusDays(1));
-    }
-
-    private boolean needsPreviousBusinessSessionBackfill() {
-        LocalDate targetSessionStartDate = previousBusinessDay(LocalDate.now(SEOUL_ZONE));
+    private boolean needsPreviousUsdKrwSessionBackfill() {
+        LocalDate targetSessionStartDate = UsdKrwIntradaySession.previousSessionStartDate(LocalDate.now(SEOUL_ZONE));
         LocalDateTime latestObservedAt = findLatestIntradayObservedAt(targetSessionStartDate);
         if (latestObservedAt == null) {
             return true;
@@ -1473,7 +1441,7 @@ public class MarketDataSyncService {
     }
 
     private boolean isSessionIncomplete(LocalDate sessionStartDate, LocalDateTime latestObservedAt) {
-        LocalDateTime expectedSessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END).minusMinutes(5);
+        LocalDateTime expectedSessionEnd = UsdKrwIntradaySession.endDateTime(sessionStartDate).minusMinutes(5);
         return latestObservedAt.isBefore(expectedSessionEnd);
     }
 
@@ -1490,8 +1458,8 @@ public class MarketDataSyncService {
     }
 
     private LocalDateTime findLatestIntradayObservedAt(LocalDate sessionStartDate) {
-        LocalDateTime sessionStart = LocalDateTime.of(sessionStartDate, INTRADAY_SESSION_START);
-        LocalDateTime sessionEnd = LocalDateTime.of(sessionStartDate.plusDays(1), INTRADAY_SESSION_END);
+        LocalDateTime sessionStart = UsdKrwIntradaySession.startDateTime(sessionStartDate);
+        LocalDateTime sessionEnd = UsdKrwIntradaySession.endDateTime(sessionStartDate);
         return jdbcTemplate.query(
             """
                 SELECT MAX(observed_at)
