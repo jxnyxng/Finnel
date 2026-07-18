@@ -36,7 +36,7 @@ public class NewsController {
     @GetMapping("/related")
     public NewsService.RelatedNewsResponse related(
         @RequestParam(defaultValue = "exchange") String topic,
-        @RequestParam(defaultValue = "9") int limit
+        @RequestParam(defaultValue = "30") int limit
     ) {
         return newsService.related(topic, limit);
     }
