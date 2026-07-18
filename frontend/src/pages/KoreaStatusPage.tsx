@@ -8,6 +8,7 @@ import { formatMetricUnit, formatValue } from '../utils/format';
 import { lockBodyScroll } from '../utils/scrollLock';
 
 type KoreaStatusPageProps = {
+  errorMessage?: string | null;
   indicators: DomesticIndicator[];
   isLoading: boolean;
   latestSyncLabel: string;
@@ -75,7 +76,7 @@ const historyRangeOptions: Array<{ key: HistoryRangeKey; label: string }> = [
   { key: '5Y', label: '5년' }
 ];
 
-export function KoreaStatusPage({ indicators, isLoading, latestSyncLabel, statusNode }: KoreaStatusPageProps) {
+export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyncLabel, statusNode }: KoreaStatusPageProps) {
   const [activeSectionKey, setActiveSectionKey] = React.useState(sectionTabs[0].key);
   const [viewMode, setViewMode] = React.useState<'card' | 'list'>('list');
   const [selectedIndicator, setSelectedIndicator] = React.useState<DomesticIndicator | null>(null);
@@ -179,6 +180,8 @@ export function KoreaStatusPage({ indicators, isLoading, latestSyncLabel, status
 
       {isLoading ? (
         <div className="glass-card min-w-0 rounded-2xl p-6 text-sm text-white/60 shadow-sm">국내 정책 지표를 확인 중입니다.</div>
+      ) : errorMessage ? (
+        <div className="glass-card min-w-0 rounded-2xl p-6 text-sm text-rose-100 shadow-sm">{errorMessage}</div>
       ) : (
         <div className="page-content-enter grid min-w-0 gap-4" key={activeSectionKey}>
           {visibleSections.map((section) => {

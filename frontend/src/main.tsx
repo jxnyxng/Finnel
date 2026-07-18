@@ -72,12 +72,14 @@ import type {
   SyncStatus
 } from './types';
 
+type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
+
 function App() {
   const [dashboard, setDashboard] = React.useState<DailyDashboardResponse | null>(null);
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus | null>(null);
   const [intradayStatus, setIntradayStatus] = React.useState<SyncStatus | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [message, setMessage] = React.useState('DB에 저장된 최신 데이터를 조회합니다.');
+  const [dashboardLoadState, setDashboardLoadState] = React.useState<DashboardLoadState>('idle');
+  const [dashboardErrorMessage, setDashboardErrorMessage] = React.useState<string | null>(null);
   const [usdKrwRange, setUsdKrwRange] = React.useState<RangeKey>('1D');
   const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [dollarIndexRange, setDollarIndexRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
@@ -187,19 +189,17 @@ function App() {
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
     if (showLoading) {
-      setIsLoading(true);
+      setDashboardLoadState('loading');
     }
 
     try {
       const response = await axios.get<DailyDashboardResponse>('/api/v1/dashboard/daily');
       setDashboard(response.data);
-      setMessage('대시보드 데이터를 불러왔습니다.');
-    } catch {
-      setMessage('백엔드 API를 불러오지 못했습니다.');
-    } finally {
-      if (showLoading) {
-        setIsLoading(false);
-      }
+      setDashboardLoadState('ready');
+      setDashboardErrorMessage(null);
+    } catch (error) {
+      setDashboardLoadState('error');
+      setDashboardErrorMessage(getDashboardErrorMessage(error));
     }
   }, []);
 
@@ -352,6 +352,13 @@ function App() {
   const foreignExchangeRates = dashboard?.foreignExchangeRates ?? [];
   const domesticIndicators = dashboard?.domesticIndicators ?? [];
   const dataSources = dashboard?.dataSources ?? [];
+  const isInitialDashboardLoading = dashboardLoadState === 'loading' && dashboard === null;
+  const hasDashboardError = dashboardLoadState === 'error';
+  const dashboardEmptyText = isInitialDashboardLoading
+    ? '저장된 대시보드 데이터를 불러오는 중입니다.'
+    : hasDashboardError
+      ? (dashboardErrorMessage ?? '대시보드 API를 불러오지 못했습니다.')
+      : '표시할 데이터가 없습니다.';
   const seoulToday = getSeoulDateString(new Date(nowMs));
   const seoulTime = getSeoulTimeString(new Date(nowMs));
   const latestIntradayDate = getLatestIntradayDate(usdKrwIntradaySeries);
@@ -380,6 +387,7 @@ function App() {
   const activeServiceStatus = getServiceStatus({
     activeTab,
     dashboard,
+    dashboardLoadState,
     domesticIndicators,
     isGovernmentBriefingsConfigured,
     intradayStatus,
@@ -587,9 +595,7 @@ function App() {
         {activePage === 'dashboard' ? (
           <section className="page-content-enter grid gap-4">
             <MarketChartSection
-              emptyText={usdKrwRange === '1D'
-                ? '주중 24시간 세션 환율 데이터를 확인 중입니다.'
-                : '표시할 환율 데이터가 없습니다.'}
+              emptyText={dashboardEmptyText}
               helpAriaLabel="USD/KRW 그래프 안내"
               helpContent={(
                 <>
@@ -626,10 +632,10 @@ function App() {
               xTicks={usdKrwXTicks}
               yDomain={usdKrwDomain}
             />
-            <ForeignExchangeSummary rates={foreignExchangeRates} />
+            <ForeignExchangeSummary emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} />
 
               <MarketChartSection
-                emptyText="표시할 선진국 달러 지수 데이터가 없습니다."
+                emptyText={dashboardEmptyText}
                 helpAriaLabel="선진국 달러 지수 안내"
                 helpContent={(
                   <>
@@ -668,7 +674,7 @@ function App() {
               />
 
               <MarketChartSection
-                emptyText="표시할 달러 지수 데이터가 없습니다."
+                emptyText={dashboardEmptyText}
                 helpAriaLabel="광의 달러 지수 안내"
                 helpContent={(
                   <>
@@ -728,14 +734,24 @@ function App() {
           <div className="page-content-enter">
             <KoreaStatusPageView
               indicators={domesticIndicators}
-              isLoading={isLoading}
+              errorMessage={hasDashboardError && domesticIndicators.length === 0 ? dashboardErrorMessage : null}
+              isLoading={isInitialDashboardLoading}
               latestSyncLabel={latestSyncLabel}
               statusNode={activeStatusNode}
             />
           </div>
         ) : null}
 
-        {activePage === 'ranking' ? <div className="page-content-enter"><CurrencyStrengthPageView ranks={currencyStrengthRanks} statusNode={activeStatusNode} /></div> : null}
+        {activePage === 'ranking' ? (
+          <div className="page-content-enter">
+            <CurrencyStrengthPageView
+              emptyMessage={dashboardEmptyText}
+              isLoading={isInitialDashboardLoading}
+              ranks={currencyStrengthRanks}
+              statusNode={activeStatusNode}
+            />
+          </div>
+        ) : null}
 
         {activePage === 'newsroom' ? (
           <div className="page-content-enter">
@@ -827,6 +843,17 @@ function useDelayedFlag(value: boolean, delayMs: number) {
   return delayedValue;
 }
 
+function getDashboardErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    return status
+      ? `대시보드 API 호출 실패 HTTP ${status}: 저장된 DB 데이터를 다시 확인하세요.`
+      : `대시보드 API 호출 실패: ${error.message}`;
+  }
+
+  return '대시보드 API 호출 실패: 백엔드 상태를 확인하세요.';
+}
+
 function UpdateStatusBox({
   interval,
   statusLabel,
@@ -854,11 +881,11 @@ function UpdateStatusBox({
   );
 }
 
-function ForeignExchangeSummary({ rates }: { rates: ForeignExchangeRate[] }) {
+function ForeignExchangeSummary({ emptyMessage, rates }: { emptyMessage: string; rates: ForeignExchangeRate[] }) {
   if (rates.length === 0) {
     return (
       <section className="glass-card rounded-2xl px-4 py-3 text-sm text-white/50 shadow-sm">
-        주요 통화 환율을 확인 중입니다.
+        {emptyMessage}
       </section>
     );
   }
