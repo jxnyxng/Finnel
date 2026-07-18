@@ -20,6 +20,8 @@ const topicLabels = {
 const autoAdvanceMs = 7000;
 const manualPauseMs = 10000;
 const slideDurationMs = 420;
+const relatedNewsDisplayCount = 9;
+const relatedNewsRequestLimit = 30;
 const relatedNewsDesktopMediaQuery = '(min-width: 768px)';
 const relatedNewsCache = new Map<RelatedNewsBannerProps['topic'], RelatedNewsResponse>();
 const relatedNewsRequestCache = new Map<RelatedNewsBannerProps['topic'], Promise<RelatedNewsResponse>>();
@@ -37,13 +39,14 @@ export function prefetchRelatedNews(topic: RelatedNewsBannerProps['topic']) {
 
   const request = axios.get<RelatedNewsResponse>('/api/v1/news/related', {
     params: {
-      limit: 9,
+      limit: relatedNewsRequestLimit,
       topic
     }
   }).then((response) => {
-    relatedNewsCache.set(topic, response.data);
+    const normalizedResponse = normalizeRelatedNewsResponse(response.data);
+    relatedNewsCache.set(topic, normalizedResponse);
     relatedNewsRequestCache.delete(topic);
-    return response.data;
+    return normalizedResponse;
   }).catch((error) => {
     relatedNewsRequestCache.delete(topic);
     throw error;
@@ -65,7 +68,7 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
   const [groupSize, setGroupSize] = React.useState(() => getResponsiveGroupSize());
   const manualPauseUntilRef = React.useRef(0);
   const animationTimerRef = React.useRef<number | null>(null);
-  const groupCount = Math.max(1, Math.ceil(articles.length / groupSize));
+  const groupCount = Math.max(1, Math.floor(articles.length / groupSize));
   const visibleArticles = getArticleGroup(articles, activeGroup, groupSize);
   const previousArticles = previousGroup === null ? [] : getArticleGroup(articles, previousGroup, groupSize);
 
@@ -90,12 +93,17 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
     let isMounted = true;
     const cached = relatedNewsCache.get(topic);
 
+    setActiveGroup(0);
+    setPreviousGroup(null);
+    setIsAnimating(false);
+    if (animationTimerRef.current !== null) {
+      window.clearTimeout(animationTimerRef.current);
+      animationTimerRef.current = null;
+    }
+
     if (cached) {
-      setArticles(cached.articles);
+      setArticles(normalizeRelatedArticles(cached.articles));
       setIsConfigured(cached.configured);
-      setActiveGroup(0);
-      setPreviousGroup(null);
-      setIsAnimating(false);
     }
 
     prefetchRelatedNews(topic).then((response) => {
@@ -105,9 +113,6 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
 
       setArticles(response.articles);
       setIsConfigured(response.configured);
-      setActiveGroup(0);
-      setPreviousGroup(null);
-      setIsAnimating(false);
     }).catch(() => {
       if (isMounted && !relatedNewsCache.has(topic)) {
         setArticles([]);
@@ -125,7 +130,7 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
     }
 
     const timer = window.setInterval(() => {
-      if (isAutoPaused || Date.now() < manualPauseUntilRef.current) {
+      if (isAnimating || isAutoPaused || Date.now() < manualPauseUntilRef.current) {
         return;
       }
 
@@ -133,7 +138,7 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
     }, autoAdvanceMs);
 
     return () => window.clearInterval(timer);
-  }, [groupCount, isAutoPaused]);
+  }, [groupCount, isAnimating, isAutoPaused]);
 
   React.useEffect(() => () => {
     if (animationTimerRef.current !== null) {
@@ -146,7 +151,7 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
   }
 
   function moveGroup(direction: -1 | 1, trigger: 'auto' | 'manual') {
-    if (groupCount <= 1) {
+    if (groupCount <= 1 || isAnimating) {
       return;
     }
 
@@ -198,7 +203,8 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
             <div className="related-news-controls inline-flex rounded-full border border-white/15 bg-zinc-950/35 p-0.5 text-white shadow-lg backdrop-blur-md">
               <button
                 aria-label="이전 뉴스"
-                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white"
+                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={isAnimating}
                 onClick={() => moveGroup(-1, 'manual')}
                 type="button"
               >
@@ -214,7 +220,8 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
               </button>
               <button
                 aria-label="다음 뉴스"
-                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white"
+                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={isAnimating}
                 onClick={() => moveGroup(1, 'manual')}
                 type="button"
               >
@@ -234,7 +241,7 @@ function RelatedNewsGroup({ articles }: { articles: NewsArticle[] }) {
   return (
     <div className="grid md:grid-cols-3">
       {articles.map((article) => (
-        <RelatedNewsCard article={article} key={`${article.categoryCode}-${article.link}`} />
+        <RelatedNewsCard article={article} key={getArticleIdentity(article)} />
       ))}
     </div>
   );
@@ -301,6 +308,74 @@ function DefaultNewsImage() {
 
 function getArticleGroup(articles: NewsArticle[], group: number, groupSize: number) {
   return articles.slice(group * groupSize, group * groupSize + groupSize);
+}
+
+function normalizeRelatedNewsResponse(response: RelatedNewsResponse): RelatedNewsResponse {
+  return {
+    ...response,
+    articles: normalizeRelatedArticles(response.articles).slice(0, relatedNewsDisplayCount)
+  };
+}
+
+function normalizeRelatedArticles(articles: NewsArticle[]) {
+  const seen = new Set<string>();
+  const normalizedArticles: NewsArticle[] = [];
+  for (const article of articles) {
+    const url = canonicalizeArticleUrl(article.link || article.originLink || '');
+    if (url && seen.has(url)) {
+      continue;
+    }
+
+    if (url) {
+      seen.add(url);
+    }
+    normalizedArticles.push(article);
+  }
+  return normalizedArticles;
+}
+
+function getArticleIdentity(article: NewsArticle) {
+  const url = canonicalizeArticleUrl(article.link || article.originLink || '');
+  if (url) {
+    return `url:${url}`;
+  }
+
+  return `title:${normalizeArticleTitle(article.title)}:${formatArticleDate(article.publishedAt)}`;
+}
+
+function canonicalizeArticleUrl(value: string) {
+  if (!value) {
+    return '';
+  }
+
+  try {
+    const url = new URL(value);
+    url.hash = '';
+    url.search = '';
+    url.protocol = url.protocol.toLowerCase();
+    url.hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return value.trim();
+  }
+}
+
+function normalizeArticleTitle(value: string) {
+  return value
+    .replace(/\[[^\]]*]/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+function formatArticleDate(value: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  return value.slice(0, 10);
 }
 
 function getResponsiveGroupSize() {
