@@ -54,6 +54,7 @@ export function getLatestSyncLabel(syncStatus: SyncStatus | null, remainingCoold
 export function getServiceStatus({
   activeTab,
   dashboard,
+  dashboardLoadState,
   domesticIndicators,
   isGovernmentBriefingsConfigured,
   intradayStatus,
@@ -66,6 +67,7 @@ export function getServiceStatus({
 }: {
   activeTab: MainTabKey;
   dashboard: DailyDashboardResponse | null;
+  dashboardLoadState?: 'idle' | 'loading' | 'ready' | 'error';
   domesticIndicators: DomesticIndicator[];
   isGovernmentBriefingsConfigured: boolean;
   intradayStatus: SyncStatus | null;
@@ -82,6 +84,14 @@ export function getServiceStatus({
 
   if (activeTab === 'governmentBriefings') {
     return isGovernmentBriefingsConfigured ? { label: '업데이트 원활', tone: 'healthy' } : { label: '업데이트 대기', tone: 'idle' };
+  }
+
+  if (!dashboard && dashboardLoadState === 'loading') {
+    return { label: '조회 중', tone: 'idle' };
+  }
+
+  if (!dashboard && dashboardLoadState === 'error') {
+    return { label: '조회 실패', tone: 'error' };
   }
 
   const marketSyncFailed = isFailedSyncStatus(syncStatus?.latestStatus);
