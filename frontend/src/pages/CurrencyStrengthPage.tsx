@@ -3,7 +3,17 @@ import { koreanRegionNames, specialAreaDisplays } from '../constants';
 import type { CurrencyStrengthRank } from '../types';
 import { formatValue } from '../utils/format';
 
-export function CurrencyStrengthPage({ ranks, statusNode }: { ranks: CurrencyStrengthRank[]; statusNode?: React.ReactNode }) {
+export function CurrencyStrengthPage({
+  emptyMessage = '표시할 통화 랭킹 데이터가 없습니다.',
+  isLoading = false,
+  ranks,
+  statusNode
+}: {
+  emptyMessage?: string;
+  isLoading?: boolean;
+  ranks: CurrencyStrengthRank[];
+  statusNode?: React.ReactNode;
+}) {
   const [sortMode, setSortMode] = React.useState<'strong' | 'weak'>('strong');
   const sortedRanks = React.useMemo(
     () => [...ranks].sort((a, b) => sortMode === 'strong' ? b.neerValue - a.neerValue : a.neerValue - b.neerValue),
@@ -35,7 +45,7 @@ export function CurrencyStrengthPage({ ranks, statusNode }: { ranks: CurrencyStr
       </header>
       {sortedRanks.length === 0 ? (
         <div className="glass-card grid min-h-32 place-items-center rounded-2xl text-sm text-white/45 shadow-sm">
-          표시할 통화 랭킹 데이터가 없습니다.
+          {isLoading ? '저장된 통화 랭킹 데이터를 불러오는 중입니다.' : emptyMessage}
         </div>
       ) : (
         <>

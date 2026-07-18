@@ -31,6 +31,7 @@ import com.example.krwwatcher.external.TwelveDataClient;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -186,6 +187,7 @@ public class MarketDataSyncService {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @Async("startupSyncExecutor")
     public void syncOnStartup() {
         if (!syncProperties.marketData().enabled()) {
             return;
