@@ -8,7 +8,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.Duration;
-import java.time.DayOfWeek;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -76,6 +75,7 @@ public class MarketDataSyncService {
     private final BisClient bisClient;
     private final OpenFiscalClient openFiscalClient;
     private final BokPortalClient bokPortalClient;
+    private final BusinessDayService businessDayService;
     private final JdbcTemplate jdbcTemplate;
     private final ReentrantLock syncLock = new ReentrantLock();
     private final ReentrantLock intradaySyncLock = new ReentrantLock();
@@ -93,6 +93,7 @@ public class MarketDataSyncService {
         BisClient bisClient,
         OpenFiscalClient openFiscalClient,
         BokPortalClient bokPortalClient,
+        BusinessDayService businessDayService,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -104,6 +105,7 @@ public class MarketDataSyncService {
         this.bisClient = bisClient;
         this.openFiscalClient = openFiscalClient;
         this.bokPortalClient = bokPortalClient;
+        this.businessDayService = businessDayService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -167,7 +169,7 @@ public class MarketDataSyncService {
         if (!syncProperties.marketData().enabled()) {
             return;
         }
-        if (!isBusinessDayNow()) {
+        if (!shouldRunIntradaySyncNow()) {
             return;
         }
 
@@ -203,7 +205,7 @@ public class MarketDataSyncService {
             syncDailyBackfillNow(SyncTrigger.SCHEDULED_DAILY_BACKFILL);
         }
 
-        if (!isBusinessDayNow()) {
+        if (!shouldRunIntradaySyncNow()) {
             return;
         }
 
@@ -472,7 +474,7 @@ public class MarketDataSyncService {
         Set<LocalDate> existingDates = new HashSet<>(findDailyUsdKrwDates(startDate, endDate));
         int rows = 0;
         for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            if (!isWeekday(date) || existingDates.contains(date)) {
+            if (!businessDayService.isKoreanBusinessDay(date) || existingDates.contains(date)) {
                 continue;
             }
 
@@ -842,11 +844,6 @@ public class MarketDataSyncService {
         ).stream().filter(Objects::nonNull).findFirst().orElse(null);
     }
 
-    private boolean isWeekday(LocalDate date) {
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-        return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
-    }
-
     private int syncDollarIndexes() {
         return syncDollarIndex(properties.fred().dollarIndexSeriesId(), "FRED")
             + syncDollarIndex(properties.fred().advancedDollarIndexSeriesId(), "FRED");
@@ -916,6 +913,9 @@ public class MarketDataSyncService {
             observations = fetchPreviousBusinessSessionFromTwelveData();
         } else {
             observations = fetchCurrentBusinessSessionFromTwelveData();
+            if (observations.isEmpty() && isBusinessDayNow()) {
+                observations = fetchPreviousBusinessSessionFromTwelveData();
+            }
         }
         return upsertIntradayExchangeRates(observations);
     }
@@ -945,7 +945,7 @@ public class MarketDataSyncService {
             return previousBusinessDay(now.toLocalDate());
         }
 
-        return isWeekday(now.toLocalDate()) ? now.toLocalDate() : previousBusinessDay(now.toLocalDate().plusDays(1));
+        return businessDayService.isKoreanBusinessDay(now.toLocalDate()) ? now.toLocalDate() : previousBusinessDay(now.toLocalDate().plusDays(1));
     }
 
     private List<TwelveDataClient.IntradayExchangePayload> fetchPreviousBusinessSessionFromTwelveData() {
@@ -963,7 +963,7 @@ public class MarketDataSyncService {
             LocalDate latestSessionStartDate = latestObservedAt.toLocalTime().isBefore(INTRADAY_SESSION_START)
                 ? latestObservedAt.toLocalDate().minusDays(1)
                 : latestObservedAt.toLocalDate();
-            if (isWeekday(latestSessionStartDate) && isSessionIncomplete(latestSessionStartDate, latestObservedAt)) {
+            if (businessDayService.isKoreanBusinessDay(latestSessionStartDate) && isSessionIncomplete(latestSessionStartDate, latestObservedAt)) {
                 return latestSessionStartDate;
             }
         }
@@ -972,11 +972,7 @@ public class MarketDataSyncService {
     }
 
     private LocalDate previousBusinessDay(LocalDate date) {
-        LocalDate candidate = date.minusDays(1);
-        while (!isWeekday(candidate)) {
-            candidate = candidate.minusDays(1);
-        }
-        return candidate;
+        return businessDayService.previousKoreanBusinessDay(date);
     }
 
     private int upsertIntradayExchangeRates(List<TwelveDataClient.IntradayExchangePayload> observations) {
@@ -1454,8 +1450,16 @@ public class MarketDataSyncService {
     }
 
     private boolean isBusinessDayNow() {
-        DayOfWeek dayOfWeek = LocalDate.now(SEOUL_ZONE).getDayOfWeek();
-        return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
+        return businessDayService.isKoreanBusinessDay(LocalDate.now(SEOUL_ZONE));
+    }
+
+    private boolean shouldRunIntradaySyncNow() {
+        return isBusinessDayNow() || isPreviousBusinessSessionStillOpenNow() || needsPreviousBusinessSessionBackfill();
+    }
+
+    private boolean isPreviousBusinessSessionStillOpenNow() {
+        LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
+        return !now.toLocalTime().isAfter(INTRADAY_SESSION_END) && businessDayService.isKoreanBusinessDay(now.toLocalDate().minusDays(1));
     }
 
     private boolean needsPreviousBusinessSessionBackfill() {

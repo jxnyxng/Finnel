@@ -12,7 +12,8 @@ public record ExternalApiProperties(
     Naver naver,
     OpenFiscal openFiscal,
     PolicyBriefing policyBriefing,
-    Bok bok
+    Bok bok,
+    Kasi kasi
 ) {
 
     public record Koreaexim(String baseUrl, String apiKey) {
@@ -76,6 +77,12 @@ public record ExternalApiProperties(
     public record Bok(
         String baseUrl,
         String mpcMinutesPath
+    ) {
+    }
+
+    public record Kasi(
+        String baseUrl,
+        String apiKey
     ) {
     }
 }

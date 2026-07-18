@@ -38,7 +38,8 @@ import {
   getUsdKrwReferenceLabel,
   getUsdKrwXTicks,
   getValueDomain,
-  getXDomain
+  getXDomain,
+  isCurrentIntradaySession
 } from './utils/chart';
 import { formatValue } from './utils/format';
 import { findMetric, sortMetrics } from './utils/metrics';
@@ -354,6 +355,7 @@ function App() {
   const seoulToday = getSeoulDateString(new Date(nowMs));
   const seoulTime = getSeoulTimeString(new Date(nowMs));
   const latestIntradayDate = getLatestIntradayDate(usdKrwIntradaySeries);
+  const isUsdKrwIntradayActive = isCurrentIntradaySession(usdKrwIntradaySeries, seoulToday, seoulTime);
   const visibleUsdKrwSeries = buildVisibleUsdKrwSeries(usdKrwSeries, usdKrwIntradaySeries, usdKrwRange);
   const latestUsdKrwPoint = visibleUsdKrwSeries[visibleUsdKrwSeries.length - 1] ?? null;
   const usdKrwDomain = getValueDomain(visibleUsdKrwSeries, 5);
@@ -394,6 +396,7 @@ function App() {
     : false;
   const marketDailyStatusLabel = marketDailyStatusFailed ? '업데이트 점검' : (syncStatus?.latestStatus ? '업데이트 원활' : '업데이트 대기');
   const marketDailyStatusTone = marketDailyStatusFailed ? 'error' : (syncStatus?.latestStatus ? 'healthy' : 'idle');
+  const showUsdKrwLatestValueDot = usdKrwRange === '1D' && activeServiceStatus.tone !== 'idle' && isUsdKrwIntradayActive;
   const usdKrwStatusNode = (
     <UpdateStatusBox
       interval={usdKrwRange === '1D' ? '환율 1분봉 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
@@ -609,6 +612,7 @@ function App() {
               rangeOptions={rangeOptions}
               referenceStroke="#5eead4"
               series={visibleUsdKrwSeries}
+              showLatestValueDot={showUsdKrwLatestValueDot}
               statusClassName={usdKrwRange === '1D' ? 'text-teal-100' : 'text-transparent'}
               statusNode={usdKrwStatusNode}
               statusText={usdKrwRange === '1D' ? intradayStatusLabel : '상태 영역'}
@@ -649,6 +653,7 @@ function App() {
                 rangeOptions={longRangeOptions}
                 referenceStroke="#cbd5e1"
                 series={visibleDxyIndexSeries}
+                showLatestValueDot={false}
                 statusClassName="text-transparent"
                 statusText="상태 영역"
                 subtitle={getRangeLabel(dxyRange)}
@@ -686,6 +691,7 @@ function App() {
                 rangeOptions={longRangeOptions}
                 referenceStroke="#cbd5e1"
                 series={visibleDollarIndexSeries}
+                showLatestValueDot={false}
                 statusClassName="text-transparent"
                 statusText="상태 영역"
                 subtitle={getRangeLabel(dollarIndexRange)}

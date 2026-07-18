@@ -2,7 +2,6 @@ package com.example.krwwatcher.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +41,7 @@ public class DashboardService {
     private final InterestRateRepository interestRateRepository;
     private final ForeignReserveRepository foreignReserveRepository;
     private final BokPortalClient bokPortalClient;
+    private final BusinessDayService businessDayService;
     private final JdbcTemplate jdbcTemplate;
 
     public DashboardService(
@@ -51,6 +51,7 @@ public class DashboardService {
         InterestRateRepository interestRateRepository,
         ForeignReserveRepository foreignReserveRepository,
         BokPortalClient bokPortalClient,
+        BusinessDayService businessDayService,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -59,6 +60,7 @@ public class DashboardService {
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
         this.bokPortalClient = bokPortalClient;
+        this.businessDayService = businessDayService;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -73,7 +75,7 @@ public class DashboardService {
         List<TimeSeriesPoint> usdKrwDailySeries = exchangeRateRepository
             .findByCurrencyCodeAndBaseDateGreaterThanEqualOrderByBaseDateAsc("USD", LocalDate.now().minusYears(5))
             .stream()
-            .filter(item -> isWeekday(item.getBaseDate()))
+            .filter(item -> businessDayService.isKoreanBusinessDay(item.getBaseDate()))
             .map(item -> new TimeSeriesPoint(item.getBaseDate(), item.getDealBasRate()))
             .toList();
 
@@ -500,13 +502,22 @@ public class DashboardService {
         return mergedSeries;
     }
 
-    private boolean isWeekday(LocalDate date) {
-        DayOfWeek dayOfWeek = date.getDayOfWeek();
-        return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
-    }
-
     private List<IntradayTimeSeriesPoint> findLatestIntradaySeries() {
         LocalDate currentDisplaySessionStartDate = currentDisplaySessionStartDate();
+        List<IntradayTimeSeriesPoint> currentDisplaySession = findIntradaySeries(currentDisplaySessionStartDate);
+        if (!currentDisplaySession.isEmpty()) {
+            return currentDisplaySession;
+        }
+
+        LocalDate latestStoredSessionStartDate = findLatestStoredIntradaySessionStartDate();
+        if (latestStoredSessionStartDate == null || latestStoredSessionStartDate.isEqual(currentDisplaySessionStartDate)) {
+            return List.of();
+        }
+
+        return findIntradaySeries(latestStoredSessionStartDate);
+    }
+
+    private List<IntradayTimeSeriesPoint> findIntradaySeries(LocalDate currentDisplaySessionStartDate) {
         LocalDateTime sessionStart = LocalDateTime.of(currentDisplaySessionStartDate, INTRADAY_SESSION_START);
         LocalDateTime sessionEnd = LocalDateTime.of(currentDisplaySessionStartDate.plusDays(1), INTRADAY_SESSION_END);
         return jdbcTemplate.query(
@@ -527,6 +538,25 @@ public class DashboardService {
         );
     }
 
+    private LocalDate findLatestStoredIntradaySessionStartDate() {
+        LocalDateTime latestObservedAt = jdbcTemplate.query(
+            """
+                SELECT MAX(observed_at)
+                FROM intraday_exchange_rates
+                WHERE currency_pair = ?
+                """,
+            (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
+            properties.twelveData().usdKrwSymbol()
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        if (latestObservedAt == null) {
+            return null;
+        }
+
+        return latestObservedAt.toLocalTime().isBefore(INTRADAY_SESSION_START)
+            ? latestObservedAt.toLocalDate().minusDays(1)
+            : latestObservedAt.toLocalDate();
+    }
+
     private LocalDate currentDisplaySessionStartDate() {
         LocalDateTime now = LocalDateTime.now(SEOUL_ZONE);
         LocalDate sessionStartDate;
@@ -538,15 +568,11 @@ public class DashboardService {
             sessionStartDate = now.toLocalDate();
         }
 
-        return isWeekday(sessionStartDate) ? sessionStartDate : previousWeekday(sessionStartDate.plusDays(1));
+        return businessDayService.isKoreanBusinessDay(sessionStartDate) ? sessionStartDate : previousWeekday(sessionStartDate.plusDays(1));
     }
 
     private LocalDate previousWeekday(LocalDate date) {
-        LocalDate candidate = date.minusDays(1);
-        while (!isWeekday(candidate)) {
-            candidate = candidate.minusDays(1);
-        }
-        return candidate;
+        return businessDayService.previousKoreanBusinessDay(date);
     }
 
     private MetricSnapshot metric(String code, String label, BigDecimal value, String unit) {
@@ -594,7 +620,7 @@ public class DashboardService {
                 "USD",
                 startDate,
                 endDate
-            ).stream().filter(point -> isWeekday(point.baseDate())).toList();
+            ).stream().filter(point -> businessDayService.isKoreanBusinessDay(point.baseDate())).toList();
             case "KR_POLICY_RATE" -> findInterestRateHistory("KR", "POLICY_RATE", startDate, endDate);
             case "US_POLICY_RATE" -> findInterestRateHistory("US", "POLICY_RATE", startDate, endDate);
             case "KR_US_RATE_GAP" -> findRateGapHistory(startDate, endDate);
