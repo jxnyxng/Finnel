@@ -208,6 +208,20 @@ export function getLatestIntradayDate(series: IntradayTimeSeriesPoint[]) {
   return series[series.length - 1].observedAt.slice(0, 10);
 }
 
+export function isCurrentIntradaySession(series: IntradayTimeSeriesPoint[], seoulDate: string, seoulTime: string) {
+  if (series.length === 0) {
+    return false;
+  }
+
+  const currentSessionStartDate = getActiveIntradaySessionStartDate(seoulDate, seoulTime);
+  if (!currentSessionStartDate) {
+    return false;
+  }
+
+  const displayedSessionStartDate = getIntradaySessionStartDate(series[0].observedAt);
+  return displayedSessionStartDate === currentSessionStartDate;
+}
+
 export function formatIntradayObservedAt(dateTime: string | null) {
   if (!dateTime) {
     return '-';
@@ -269,6 +283,20 @@ function getIntradaySessionStartDate(dateTime: string) {
   }
 
   return shiftDate(date, -1);
+}
+
+function getActiveIntradaySessionStartDate(seoulDate: string, seoulTime: string) {
+  const [hour, minute] = seoulTime.split(':').map(Number);
+  const minutes = hour * 60 + minute;
+  if (minutes < intradaySessionEndMinutes) {
+    return shiftDate(seoulDate, -1);
+  }
+
+  if (minutes < intradaySessionStartMinutes) {
+    return null;
+  }
+
+  return seoulDate;
 }
 
 function shiftDate(date: string, days: number) {
