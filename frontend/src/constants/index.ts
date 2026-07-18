@@ -13,8 +13,6 @@ export const longRangeOptions: Array<{ key: Exclude<RangeKey, '1D'>; label: stri
   { key: '5Y', label: '5년' }
 ];
 
-export const intradaySessionStartMinutes = 9 * 60;
-export const intradaySessionEndMinutes = 26 * 60;
 export const chartHeightPx = 384;
 export const chartTopMarginPx = 18;
 export const chartBottomMarginPx = 0;
