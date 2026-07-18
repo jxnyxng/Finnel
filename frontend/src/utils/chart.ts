@@ -2,14 +2,14 @@ import {
   chartBottomMarginPx,
   chartHeightPx,
   chartTopMarginPx,
-  intradaySessionEndMinutes,
-  intradaySessionStartMinutes,
   longRangeOptions,
   rangeOptions
 } from '../constants';
 import type { ChartPoint, IntradayTimeSeriesPoint, RangeKey, TimeSeriesPoint } from '../types';
 
-const intradayPointIntervalMinutes = 1;
+const daylightSavingSessionStartMinutes = 6 * 60;
+const standardSessionStartMinutes = 7 * 60;
+const intradaySessionDurationMinutes = 24 * 60;
 
 export function getRangeLabel(range: RangeKey | Exclude<RangeKey, '1D'>) {
   return rangeOptions.find((option) => option.key === range)?.label
@@ -19,7 +19,7 @@ export function getRangeLabel(range: RangeKey | Exclude<RangeKey, '1D'>) {
 
 export function getUsdKrwPanelReferenceLabel(range: RangeKey, series: ChartPoint[]) {
   if (range === '1D') {
-    return '영업일 · 09:00~익일 02:00';
+    return series.length > 0 ? formatIntradaySessionLabel(series) : '주중 24시간 세션';
   }
 
   return getPanelPeriodLabel(series);
@@ -52,12 +52,13 @@ export function buildVisibleUsdKrwSeries(
 
   if (range === '1D') {
     const sessionStartDate = getIntradaySessionStartDate(intradaySeries[0].observedAt);
+    const [sessionStartMinute, sessionEndMinute] = getIntradaySessionDomain(sessionStartDate);
     const points = intradaySeries.map((point) => ({
-      label: addMinutesToDateTime(point.observedAt, intradayPointIntervalMinutes).slice(11, 16),
-      dateValue: addMinutesToDateTime(point.observedAt, intradayPointIntervalMinutes),
-      x: getSessionMinute(addMinutesToDateTime(point.observedAt, intradayPointIntervalMinutes), sessionStartDate),
+      label: normalizeDateTime(point.observedAt).slice(11, 16),
+      dateValue: normalizeDateTime(point.observedAt),
+      x: getSessionMinute(point.observedAt, sessionStartDate),
       value: point.value,
-    })).filter((point) => point.x >= intradaySessionStartMinutes && point.x <= intradaySessionEndMinutes);
+    })).filter((point) => point.x >= sessionStartMinute && point.x <= sessionEndMinute);
 
     if (points.length === 0) {
       return [];
@@ -117,7 +118,11 @@ export function getLatestValueLabelTop(value: number | null, domain: [number, nu
 
 export function getXDomain(series: ChartPoint[], range: RangeKey): [number, number] | ['dataMin', 'dataMax'] {
   if (range === '1D') {
-    return [intradaySessionStartMinutes, intradaySessionEndMinutes];
+    if (series.length === 0) {
+      return [daylightSavingSessionStartMinutes, daylightSavingSessionStartMinutes + intradaySessionDurationMinutes];
+    }
+
+    return getIntradaySessionDomain(getIntradaySessionStartDate(series[0].dateValue));
   }
 
   if (series.length === 0) {
@@ -127,13 +132,16 @@ export function getXDomain(series: ChartPoint[], range: RangeKey): [number, numb
   return [series[0].x, series[series.length - 1].x];
 }
 
-export function getUsdKrwXTicks(range: RangeKey) {
+export function getUsdKrwXTicks(range: RangeKey, series: ChartPoint[] = []) {
   if (range !== '1D') {
     return undefined;
   }
 
+  const [sessionStartMinute, sessionEndMinute] = series.length > 0
+    ? getIntradaySessionDomain(getIntradaySessionStartDate(series[0].dateValue))
+    : [daylightSavingSessionStartMinutes, daylightSavingSessionStartMinutes + intradaySessionDurationMinutes];
   const ticks: number[] = [];
-  for (let minute = intradaySessionStartMinutes; minute <= intradaySessionEndMinutes; minute += 60) {
+  for (let minute = sessionStartMinute; minute <= sessionEndMinute; minute += 120) {
     ticks.push(minute);
   }
 
@@ -227,7 +235,7 @@ export function formatIntradayObservedAt(dateTime: string | null) {
     return '-';
   }
 
-  const displayDateTime = addMinutesToDateTime(dateTime, intradayPointIntervalMinutes);
+  const displayDateTime = normalizeDateTime(dateTime);
   return `${displayDateTime.slice(0, 10)} ${displayDateTime.slice(11, 16)}`;
 }
 
@@ -275,28 +283,40 @@ function getSessionMinute(dateTime: string, sessionStartDate: string) {
   return 24 * 60 + hour * 60 + minute;
 }
 
-function getIntradaySessionStartDate(dateTime: string) {
+export function getIntradaySessionStartDate(dateTime: string) {
   const date = dateTime.slice(0, 10);
   const [hour, minute] = dateTime.slice(11, 16).split(':').map(Number);
-  if (hour * 60 + minute >= intradaySessionStartMinutes) {
+  const candidate = hour * 60 + minute >= getUsdKrwSessionStartMinutes(date)
+    ? date
+    : getPreviousUsdKrwSessionStartDate(date);
+  if (isUsdKrwSessionStartDate(candidate)) {
+    return candidate;
+  }
+
+  return getPreviousUsdKrwSessionStartDate(candidate);
+}
+
+function getPreviousUsdKrwSessionStartDate(date: string) {
+  let candidate = shiftDate(date, -1);
+  while (!isUsdKrwSessionStartDate(candidate)) {
+    candidate = shiftDate(candidate, -1);
+  }
+  return candidate;
+}
+
+function getRawIntradaySessionStartDate(dateTime: string) {
+  const date = dateTime.slice(0, 10);
+  const [hour, minute] = dateTime.slice(11, 16).split(':').map(Number);
+  if (hour * 60 + minute >= getUsdKrwSessionStartMinutes(date)) {
     return date;
   }
 
   return shiftDate(date, -1);
 }
 
-function getActiveIntradaySessionStartDate(seoulDate: string, seoulTime: string) {
-  const [hour, minute] = seoulTime.split(':').map(Number);
-  const minutes = hour * 60 + minute;
-  if (minutes < intradaySessionEndMinutes) {
-    return shiftDate(seoulDate, -1);
-  }
-
-  if (minutes < intradaySessionStartMinutes) {
-    return null;
-  }
-
-  return seoulDate;
+export function getActiveIntradaySessionStartDate(seoulDate: string, seoulTime: string) {
+  const candidate = getRawIntradaySessionStartDate(`${seoulDate}T${seoulTime}`);
+  return isUsdKrwSessionStartDate(candidate) ? candidate : null;
 }
 
 function shiftDate(date: string, days: number) {
@@ -306,17 +326,44 @@ function shiftDate(date: string, days: number) {
   return shiftedDate.toISOString().slice(0, 10);
 }
 
-function addMinutesToDateTime(dateTime: string, minutes: number) {
-  const normalized = dateTime.includes('T') ? dateTime : dateTime.replace(' ', 'T');
-  const [date, time] = normalized.split('T');
-  const [year, month, day] = date.split('-').map(Number);
-  const [hour, minute, second = 0] = time.split(':').map(Number);
-  const value = new Date(Date.UTC(year, month - 1, day, hour, minute + minutes, second));
-  return value.toISOString().slice(0, 19);
+function normalizeDateTime(dateTime: string) {
+  return dateTime.includes('T') ? dateTime : dateTime.replace(' ', 'T');
 }
 
 function formatIntradaySessionLabel(series: ChartPoint[]) {
   const first = series[0].dateValue;
   const sessionStartDate = getIntradaySessionStartDate(first);
-  return `${sessionStartDate} 세션 · 09:00~익일 02:00 · 1분`;
+  const startHour = Math.floor(getUsdKrwSessionStartMinutes(sessionStartDate) / 60).toString().padStart(2, '0');
+  return `${sessionStartDate} 세션 · ${startHour}:00~익일 ${startHour}:00 · 1분`;
+}
+
+function getIntradaySessionDomain(sessionStartDate: string): [number, number] {
+  const sessionStartMinute = getUsdKrwSessionStartMinutes(sessionStartDate);
+  return [sessionStartMinute, sessionStartMinute + intradaySessionDurationMinutes];
+}
+
+function getUsdKrwSessionStartMinutes(date: string) {
+  return isNewYorkDaylightSavingDate(date) ? daylightSavingSessionStartMinutes : standardSessionStartMinutes;
+}
+
+function isUsdKrwSessionStartDate(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const dayOfWeek = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return dayOfWeek !== 0
+    && dayOfWeek !== 6
+    && !(month === 1 && day === 1);
+}
+
+function isNewYorkDaylightSavingDate(date: string) {
+  const year = Number(date.slice(0, 4));
+  const starts = nthSunday(year, 3, 2);
+  const ends = nthSunday(year, 11, 1);
+  return date >= starts && date <= ends;
+}
+
+function nthSunday(year: number, month: number, nth: number) {
+  const firstDay = new Date(Date.UTC(year, month - 1, 1));
+  const daysUntilSunday = (7 - firstDay.getUTCDay()) % 7;
+  const sunday = new Date(Date.UTC(year, month - 1, 1 + daysUntilSunday + 7 * (nth - 1)));
+  return sunday.toISOString().slice(0, 10);
 }

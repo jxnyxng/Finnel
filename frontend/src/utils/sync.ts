@@ -1,5 +1,4 @@
 import axios, { AxiosError } from 'axios';
-import { intradaySessionEndMinutes, intradaySessionStartMinutes } from '../constants';
 import type {
   CurrencyStrengthRank,
   DailyDashboardResponse,
@@ -9,8 +8,8 @@ import type {
   SyncResult,
   SyncStatus
 } from '../types';
-import { formatIntradayObservedAt } from './chart';
-import { formatCooldown, formatDateTime, getPreviousDateString, isWeekdayString } from './time';
+import { formatIntradayObservedAt, getActiveIntradaySessionStartDate } from './chart';
+import { formatCooldown, formatDateTime, isWeekdayString } from './time';
 
 export function getIntradayStatusLabel(
   isSyncing: boolean,
@@ -175,14 +174,7 @@ function isFailedSyncStatus(status: string | null | undefined) {
 }
 
 function isIntradayExchangeUpdateWindow(seoulDate: string, seoulTime: string) {
-  const [hour, minute] = seoulTime.split(':').map(Number);
-  const minutes = hour * 60 + minute;
-
-  if (minutes < intradaySessionStartMinutes) {
-    return isWeekdayString(getPreviousDateString(seoulDate)) && minutes <= intradaySessionEndMinutes;
-  }
-
-  return isWeekdayString(seoulDate);
+  return getActiveIntradaySessionStartDate(seoulDate, seoulTime) !== null;
 }
 
 function isRankingUpdateWindow(seoulDate: string) {

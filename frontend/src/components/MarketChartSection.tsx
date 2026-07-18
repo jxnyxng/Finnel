@@ -113,17 +113,15 @@ export function MarketChartSection<T extends RangeKey>({
       {headerAction ? <div className="absolute right-1 top-0">{headerAction}</div> : null}
       <article className="glass-card min-w-0 rounded-2xl shadow-sm">
         <div className="grid gap-3 p-3 sm:gap-4 sm:p-4">
-          <div className="grid gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <h2 className="text-base font-semibold text-white">{title}</h2>
               <ChartHelpTooltip ariaLabel={helpAriaLabel} title={helpTitle} widthClassName={helpWidthClassName}>
                 {helpContent}
               </ChartHelpTooltip>
+              {statusText ? <span className={`whitespace-nowrap text-xs ${statusClassName}`}>{statusText}</span> : null}
             </div>
-            <div className="flex min-h-8 min-w-0 flex-col justify-start gap-1">
-              <p className="text-xs text-white/70">{subtitle}</p>
-              <p className={`text-xs ${statusClassName}`}>{statusText}</p>
-            </div>
+            <p className="shrink-0 whitespace-nowrap text-left text-xs text-white/70 sm:text-right">{subtitle}</p>
           </div>
 
           <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
