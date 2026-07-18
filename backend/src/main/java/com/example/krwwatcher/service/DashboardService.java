@@ -19,13 +19,13 @@ import com.example.krwwatcher.domain.DollarIndex;
 import com.example.krwwatcher.domain.ExchangeRate;
 import com.example.krwwatcher.domain.ForeignReserve;
 import com.example.krwwatcher.domain.InterestRate;
-import com.example.krwwatcher.external.BokPortalClient;
 import com.example.krwwatcher.repository.DollarIndexRepository;
 import com.example.krwwatcher.repository.ExchangeRateRepository;
 import com.example.krwwatcher.repository.ForeignReserveRepository;
 import com.example.krwwatcher.repository.InterestRateRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DashboardService {
@@ -38,7 +38,6 @@ public class DashboardService {
     private final DollarIndexRepository dollarIndexRepository;
     private final InterestRateRepository interestRateRepository;
     private final ForeignReserveRepository foreignReserveRepository;
-    private final BokPortalClient bokPortalClient;
     private final JdbcTemplate jdbcTemplate;
 
     public DashboardService(
@@ -47,7 +46,6 @@ public class DashboardService {
         DollarIndexRepository dollarIndexRepository,
         InterestRateRepository interestRateRepository,
         ForeignReserveRepository foreignReserveRepository,
-        BokPortalClient bokPortalClient,
         JdbcTemplate jdbcTemplate
     ) {
         this.properties = properties;
@@ -55,10 +53,10 @@ public class DashboardService {
         this.dollarIndexRepository = dollarIndexRepository;
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
-        this.bokPortalClient = bokPortalClient;
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    @Transactional(readOnly = true)
     public DailyDashboardResponse daily() {
         DollarIndex latestDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().dollarIndexSeriesId()).orElse(null);
         DollarIndex latestAdvancedDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().advancedDollarIndexSeriesId()).orElse(null);
@@ -303,22 +301,21 @@ public class DashboardService {
         }
 
         DomesticPolicyIndicatorRow previous = findPreviousDomesticPolicyIndicator(code, latest.baseDate());
-        BokPortalClient.BokDocumentPayload mpcDocument = "MPC_MINUTES".equals(latest.code()) ? latestMpcMinutesDocument() : null;
         return new DomesticIndicator(
             latest.code(),
-            mpcDocument == null ? latest.title() : mpcDocument.title(),
+            latest.title(),
             latest.category(),
             latest.value(),
             latest.unit(),
-            mpcDocument == null ? latest.baseDate() : mpcDocument.baseDate(),
-            mpcDocument == null && previous != null ? previous.value() : null,
-            mpcDocument == null && previous != null ? previous.baseDate() : null,
+            latest.baseDate(),
+            previous != null ? previous.value() : null,
+            previous != null ? previous.baseDate() : null,
             sourceLabel(latest.source()),
             latest.fetchedAt(),
             domesticPolicyImpact(latest.code()),
             domesticPolicyNote(latest.code()),
             statusLabel(latest.value()),
-            mpcDocument == null ? detailUrl(latest.source()) : mpcDocument.url()
+            detailUrl(latest.source())
         );
     }
 
@@ -572,14 +569,6 @@ public class DashboardService {
             return null;
         }
         return source.split("\\|", 2)[1];
-    }
-
-    private BokPortalClient.BokDocumentPayload latestMpcMinutesDocument() {
-        try {
-            return bokPortalClient.fetchLatestMpcMinutesSignal().orElse(null);
-        } catch (RuntimeException ignored) {
-            return null;
-        }
     }
 
     private List<TimeSeriesPoint> findDomesticIndicatorHistoryPoints(String code, LocalDate startDate, LocalDate endDate) {
