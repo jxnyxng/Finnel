@@ -96,8 +96,8 @@ public class DashboardService {
             baseDate,
             List.of(
                 metric("USD/KRW", "원/달러 환율", latestUsdKrw == null ? null : latestUsdKrw.value(), "KRW"),
-                metric("ADVANCED_DOLLAR_INDEX", "선진국 달러 지수", latestAdvancedDollarIndex == null ? null : latestAdvancedDollarIndex.getValue(), "INDEX"),
-                metric("BROAD_DOLLAR_INDEX", "광의 달러 지수", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX"),
+                metric("ADVANCED_DOLLAR_INDEX", "주요 7개 통화권 달러인덱스", latestAdvancedDollarIndex == null ? null : latestAdvancedDollarIndex.getValue(), "INDEX"),
+                metric("BROAD_DOLLAR_INDEX", "26개 교역 상대 달러인덱스", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX"),
                 metric("US_POLICY_RATE", "미국 기준금리", latestUsRate == null ? null : latestUsRate.getRateValue(), "PERCENT"),
                 metric("KR_POLICY_RATE", "한국 기준금리", latestKrRate == null ? null : latestKrRate.getRateValue(), "PERCENT"),
                 metric("KR_US_RATE_GAP", "한미 기준금리차", rateGap(latestUsRate, latestKrRate), "PERCENT_POINT"),
@@ -900,7 +900,56 @@ public class DashboardService {
     }
 
     private List<ForeignExchangeRate> findForeignExchangeRates() {
-        List<ForeignExchangeRate> rows = jdbcTemplate.query(
+        List<ForeignExchangeRate> rows = new ArrayList<>();
+        rows.addAll(findCurrentForeignExchangeRates());
+        rows.addAll(findLatestDailyForeignExchangeRatesExcludingCurrent());
+
+        return rows.stream()
+            .sorted(Comparator.comparingInt(row -> foreignExchangeOrder(row.displayCode())))
+            .toList();
+    }
+
+    private List<ForeignExchangeRate> findCurrentForeignExchangeRates() {
+        return jdbcTemplate.query(
+            """
+                SELECT ce.base_date, ce.currency_code, ce.currency_name, ce.deal_bas_rate, ce.source, ce.fetched_at,
+                       coverage.history_start_date, coverage.history_end_date
+                FROM current_exchange_rates ce
+                LEFT JOIN (
+                    SELECT currency_code, MIN(base_date) AS history_start_date, MAX(base_date) AS history_end_date
+                    FROM exchange_rates
+                    GROUP BY currency_code
+                ) coverage
+                  ON coverage.currency_code = ce.currency_code
+                WHERE (
+                    ce.currency_code = 'USD'
+                    OR ce.currency_code LIKE 'JPY%'
+                    OR ce.currency_code LIKE 'EUR%'
+                    OR ce.currency_code LIKE 'CNY%'
+                    OR ce.currency_code LIKE 'CNH%'
+                    OR ce.currency_code LIKE 'GBP%'
+                    OR ce.currency_code LIKE 'AUD%'
+                    OR ce.currency_code LIKE 'CAD%'
+                    OR ce.currency_code LIKE 'CHF%'
+                    OR ce.currency_code LIKE 'HKD%'
+                    OR ce.currency_code LIKE 'SGD%'
+                  )
+                """,
+            (rs, rowNum) -> mapForeignExchangeRate(
+                rs.getDate("base_date").toLocalDate(),
+                rs.getString("currency_code"),
+                rs.getString("currency_name"),
+                rs.getBigDecimal("deal_bas_rate"),
+                rs.getString("source"),
+                rs.getTimestamp("fetched_at").toInstant(),
+                rs.getDate("history_start_date") == null ? null : rs.getDate("history_start_date").toLocalDate(),
+                rs.getDate("history_end_date") == null ? null : rs.getDate("history_end_date").toLocalDate()
+            )
+        );
+    }
+
+    private List<ForeignExchangeRate> findLatestDailyForeignExchangeRatesExcludingCurrent() {
+        return jdbcTemplate.query(
             """
                 SELECT exchange_rates.base_date, exchange_rates.currency_code, exchange_rates.currency_name,
                        exchange_rates.deal_bas_rate, exchange_rates.source, exchange_rates.fetched_at,
@@ -932,6 +981,11 @@ public class DashboardService {
                     GROUP BY currency_code
                 ) coverage
                   ON coverage.currency_code = exchange_rates.currency_code
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM current_exchange_rates current_rates
+                    WHERE current_rates.currency_code = exchange_rates.currency_code
+                )
                 """,
             (rs, rowNum) -> {
                 String rawCode = rs.getString("currency_code");
@@ -950,13 +1004,14 @@ public class DashboardService {
                 );
             }
         );
-
-        return rows.stream()
-            .sorted(Comparator.comparingInt(row -> foreignExchangeOrder(row.displayCode())))
-            .toList();
     }
 
     private ForeignExchangeRate findLatestForeignExchangeRate(String currencyCode) {
+        ForeignExchangeRate current = findLatestCurrentForeignExchangeRate(currencyCode);
+        if (current != null) {
+            return current;
+        }
+
         return jdbcTemplate.query(
             """
                 SELECT er.base_date, er.currency_code, er.currency_name, er.deal_bas_rate, er.source, er.fetched_at,
@@ -982,6 +1037,37 @@ public class DashboardService {
                 rs.getTimestamp("fetched_at").toInstant(),
                 rs.getDate("history_start_date").toLocalDate(),
                 rs.getDate("history_end_date").toLocalDate()
+            ),
+            currencyCode,
+            currencyCode
+        ).stream().findFirst().orElse(null);
+    }
+
+    private ForeignExchangeRate findLatestCurrentForeignExchangeRate(String currencyCode) {
+        return jdbcTemplate.query(
+            """
+                SELECT ce.base_date, ce.currency_code, ce.currency_name, ce.deal_bas_rate, ce.source, ce.fetched_at,
+                       coverage.history_start_date, coverage.history_end_date
+                FROM current_exchange_rates ce
+                LEFT JOIN (
+                    SELECT currency_code, MIN(base_date) AS history_start_date, MAX(base_date) AS history_end_date
+                    FROM exchange_rates
+                    WHERE currency_code = ?
+                    GROUP BY currency_code
+                ) coverage
+                  ON coverage.currency_code = ce.currency_code
+                WHERE ce.currency_code = ?
+                LIMIT 1
+                """,
+            (rs, rowNum) -> mapForeignExchangeRate(
+                rs.getDate("base_date").toLocalDate(),
+                rs.getString("currency_code"),
+                rs.getString("currency_name"),
+                rs.getBigDecimal("deal_bas_rate"),
+                rs.getString("source"),
+                rs.getTimestamp("fetched_at").toInstant(),
+                rs.getDate("history_start_date") == null ? null : rs.getDate("history_start_date").toLocalDate(),
+                rs.getDate("history_end_date") == null ? null : rs.getDate("history_end_date").toLocalDate()
             ),
             currencyCode,
             currencyCode
@@ -1086,17 +1172,17 @@ public class DashboardService {
             ),
             new DataSourceInfo(
                 "ADVANCED_DOLLAR_INDEX",
-                "선진국 달러 지수",
+                "주요 7개 통화권 달러인덱스",
                 "FRED DTWEXAFEGS",
                 "전체 시장 데이터 수집 시 FRED daily observations 저장",
-                "미국의 주요 선진국 교역 상대 통화 대비 달러 강도를 보는 FRED 공식 무역가중 지표입니다. 공식 ICE DXY와는 다른 지표입니다."
+                "유로지역, 캐나다, 일본, 영국, 스위스, 호주, 스웨덴 통화권 대비 달러 강도를 보는 FRED 공식 무역가중 지표입니다. 공식 ICE DXY와는 다른 지표입니다."
             ),
             new DataSourceInfo(
                 "BROAD_DOLLAR_INDEX",
-                "광의 달러 지수",
+                "26개 교역 상대 달러인덱스",
                 "FRED DTWEXBGS",
                 "전체 시장 데이터 수집 시 FRED daily observations 저장",
-                "미국의 넓은 교역 상대 통화 대비 달러 강도를 보는 무역가중 지표입니다."
+                "한국, 중국, 멕시코, 캐나다, 유로지역 등 26개 교역 상대 통화 대비 달러 강도를 보는 FRED 공식 무역가중 지표입니다."
             ),
             new DataSourceInfo(
                 "CURRENCY_STRENGTH",
