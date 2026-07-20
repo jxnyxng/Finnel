@@ -83,6 +83,7 @@ function App() {
   const [usdKrwRange, setUsdKrwRange] = React.useState<RangeKey>('1D');
   const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [dollarIndexRange, setDollarIndexRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
+  const [showBroadDollarIndex, setShowBroadDollarIndex] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<MainTabKey>('dashboard');
   const [activePage, setActivePage] = React.useState<PageKey>('home');
   const [activeUsdKrwHover, setActiveUsdKrwHover] = React.useState<ChartHoverState | null>(null);
@@ -444,6 +445,7 @@ function App() {
     { label: '범위', value: getRangeLabel(dollarIndexRange) },
     { label: '기간', value: getPanelPeriodLabel(visibleDollarIndexSeries) },
     { label: '관측값', value: `${visibleDollarIndexSeries.length}개` },
+    { label: '구성', value: '26개 교역 상대' },
     { label: '의미', value: '넓은 교역 상대 기준 달러 강도' },
     { label: '해석', value: '상승하면 달러 강세' },
     { label: '출처', value: 'FRED DTWEXBGS' }
@@ -452,7 +454,8 @@ function App() {
     { label: '범위', value: getRangeLabel(dxyRange) },
     { label: '기간', value: getPanelPeriodLabel(visibleDxyIndexSeries) },
     { label: '관측값', value: `${visibleDxyIndexSeries.length}개` },
-    { label: '의미', value: '선진국 통화 대비 달러 강도' },
+    { label: '구성', value: '유로지역·캐나다·일본·영국·스위스·호주·스웨덴' },
+    { label: '의미', value: '주요 7개 통화권 대비 달러 강도' },
     { label: '해석', value: '상승하면 달러 강세' },
     { label: '출처', value: 'FRED DTWEXAFEGS' }
   ];
@@ -636,14 +639,23 @@ function App() {
 
               <MarketChartSection
                 emptyText={dashboardEmptyText}
-                helpAriaLabel="선진국 달러 지수 안내"
+                headerAction={(
+                  <button
+                    className="inline-flex h-7 items-center rounded border border-white/15 bg-white/10 px-2.5 text-[11px] font-semibold text-white/70 hover:bg-white/15 hover:text-white"
+                    onClick={() => setShowBroadDollarIndex((value) => !value)}
+                    type="button"
+                  >
+                    {showBroadDollarIndex ? '26개 지수 접기' : '26개 지수 보기'}
+                  </button>
+                )}
+                helpAriaLabel="달러인덱스 안내"
                 helpContent={(
                   <>
-                    <p className="mt-1">FRED DTWEXAFEGS 공식 시리즈를 사용합니다. 주요 선진국 통화 대비 달러 강도를 보는 무역가중 지표입니다.</p>
-                    <p className="mt-1">공식 ICE DXY와는 다른 지표이며, 값이 오르면 선진국 통화 대비 달러 강세로 해석합니다.</p>
+                    <p className="mt-1">FRED DTWEXAFEGS 공식 시리즈를 사용합니다. 유로지역, 캐나다, 일본, 영국, 스위스, 호주, 스웨덴 통화권 대비 달러 강도를 보는 무역가중 지표입니다.</p>
+                    <p className="mt-1">흔히 말하는 ICE DXY 6개 바스켓과는 다르며, 값이 오르면 주요 통화권 대비 달러 강세로 해석합니다.</p>
                   </>
                 )}
-                helpTitle="선진국 달러 지수"
+                helpTitle="달러인덱스"
                 helpWidthClassName="w-80"
                 hover={activeAdvancedDollarHover}
                 lineStroke="#cbd5e1"
@@ -662,9 +674,9 @@ function App() {
                 showLatestValueDot={false}
                 statusClassName="text-transparent"
                 statusText={null}
-                subtitle={getRangeLabel(dxyRange)}
-                title="선진국 달러 지수"
-                tooltipContent={<DollarIndexTooltip title="선진국 달러" />}
+                subtitle={`${getRangeLabel(dxyRange)} · 주요 7개 통화권`}
+                title="달러인덱스"
+                tooltipContent={<DollarIndexTooltip title="주요 7개 통화권 달러" />}
                 xAxisHeight={dailyXAxisHeightPx}
                 xAxisPadding={{ left: 0, right: 0 }}
                 xDomain={dxyIndexXDomain}
@@ -673,16 +685,16 @@ function App() {
                 yDomain={dxyIndexDomain}
               />
 
-              <MarketChartSection
+              {showBroadDollarIndex ? <MarketChartSection
                 emptyText={dashboardEmptyText}
-                helpAriaLabel="광의 달러 지수 안내"
+                helpAriaLabel="26개 교역 상대 달러인덱스 안내"
                 helpContent={(
                   <>
-                    <p className="mt-1">여러 교역 상대 통화 대비 달러의 전반적 강도를 보여줍니다. 값이 오르면 글로벌 달러 강세로 해석합니다.</p>
+                    <p className="mt-1">FRED DTWEXBGS 공식 시리즈를 사용합니다. 한국, 중국, 멕시코, 캐나다, 유로지역 등 26개 교역 상대 통화 대비 달러 강도를 보는 무역가중 지표입니다.</p>
                     <p className="mt-1">USD/KRW가 오를 때 이 지수도 오르면 달러 전체 강세 영향, 지수가 약한데 USD/KRW만 오르면 원화 고유 약세 가능성을 봅니다.</p>
                   </>
                 )}
-                helpTitle="광의 달러 지수"
+                helpTitle="26개 교역 상대 달러인덱스"
                 hover={activeBroadDollarHover}
                 lineStroke="#cbd5e1"
                 metric={dollarIndexMetric}
@@ -700,16 +712,16 @@ function App() {
                 showLatestValueDot={false}
                 statusClassName="text-transparent"
                 statusText={null}
-                subtitle={getRangeLabel(dollarIndexRange)}
-                title="광의 달러 지수"
-                tooltipContent={<DollarIndexTooltip title="광의 달러" />}
+                subtitle={`${getRangeLabel(dollarIndexRange)} · 26개 교역 상대`}
+                title="달러인덱스"
+                tooltipContent={<DollarIndexTooltip title="26개 교역 상대 달러" />}
                 xAxisHeight={dailyXAxisHeightPx}
                 xAxisPadding={{ left: 0, right: 0 }}
                 xDomain={dollarIndexXDomain}
                 xTickFormatter={(value) => formatDailyXTick(value, dollarIndexRange)}
                 xTicks={dollarIndexXTicks}
                 yDomain={dollarIndexDomain}
-              />
+              /> : null}
           </section>
         ) : null}
 
