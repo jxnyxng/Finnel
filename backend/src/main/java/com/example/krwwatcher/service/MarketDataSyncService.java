@@ -519,6 +519,28 @@ public class MarketDataSyncService {
         );
     }
 
+    private int upsertCurrentExchangeRate(LocalDate baseDate, String currencyCode, String currencyName, java.math.BigDecimal rate, String source, Instant observedAt) {
+        return jdbcTemplate.update("""
+                INSERT INTO current_exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, observed_at, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    base_date = VALUES(base_date),
+                    currency_name = VALUES(currency_name),
+                    deal_bas_rate = VALUES(deal_bas_rate),
+                    source = VALUES(source),
+                    observed_at = VALUES(observed_at),
+                    fetched_at = VALUES(fetched_at)
+                """,
+            baseDate,
+            currencyCode,
+            currencyName,
+            rate,
+            source,
+            observedAt,
+            observedAt
+        );
+    }
+
     private int syncCurrentExchangeRatesFromTwelveData(int maxUpdates) {
         Instant staleThreshold = Instant.now().minus(CURRENT_EXCHANGE_RATE_STALE_AFTER);
         return twelveDataExchangeSpecs().stream()
@@ -533,7 +555,7 @@ public class MarketDataSyncService {
                 try {
                     return twelveDataClient.fetchCurrentExchangeRate(spec.spec().symbol())
                         .map(payload -> {
-                            upsertExchangeRate(
+                            upsertCurrentExchangeRate(
                                 LocalDate.ofInstant(payload.observedAt(), SEOUL_ZONE),
                                 spec.spec().currencyCode(),
                                 spec.spec().currencyName(),
@@ -570,9 +592,8 @@ public class MarketDataSyncService {
         return jdbcTemplate.query(
             """
                 SELECT MAX(fetched_at)
-                FROM exchange_rates
+                FROM current_exchange_rates
                 WHERE currency_code = ?
-                  AND source LIKE 'TWELVE_DATA:exchange_rate:%'
                 """,
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
             currencyCode
@@ -583,9 +604,8 @@ public class MarketDataSyncService {
         Integer count = jdbcTemplate.queryForObject(
             """
                 SELECT COUNT(*)
-                FROM exchange_rates
-                WHERE source LIKE 'TWELVE_DATA:exchange_rate:%'
-                  AND currency_code <> 'USD'
+                FROM current_exchange_rates
+                WHERE currency_code <> 'USD'
                 """,
             Integer.class
         );
