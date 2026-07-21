@@ -2,6 +2,7 @@ package com.example.krwwatcher.service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,6 +33,7 @@ public class NewsService {
     private static final int NEWS_RETENTION_YEARS = 5;
     private static final int NEWS_PAGE_SIZE = 10;
     private static final int MIN_BACKFILL_ARTICLES = 250;
+    private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private static final List<NewsCategory> CATEGORIES = List.of(
         new NewsCategory("fx", "환율", "원달러 환율"),
@@ -155,7 +157,20 @@ public class NewsService {
         List<NewsArticle> articles = jdbcTemplate.query(sql, (rs, rowNum) -> mapArticle(rs), params.toArray());
 
         int totalPages = totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / normalizedPageSize);
-        return new NewsResponse(naverNewsClient.isConfigured(), CATEGORIES, articles, normalizedPage, normalizedPageSize, totalCount, totalPages);
+        FreshnessInfo freshness = contentFreshness(findLatestNewsFetchedAt());
+        return new NewsResponse(
+            naverNewsClient.isConfigured(),
+            CATEGORIES,
+            articles,
+            normalizedPage,
+            normalizedPageSize,
+            totalCount,
+            totalPages,
+            freshness.freshnessStatus(),
+            freshness.staleReason(),
+            freshness.expectedNextUpdateAt(),
+            freshness.lastSuccessfulFetchedAt()
+        );
     }
 
     public RelatedNewsResponse related(String topic, int limit) {
@@ -356,6 +371,16 @@ public class NewsService {
         return count == null ? 0 : count;
     }
 
+    private Instant findLatestNewsFetchedAt() {
+        return jdbcTemplate.query(
+            """
+                SELECT MAX(fetched_at)
+                FROM news_articles
+                """,
+            (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant()
+        ).stream().findFirst().orElse(null);
+    }
+
     private String buildArticleWhereClause(NewsArticleSearchCriteria criteria, List<Object> params) {
         List<String> conditions = new ArrayList<>();
         if (StringUtils.hasText(criteria.categoryCode()) && !"all".equals(criteria.categoryCode())) {
@@ -413,6 +438,19 @@ public class NewsService {
         );
     }
 
+    private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt) {
+        if (lastSuccessfulFetchedAt == null) {
+            return new FreshnessInfo("MISSING", "저장된 최신 수집값이 없습니다.", null, null);
+        }
+
+        Instant expectedNextUpdateAt = lastSuccessfulFetchedAt.plus(FRESHNESS_MAX_AGE);
+        if (Instant.now().isAfter(expectedNextUpdateAt)) {
+            return new FreshnessInfo("STALE", "뉴스 수집이 60분 이상 지연되었습니다.", expectedNextUpdateAt, lastSuccessfulFetchedAt);
+        }
+
+        return new FreshnessInfo("FRESH", null, expectedNextUpdateAt, lastSuccessfulFetchedAt);
+    }
+
     public record NewsCategory(String code, String name, String query) {
     }
 
@@ -440,7 +478,11 @@ public class NewsService {
         int page,
         int pageSize,
         int totalCount,
-        int totalPages
+        int totalPages,
+        String freshnessStatus,
+        String staleReason,
+        Instant expectedNextUpdateAt,
+        Instant lastSuccessfulFetchedAt
     ) {
     }
 
@@ -448,6 +490,14 @@ public class NewsService {
     }
 
     public record NewsSyncResult(String status, String message, int rows, Instant syncedAt) {
+    }
+
+    private record FreshnessInfo(
+        String freshnessStatus,
+        String staleReason,
+        Instant expectedNextUpdateAt,
+        Instant lastSuccessfulFetchedAt
+    ) {
     }
 
 }

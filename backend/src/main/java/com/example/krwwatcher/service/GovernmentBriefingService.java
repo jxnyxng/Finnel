@@ -2,6 +2,7 @@ package com.example.krwwatcher.service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -41,6 +42,7 @@ public class GovernmentBriefingService {
         .map(BriefingCategoryRule::code)
         .toList();
     private static final int MIN_BODY_LENGTH = 300;
+    private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private final PolicyBriefingClient policyBriefingClient;
     private final JdbcTemplate jdbcTemplate;
@@ -172,7 +174,20 @@ public class GovernmentBriefingService {
         );
         int count = totalCount == null ? 0 : totalCount;
         int totalPages = count == 0 ? 0 : (int) Math.ceil((double) count / normalizedPageSize);
-        return new GovernmentBriefingResponse(policyBriefingClient.isConfigured(), briefingCategories(), articles, normalizedPage, normalizedPageSize, count, totalPages);
+        FreshnessInfo freshness = contentFreshness(findLatestBriefingFetchedAt());
+        return new GovernmentBriefingResponse(
+            policyBriefingClient.isConfigured(),
+            briefingCategories(),
+            articles,
+            normalizedPage,
+            normalizedPageSize,
+            count,
+            totalPages,
+            freshness.freshnessStatus(),
+            freshness.staleReason(),
+            freshness.expectedNextUpdateAt(),
+            freshness.lastSuccessfulFetchedAt()
+        );
     }
 
     private String buildWhereClause(String category, LocalDate fromDate, LocalDate toDate, String keyword, List<Object> params) {
@@ -331,6 +346,21 @@ public class GovernmentBriefingService {
         return count != null && count > 0;
     }
 
+    private Instant findLatestBriefingFetchedAt() {
+        return jdbcTemplate.query(
+            """
+                SELECT MAX(fetched_at)
+                FROM government_briefings
+                WHERE category IN (%s)
+                  AND body IS NOT NULL
+                  AND CHAR_LENGTH(body) >= ?
+                  AND body NOT LIKE ?
+                """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
+            (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
+            relevantCategoryQualityParams()
+        ).stream().findFirst().orElse(null);
+    }
+
     private Object[] relevantCategoryQueryParams(Object firstParam) {
         List<Object> params = new ArrayList<>();
         params.add(firstParam);
@@ -365,6 +395,19 @@ public class GovernmentBriefingService {
         return value == null ? "" : value;
     }
 
+    private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt) {
+        if (lastSuccessfulFetchedAt == null) {
+            return new FreshnessInfo("MISSING", "저장된 최신 수집값이 없습니다.", null, null);
+        }
+
+        Instant expectedNextUpdateAt = lastSuccessfulFetchedAt.plus(FRESHNESS_MAX_AGE);
+        if (Instant.now().isAfter(expectedNextUpdateAt)) {
+            return new FreshnessInfo("STALE", "정부 브리핑 수집이 60분 이상 지연되었습니다.", expectedNextUpdateAt, lastSuccessfulFetchedAt);
+        }
+
+        return new FreshnessInfo("FRESH", null, expectedNextUpdateAt, lastSuccessfulFetchedAt);
+    }
+
     private record BriefingCategoryRule(String code, String label, List<String> keywords) {
     }
 
@@ -395,10 +438,22 @@ public class GovernmentBriefingService {
         int page,
         int pageSize,
         int totalCount,
-        int totalPages
+        int totalPages,
+        String freshnessStatus,
+        String staleReason,
+        Instant expectedNextUpdateAt,
+        Instant lastSuccessfulFetchedAt
     ) {
     }
 
     public record GovernmentBriefingSyncResult(String status, String message, int rows, Instant syncedAt) {
+    }
+
+    private record FreshnessInfo(
+        String freshnessStatus,
+        String staleReason,
+        Instant expectedNextUpdateAt,
+        Instant lastSuccessfulFetchedAt
+    ) {
     }
 }
