@@ -2,11 +2,12 @@ package com.example.krwwatcher.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
-import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -204,6 +205,18 @@ public class MarketDataSyncService {
         syncCurrentExchangeRatesNow(SyncTrigger.SCHEDULED_CURRENT_EXCHANGE);
     }
 
+    @Scheduled(cron = "${app.sync.market-data.currency-strength-cron}", zone = "${app.sync.market-data.zone}")
+    public void scheduledCurrencyStrengthSync() {
+        if (!syncProperties.marketData().enabled()) {
+            return;
+        }
+
+        Instant now = Instant.now();
+        if (currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), now).canSync()) {
+            syncCurrencyStrengthNow(SyncTrigger.SCHEDULED_CURRENCY_STRENGTH);
+        }
+    }
+
     @EventListener(ApplicationReadyEvent.class)
     @Async("startupSyncExecutor")
     public void syncOnStartup() {
@@ -336,6 +349,18 @@ public class MarketDataSyncService {
         }
     }
 
+    private SyncResult syncCurrencyStrengthNow(SyncTrigger trigger) {
+        if (!syncLock.tryLock()) {
+            return skipped("SKIPPED_RUNNING", "Market data sync is already running", trigger, currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now()));
+        }
+
+        try {
+            return runCurrencyStrengthSync(trigger);
+        } finally {
+            syncLock.unlock();
+        }
+    }
+
     private SyncResult syncDailyBackfillNow(SyncTrigger trigger) {
         if (!dailyBackfillLock.tryLock()) {
             return skipped("SKIPPED_RUNNING", "Daily exchange backfill is already running", trigger, currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now()));
@@ -393,6 +418,21 @@ public class MarketDataSyncService {
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now());
         return new SyncResult(exchangeRows + dailyBackfillRows, intradayExchangeRows, dollarIndexRows, currencyStrengthRows, usRateRows, krRateRows, foreignReserveRows, domesticPolicyRows, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
+    }
+
+    @Transactional
+    protected SyncResult runCurrencyStrengthSync(SyncTrigger trigger) {
+        Instant startedAt = Instant.now();
+        Long jobId = startJob(JOB_NAME, startedAt, trigger);
+        SyncCounter counter = new SyncCounter();
+
+        int currencyStrengthRows = runSource(jobId, JOB_NAME, "currencyStrength", counter, syncProperties.marketData().manualCooldown(), this::syncEffectiveExchangeRates);
+
+        String status = syncStatus(counter);
+        String message = "currencyStrength=" + currencyStrengthRows + counter.message;
+        finishJob(jobId, status, Instant.now(), message);
+        SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now());
+        return new SyncResult(0, 0, 0, currencyStrengthRows, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
     @Transactional
@@ -951,7 +991,7 @@ public class MarketDataSyncService {
     }
 
     private int syncEffectiveExchangeRates() {
-        if (hasRecentTableFetch("effective_exchange_rates", startOfCurrentMonthInSeoul())) {
+        if (!shouldSyncEffectiveExchangeRates(LocalDateTime.now(SEOUL_ZONE))) {
             return 0;
         }
 
@@ -976,6 +1016,25 @@ public class MarketDataSyncService {
                 payload.fetchedAt()
             ))
             .sum();
+    }
+
+    private boolean shouldSyncEffectiveExchangeRates(LocalDateTime now) {
+        Instant latestWeeklyDueAt = latestCompletedCurrencyStrengthWeeklyDueAt(now);
+        return !hasSuccessfulSourceRunSince(JOB_NAME, "currencyStrength", latestWeeklyDueAt);
+    }
+
+    private Instant latestCompletedCurrencyStrengthWeeklyDueAt(LocalDateTime now) {
+        int daysSinceFriday = Math.floorMod(
+            now.getDayOfWeek().getValue() - DayOfWeek.FRIDAY.getValue(),
+            7
+        );
+        LocalDate fridaySessionStartDate = now.toLocalDate().minusDays(daysSinceFriday);
+        LocalDateTime dueAt = UsdKrwIntradaySession.endDateTime(fridaySessionStartDate);
+        if (now.isBefore(dueAt)) {
+            dueAt = UsdKrwIntradaySession.endDateTime(fridaySessionStartDate.minusWeeks(1));
+        }
+
+        return dueAt.atZone(SEOUL_ZONE).toInstant();
     }
 
     private IntradaySyncOutcome syncUsdKrwIntraday(SyncTrigger trigger) {
@@ -2058,6 +2117,22 @@ public class MarketDataSyncService {
         return hasRecentFetch("SELECT COUNT(*) FROM " + tableName + " WHERE fetched_at >= ?", threshold);
     }
 
+    private boolean hasSuccessfulSourceRunSince(String jobName, String sourceName, Instant threshold) {
+        return hasRecentFetch(
+            """
+                SELECT COUNT(*)
+                FROM batch_job_source_runs
+                WHERE job_name = ?
+                  AND source_name = ?
+                  AND status = 'SUCCESS'
+                  AND started_at >= ?
+                """,
+            jobName,
+            sourceName,
+            threshold
+        );
+    }
+
     private boolean hasRecentFetch(String sql, Object... params) {
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, params);
         return count != null && count > 0;
@@ -2078,7 +2153,8 @@ public class MarketDataSyncService {
         DAILY_BACKFILL,
         EXCHANGE_RATE_HISTORY_BACKFILL,
         SCHEDULED_DAILY_BACKFILL,
-        SCHEDULED_CURRENT_EXCHANGE
+        SCHEDULED_CURRENT_EXCHANGE,
+        SCHEDULED_CURRENCY_STRENGTH
     }
 
     private record SyncWindow(Instant nextAllowedAt, long remainingCooldownSeconds, boolean canSync) {

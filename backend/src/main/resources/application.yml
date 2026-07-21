@@ -34,6 +34,7 @@ app:
       enabled: ${MARKET_DATA_SYNC_ENABLED:true}
       manual-cooldown: ${MARKET_DATA_SYNC_MANUAL_COOLDOWN:15m}
       cron: ${MARKET_DATA_SYNC_CRON:0 10 9,15 * * MON-FRI}
+      currency-strength-cron: ${MARKET_DATA_SYNC_CURRENCY_STRENGTH_CRON:0 10 6,7 * * SAT}
       zone: ${MARKET_DATA_SYNC_ZONE:Asia/Seoul}
       intraday-cooldown: ${MARKET_DATA_SYNC_INTRADAY_COOLDOWN:5m}
       intraday-cron: ${MARKET_DATA_SYNC_INTRADAY_CRON:30 */5 * * * *}

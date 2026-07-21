@@ -33,7 +33,7 @@ export function CurrencyStrengthPage({
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-white">화폐 랭킹</h2>
             <p className="mt-1 text-xs text-white/60">BIS broad NEER 기준입니다. NEER가 높을수록 교역상대국 대비 통화가 강하고, 낮을수록 약한 상태로 해석합니다.</p>
-            <p className="mt-1 text-xs text-white/60">2020=100 기준선보다 낮으면 상대적 약세로 해석합니다. BIS 발표: NEER 주중, REER 월중 · 앱 자동 확인: 평일 09:10/15:10 KST</p>
+            <p className="mt-1 text-xs text-white/60">2020=100 기준선보다 낮으면 상대적 약세로 해석합니다. 순위와 점수 변동은 직전 NEER 기준일 대비이며, 앱은 금요일 USD/KRW 세션 종료 후 토요일 오전에 자동 확인합니다.</p>
           </div>
           <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-center md:justify-between">
             <p className="text-xs font-medium text-white/55">
@@ -84,8 +84,11 @@ export function CurrencyStrengthPage({
               const display = getAreaDisplay(rank.areaCode, rank.areaName);
               const valuePosition = getScalePosition(rank.neerValue, minNeer, maxNeer);
               const strengthScore = getStrengthScore(rank.neerValue, minNeer, maxNeer);
+              const previousStrengthScore = rank.previousNeerValue === null ? null : getStrengthScore(rank.previousNeerValue, minNeer, maxNeer);
+              const scoreChange = previousStrengthScore === null ? null : strengthScore - previousStrengthScore;
               const isWeak = rank.neerValue < 100;
               const isKorea = rank.areaCode === 'KR';
+              const rankMovement = getRankMovement(rank, sortMode);
               return (
                 <article
                   key={rank.areaCode}
@@ -93,9 +96,12 @@ export function CurrencyStrengthPage({
                     isKorea ? 'ring-2 ring-teal-300/55' : ''
                   }`}
                 >
-                  <div className="grid grid-cols-[34px_38px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[44px_44px_minmax(0,1fr)_auto] md:grid-cols-[56px_56px_minmax(140px,180px)_minmax(0,1fr)_105px_120px] md:gap-3">
-                    <div className="grid h-10 place-items-center rounded-xl border border-white/10 bg-white/8 px-1 text-center sm:h-11 md:h-12 md:rounded-2xl md:px-2">
-                      <p className={`text-sm font-semibold leading-none sm:text-base md:text-lg ${isKorea ? 'text-teal-100' : 'text-white/75'}`}>{index + 1}</p>
+                  <div className="grid grid-cols-[42px_38px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[52px_44px_minmax(0,1fr)_auto] md:grid-cols-[64px_56px_minmax(140px,180px)_minmax(0,1fr)_105px_120px] md:gap-3">
+                    <div className="grid grid-cols-[12px_minmax(0,1fr)] items-center gap-1.5">
+                      <RankMovementIcon movement={rankMovement} />
+                      <div className="grid h-10 w-full place-items-center rounded-xl border border-white/10 bg-white/8 px-1 text-center sm:h-11 md:h-12 md:rounded-2xl md:px-2">
+                        <p className={`text-sm font-semibold leading-none sm:text-base md:text-lg ${isKorea ? 'text-teal-100' : 'text-white/75'}`}>{index + 1}</p>
+                      </div>
                     </div>
                     <div className="grid h-10 place-items-center rounded-xl border border-white/10 bg-white/8 text-xl leading-none sm:h-11 sm:text-2xl md:h-12 md:rounded-2xl" aria-hidden="true">
                       {display.flag}
@@ -135,7 +141,10 @@ export function CurrencyStrengthPage({
 
                     <div className="col-span-4 flex h-full items-center justify-between border-t border-white/10 pt-2 text-center md:col-span-1 md:flex-col md:justify-center md:border-l md:border-t-0 md:py-1 md:pl-4">
                       <p className="text-[11px] font-medium text-white/55">100점 만점</p>
-                      <p className="text-lg font-semibold leading-none text-white md:text-2xl">{strengthScore}점</p>
+                      <div className="grid justify-items-end gap-1 md:justify-items-center">
+                        <p className="text-lg font-semibold leading-none text-white md:text-2xl">{strengthScore}점</p>
+                        <ScoreChangeLabel value={scoreChange} />
+                      </div>
                     </div>
                   </div>
                 </article>
@@ -162,6 +171,60 @@ function getStrengthScore(value: number, minValue: number, maxValue: number) {
   }
 
   return Math.round(getScalePosition(value, minValue, maxValue));
+}
+
+type Movement = 'up' | 'down' | 'flat';
+
+function getRankMovement(rank: CurrencyStrengthRank, sortMode: 'strong' | 'weak'): Movement {
+  if (rank.previousNeerRank === null) {
+    return 'flat';
+  }
+
+  const currentDisplayRank = toDisplayRank(rank.neerRank, rank.totalCount, sortMode);
+  const previousDisplayRank = toDisplayRank(rank.previousNeerRank, rank.totalCount, sortMode);
+  if (currentDisplayRank < previousDisplayRank) {
+    return 'up';
+  }
+  if (currentDisplayRank > previousDisplayRank) {
+    return 'down';
+  }
+  return 'flat';
+}
+
+function toDisplayRank(rank: number, totalCount: number, sortMode: 'strong' | 'weak') {
+  return sortMode === 'strong' ? totalCount - rank + 1 : rank;
+}
+
+function RankMovementIcon({ movement }: { movement: Movement }) {
+  const styles: Record<Movement, string> = {
+    up: 'text-rose-300',
+    down: 'text-sky-300',
+    flat: 'text-zinc-300'
+  };
+  const symbols: Record<Movement, string> = {
+    up: '▲',
+    down: '▼',
+    flat: '▬'
+  };
+
+  return (
+    <span className={`grid h-3 w-3 place-items-center text-[11px] font-black leading-none ${styles[movement]}`} aria-label={`순위 ${movement}`}>
+      {symbols[movement]}
+    </span>
+  );
+}
+
+function ScoreChangeLabel({ value }: { value: number | null }) {
+  if (value === null || value === 0) {
+    return <p className="h-3 text-[11px] font-semibold leading-none text-zinc-300">+0점</p>;
+  }
+
+  const isUp = value > 0;
+  return (
+    <p className={`h-3 text-[11px] font-semibold leading-none ${isUp ? 'text-rose-300' : 'text-sky-300'}`}>
+      {isUp ? '+' : ''}{value}점
+    </p>
+  );
 }
 
 function getAreaDisplay(areaCode: string, fallbackName: string) {

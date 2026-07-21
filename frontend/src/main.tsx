@@ -513,6 +513,7 @@ function App() {
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-500 text-xl font-black text-white shadow-lg shadow-teal-950/25">₩</span>
             <span className="truncate text-lg font-extrabold tracking-normal drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]">코리아원</span>
           </button>
+          {isMainAppPage ? <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} /> : null}
           {isMainAppPage ? (
             <nav
               className={`scrollbar-none relative mx-auto flex w-fit max-w-full flex-nowrap justify-center gap-1 overflow-x-auto rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md sm:mx-0 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible ${
@@ -640,7 +641,6 @@ function App() {
               xTicks={usdKrwXTicks}
               yDomain={usdKrwDomain}
             />
-            <ForeignExchangeSummary emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} />
 
               <MarketChartSection
                 emptyText={dashboardEmptyText}
@@ -898,48 +898,131 @@ function UpdateStatusBox({
   );
 }
 
-function ForeignExchangeSummary({ emptyMessage, rates }: { emptyMessage: string; rates: ForeignExchangeRate[] }) {
+function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; rates: ForeignExchangeRate[] }) {
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const [isHovering, setIsHovering] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const isPaused = isExpanded || isHovering;
+
+  React.useEffect(() => {
+    if (activeIndex >= rates.length) {
+      setActiveIndex(0);
+    }
+  }, [activeIndex, rates.length]);
+
+  React.useEffect(() => {
+    if (rates.length <= 1 || isPaused) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % rates.length);
+    }, 2600);
+    return () => window.clearInterval(timer);
+  }, [isPaused, rates.length]);
+
+  React.useEffect(() => {
+    if (!isExpanded) {
+      return undefined;
+    }
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (containerRef.current?.contains(event.target as Node)) {
+        return;
+      }
+      setIsExpanded(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsExpanded(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isExpanded]);
+
   if (rates.length === 0) {
     return (
-      <section className="glass-card rounded-2xl px-4 py-3 text-sm text-white/50 shadow-sm">
+      <div className="glass-card w-full max-w-sm rounded-xl px-3 py-2 text-xs text-white/50 shadow-sm sm:mx-2 sm:w-72">
         {emptyMessage}
-      </section>
+      </div>
     );
   }
 
-  const latestFetchedAt = rates
-    .map((rate) => new Date(rate.fetchedAt).getTime())
-    .filter((value) => Number.isFinite(value))
-    .sort((a, b) => b - a)[0] ?? null;
+  const activeRate = rates[activeIndex] ?? rates[0];
 
   return (
-    <section className="glass-card min-w-0 overflow-hidden rounded-2xl shadow-sm">
-      <div className="flex min-w-0 flex-col gap-1 border-b border-white/10 px-3 py-3 sm:px-4 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-white">주요 통화 환율</h2>
-          <p className="mt-0.5 text-[11px] text-white/60">실시간 스트리밍이 아닌 최근 수집값입니다. 주요 통화는 약 1시간 주기로 갱신됩니다.</p>
-        </div>
-        <p className="text-[11px] font-medium text-white/60">
-          최근 업데이트 {latestFetchedAt === null ? '-' : formatForeignExchangeUpdatedAt(new Date(latestFetchedAt))}
-        </p>
-      </div>
-      <div className="grid min-w-0 gap-2 p-2.5 sm:p-3 md:grid-cols-2 md:gap-y-2 md:[&>article:nth-child(even)]:border-l md:[&>article:nth-child(even)]:border-white/10">
-        {rates.map((rate) => (
-          <article className="glass-subcard grid min-w-0 grid-cols-[40px_minmax(0,1fr)_minmax(82px,auto)] items-center gap-2 rounded-2xl px-2.5 py-2.5 sm:grid-cols-[48px_minmax(0,1fr)_minmax(104px,auto)] sm:gap-3 sm:px-3" key={rate.currencyCode}>
-            <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-xl leading-none sm:h-12 sm:w-12 sm:rounded-2xl sm:text-2xl" aria-hidden="true">
-              {getCurrencyFlag(rate.displayCode)}
-            </div>
+    <div
+      className="relative z-30 w-full max-w-sm sm:mx-2 sm:w-72"
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      ref={containerRef}
+    >
+      <button
+        aria-expanded={isExpanded}
+        className="group relative h-12 w-full overflow-hidden rounded-xl px-3 text-left transition-colors duration-150"
+        onClick={() => setIsExpanded((current) => !current)}
+        type="button"
+      >
+        {isExpanded ? (
+          <div className="flex h-full items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{getCurrencyShortLabel(rate.displayCode)}</p>
-              <p className="mt-0.5 truncate text-[11px] font-medium text-white/60">{getCurrencyDetailText(rate)}</p>
+              <p className="truncate text-sm font-semibold text-white">주요 통화 환율</p>
             </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-teal-100 sm:text-base">{formatValue(rate.dealBasRate, 2)}원</p>
+            <span className="shrink-0 text-xs font-semibold text-teal-100">접기</span>
+          </div>
+        ) : (
+          <>
+            <div key={activeRate.currencyCode} className={`foreign-rate-ticker-item foreign-rate-primary-content flex h-full items-center gap-2 ${isPaused ? 'foreign-rate-ticker-paused' : ''}`}>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/15 bg-white/10 text-lg leading-none" aria-hidden="true">
+                {getCurrencyFlag(activeRate.displayCode)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-white">{getCurrencyShortLabel(activeRate.displayCode)}</span>
+                <span className="block truncate text-[11px] text-white/55">{activeRate.displayCode} · {formatForeignExchangeUpdatedAt(new Date(activeRate.fetchedAt))}</span>
+              </span>
+              <span className="shrink-0 text-sm font-bold text-teal-100">{formatValue(activeRate.dealBasRate, 2)}원</span>
             </div>
-          </article>
-        ))}
+            <span className="foreign-rate-hover-content pointer-events-none absolute inset-0 grid place-items-center text-xs font-semibold text-teal-100 opacity-0 group-hover:opacity-100">
+              <span className="foreign-rate-hover-label">펼쳐서 보기</span>
+            </span>
+          </>
+        )}
+      </button>
+      <div
+        className={`foreign-rate-dropdown absolute left-0 right-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-2xl border border-white/15 bg-zinc-950/92 shadow-2xl shadow-zinc-950/35 backdrop-blur-xl ${
+          isExpanded ? 'foreign-rate-dropdown-open' : ''
+        }`}
+      >
+        <div className="foreign-rate-list-scroll grid max-h-[min(60vh,26rem)] min-w-0 gap-2 overflow-y-auto p-2.5">
+          {rates.map((rate) => (
+            <article className="glass-subcard grid min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-2 rounded-xl px-2.5 py-2.5" key={rate.currencyCode}>
+              <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-xl leading-none" aria-hidden="true">
+                {getCurrencyFlag(rate.displayCode)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-baseline gap-1.5">
+                  <p className="truncate text-sm font-semibold text-white">{getCurrencyShortLabel(rate.displayCode)}</p>
+                  <span className="shrink-0 text-[10px] font-bold text-white/45">{rate.displayCode}</span>
+                </div>
+                <p className="mt-1 text-[11px] font-medium leading-4 text-white/60">
+                  {formatForeignExchangeUpdatedAt(new Date(rate.fetchedAt))}
+                </p>
+              </div>
+              <div className="shrink-0 pt-0.5 text-right">
+                <p className="whitespace-nowrap text-sm font-bold text-teal-100">{formatValue(rate.dealBasRate, 2)}원</p>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
-    </section>
+    </div>
   );
 }
 

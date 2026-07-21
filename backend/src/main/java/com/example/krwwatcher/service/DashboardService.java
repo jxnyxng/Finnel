@@ -1015,6 +1015,17 @@ public class DashboardService {
         if (latestNeerDate == null) {
             return List.of();
         }
+        LocalDate previousNeerDate = jdbcTemplate.query(
+            """
+                SELECT MAX(base_date)
+                FROM effective_exchange_rates
+                WHERE index_type = 'NEER'
+                  AND basket_type = 'BROAD'
+                  AND base_date < ?
+                """,
+            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
+            latestNeerDate
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
 
         LocalDate latestReerDate = jdbcTemplate.query(
             """
@@ -1064,9 +1075,13 @@ public class DashboardService {
             .toList();
 
         int totalCount = rows.size();
+        Map<String, Integer> previousRankByArea = previousNeerDate == null ? Map.of() : findNeerRankByArea(previousNeerDate);
+        Map<String, BigDecimal> previousValueByArea = previousNeerDate == null ? Map.of() : findNeerValueByArea(previousNeerDate);
         List<CurrencyStrengthRank> ranks = new ArrayList<>();
         for (int index = 0; index < rows.size(); index++) {
             EffectiveExchangeRateRow row = rows.get(index);
+            Integer previousRank = previousRankByArea.get(row.areaCode());
+            BigDecimal previousValue = previousValueByArea.get(row.areaCode());
             ranks.add(new CurrencyStrengthRank(
                 row.baseDate(),
                 row.areaCode(),
@@ -1075,10 +1090,53 @@ public class DashboardService {
                 index + 1,
                 totalCount,
                 latestReerDate,
-                latestReerByArea.get(row.areaCode())
+                latestReerByArea.get(row.areaCode()),
+                previousRank,
+                previousValue,
+                previousValue == null ? null : row.value().subtract(previousValue)
             ));
         }
         return ranks;
+    }
+
+    private Map<String, Integer> findNeerRankByArea(LocalDate baseDate) {
+        List<EffectiveExchangeRateRow> rows = findNeerRows(baseDate);
+        Map<String, Integer> rankByArea = new LinkedHashMap<>();
+        for (int index = 0; index < rows.size(); index++) {
+            rankByArea.put(rows.get(index).areaCode(), index + 1);
+        }
+        return rankByArea;
+    }
+
+    private Map<String, BigDecimal> findNeerValueByArea(LocalDate baseDate) {
+        return findNeerRows(baseDate).stream()
+            .collect(java.util.stream.Collectors.toMap(
+                EffectiveExchangeRateRow::areaCode,
+                EffectiveExchangeRateRow::value,
+                (left, right) -> left,
+                LinkedHashMap::new
+            ));
+    }
+
+    private List<EffectiveExchangeRateRow> findNeerRows(LocalDate baseDate) {
+        return jdbcTemplate.query(
+            """
+                SELECT base_date, area_code, area_name, value
+                FROM effective_exchange_rates
+                WHERE index_type = 'NEER'
+                  AND basket_type = 'BROAD'
+                  AND base_date = ?
+                """,
+            (rs, rowNum) -> new EffectiveExchangeRateRow(
+                rs.getDate("base_date").toLocalDate(),
+                rs.getString("area_code"),
+                rs.getString("area_name"),
+                rs.getBigDecimal("value")
+            ),
+            baseDate
+        ).stream()
+            .sorted(Comparator.comparing(EffectiveExchangeRateRow::value))
+            .toList();
     }
 
     private List<ForeignExchangeRate> findForeignExchangeRates() {
@@ -1516,7 +1574,10 @@ public class DashboardService {
         int neerRank,
         int totalCount,
         LocalDate reerBaseDate,
-        BigDecimal reerValue
+        BigDecimal reerValue,
+        Integer previousNeerRank,
+        BigDecimal previousNeerValue,
+        BigDecimal neerValueChange
     ) {
     }
 
