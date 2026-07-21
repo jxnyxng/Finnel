@@ -16,6 +16,8 @@ public record SyncProperties(
         String zone,
         Duration intradayCooldown,
         String intradayCron,
+        Duration intradayBackfillSessionCooldown,
+        int intradayBackfillNoChangeSuspendThreshold,
         Duration dailyBackfillCooldown,
         String dailyBackfillCron
     ) {

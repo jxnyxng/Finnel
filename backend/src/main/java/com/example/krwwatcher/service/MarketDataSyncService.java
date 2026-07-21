@@ -41,6 +41,10 @@ public class MarketDataSyncService {
 
     private static final String JOB_NAME = "MARKET_DATA_SYNC";
     private static final String INTRADAY_JOB_NAME = "INTRADAY_EXCHANGE_SYNC";
+    private static final String USD_KRW_BACKFILL_STATUS_BACKFILLED = "BACKFILLED";
+    private static final String USD_KRW_BACKFILL_STATUS_NO_CHANGE = "NO_CHANGE";
+    private static final String USD_KRW_BACKFILL_STATUS_SKIPPED_COOLDOWN = "SKIPPED_SESSION_COOLDOWN";
+    private static final String USD_KRW_BACKFILL_STATUS_SKIPPED_SUSPENDED = "SKIPPED_SESSION_SUSPENDED";
     private static final String DAILY_BACKFILL_JOB_NAME = "DAILY_EXCHANGE_BACKFILL_SYNC";
     private static final String EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME = "EXCHANGE_RATE_HISTORY_BACKFILL_SYNC";
     private static final String CURRENT_EXCHANGE_RATE_JOB_NAME = "CURRENT_EXCHANGE_RATE_SYNC";
@@ -134,7 +138,7 @@ public class MarketDataSyncService {
     public SyncResult requestIntradayRefresh() {
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), now);
-        if (!shouldRunIntradaySyncNow()) {
+        if (!shouldRunIntradaySyncNow(SyncTrigger.INTRADAY)) {
             return skipped("SKIPPED_NON_BUSINESS_DAY", "Intraday sync runs only during USD/KRW trading sessions or while backfill is needed", SyncTrigger.INTRADAY, syncWindow);
         }
         if (!syncWindow.canSync()) {
@@ -181,7 +185,7 @@ public class MarketDataSyncService {
         if (!syncProperties.marketData().enabled()) {
             return;
         }
-        if (!shouldRunIntradaySyncNow()) {
+        if (!shouldRunIntradaySyncNow(SyncTrigger.SCHEDULED_INTRADAY)) {
             return;
         }
 
@@ -218,7 +222,7 @@ public class MarketDataSyncService {
             syncDailyBackfillNow(SyncTrigger.SCHEDULED_DAILY_BACKFILL);
         }
 
-        if (!shouldRunIntradaySyncNow()) {
+        if (!shouldRunIntradaySyncNow(SyncTrigger.SCHEDULED_INTRADAY)) {
             return;
         }
 
@@ -250,7 +254,8 @@ public class MarketDataSyncService {
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !syncLock.isLocked(),
-            latestJob == null ? List.of() : findLatestSourceRuns(JOB_NAME, latestJob.startedAt())
+            latestJob == null ? List.of() : findLatestSourceRuns(JOB_NAME, latestJob.startedAt()),
+            null
         );
     }
 
@@ -265,7 +270,8 @@ public class MarketDataSyncService {
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !intradaySyncLock.isLocked(),
-            latestJob == null ? List.of() : findLatestSourceRuns(INTRADAY_JOB_NAME, latestJob.startedAt())
+            latestJob == null ? List.of() : findLatestSourceRuns(INTRADAY_JOB_NAME, latestJob.startedAt()),
+            findLatestUsdKrwBackfillAttempt()
         );
     }
 
@@ -280,7 +286,8 @@ public class MarketDataSyncService {
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !dailyBackfillLock.isLocked(),
-            latestJob == null ? List.of() : findLatestSourceRuns(DAILY_BACKFILL_JOB_NAME, latestJob.startedAt())
+            latestJob == null ? List.of() : findLatestSourceRuns(DAILY_BACKFILL_JOB_NAME, latestJob.startedAt()),
+            null
         );
     }
 
@@ -295,7 +302,8 @@ public class MarketDataSyncService {
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !exchangeRateHistoryBackfillLock.isLocked(),
-            latestJob == null ? List.of() : findLatestSourceRuns(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, latestJob.startedAt())
+            latestJob == null ? List.of() : findLatestSourceRuns(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, latestJob.startedAt()),
+            null
         );
     }
 
@@ -388,11 +396,18 @@ public class MarketDataSyncService {
         Instant startedAt = Instant.now();
         Long jobId = startJob(INTRADAY_JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
+        List<String> messages = new ArrayList<>();
 
-        int intradayExchangeRows = runSource(jobId, INTRADAY_JOB_NAME, "intradayExchange", counter, syncProperties.marketData().intradayCooldown(), this::syncUsdKrwIntraday);
+        int intradayExchangeRows = runSource(jobId, INTRADAY_JOB_NAME, "intradayExchange", counter, syncProperties.marketData().intradayCooldown(), () -> {
+            IntradaySyncOutcome outcome = syncUsdKrwIntraday(trigger);
+            if (outcome.message() != null && !outcome.message().isBlank()) {
+                messages.add(outcome.message());
+            }
+            return outcome.rows();
+        });
 
         String status = syncStatus(counter);
-        String message = "intradayExchange=" + intradayExchangeRows + counter.message;
+        String message = "intradayExchange=" + intradayExchangeRows + (messages.isEmpty() ? "" : ", " + String.join(", ", messages)) + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), Instant.now());
         return new SyncResult(0, intradayExchangeRows, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
@@ -958,20 +973,29 @@ public class MarketDataSyncService {
             .sum();
     }
 
-    private int syncUsdKrwIntraday() {
+    private IntradaySyncOutcome syncUsdKrwIntraday(SyncTrigger trigger) {
         List<TwelveDataClient.IntradayExchangePayload> observations;
+        String message = null;
+        Integer committedRows = null;
         LocalDate activeSessionStartDate = UsdKrwIntradaySession.activeSessionStartDate(LocalDateTime.now(SEOUL_ZONE));
         if (activeSessionStartDate != null) {
             observations = fetchUsdKrwSessionFromTwelveData(activeSessionStartDate, true);
-            if (observations.isEmpty() && needsPreviousUsdKrwSessionBackfill()) {
-                observations = fetchPreviousUsdKrwSessionFromTwelveData();
+            if (observations.isEmpty() && needsPreviousUsdKrwSessionBackfill(trigger)) {
+                BackfillFetchOutcome outcome = fetchPreviousUsdKrwSessionFromTwelveData(trigger);
+                observations = outcome.observations();
+                committedRows = outcome.rows();
+                message = outcome.message();
             }
-        } else if (needsPreviousUsdKrwSessionBackfill()) {
-            observations = fetchPreviousUsdKrwSessionFromTwelveData();
+        } else if (needsPreviousUsdKrwSessionBackfill(trigger)) {
+            BackfillFetchOutcome outcome = fetchPreviousUsdKrwSessionFromTwelveData(trigger);
+            observations = outcome.observations();
+            committedRows = outcome.rows();
+            message = outcome.message();
         } else {
             observations = List.of();
         }
-        return upsertIntradayExchangeRates(observations);
+        int rows = committedRows == null ? upsertIntradayExchangeRates(observations) : committedRows;
+        return new IntradaySyncOutcome(rows, message);
     }
 
     private List<TwelveDataClient.IntradayExchangePayload> fetchUsdKrwSessionFromTwelveData(LocalDate sessionStartDate, boolean capAtNow) {
@@ -988,9 +1012,51 @@ public class MarketDataSyncService {
             .toList();
     }
 
-    private List<TwelveDataClient.IntradayExchangePayload> fetchPreviousUsdKrwSessionFromTwelveData() {
+    private BackfillFetchOutcome fetchPreviousUsdKrwSessionFromTwelveData(SyncTrigger trigger) {
         LocalDate sessionStartDate = resolveBackfillSessionStartDate();
-        return fetchUsdKrwSessionFromTwelveData(sessionStartDate, false);
+        BackfillSessionDecision decision = decideBackfillSession(sessionStartDate, trigger, Instant.now());
+        if (!decision.canAttempt()) {
+            recordUsdKrwBackfillAttempt(
+                decision.sessionKey(),
+                sessionStartDate,
+                decision.status(),
+                0,
+                decision.latestObservedAt(),
+                decision.latestObservedAt(),
+                decision.noChangeCount(),
+                Instant.now(),
+                decision.nextAllowedAt(),
+                decision.message()
+            );
+            return new BackfillFetchOutcome(List.of(), 0, formatBackfillMessage(decision.sessionKey(), decision.status(), decision.message()));
+        }
+
+        LocalDateTime previousLatestObservedAt = findLatestIntradayObservedAt(sessionStartDate);
+        List<TwelveDataClient.IntradayExchangePayload> observations = fetchUsdKrwSessionFromTwelveData(sessionStartDate, false);
+        int rows = upsertIntradayExchangeRates(observations);
+        LocalDateTime latestObservedAt = findLatestIntradayObservedAt(sessionStartDate);
+        boolean advanced = previousLatestObservedAt == null
+            ? latestObservedAt != null
+            : latestObservedAt != null && latestObservedAt.isAfter(previousLatestObservedAt);
+        String status = advanced ? USD_KRW_BACKFILL_STATUS_BACKFILLED : USD_KRW_BACKFILL_STATUS_NO_CHANGE;
+        int noChangeCount = advanced ? 0 : decision.noChangeCount() + 1;
+        Instant nextAllowedAt = Instant.now().plus(syncProperties.marketData().intradayBackfillSessionCooldown());
+        String resultMessage = advanced
+            ? "latestObservedAt advanced"
+            : "no new observations returned";
+        recordUsdKrwBackfillAttempt(
+            decision.sessionKey(),
+            sessionStartDate,
+            status,
+            rows,
+            previousLatestObservedAt,
+            latestObservedAt,
+            noChangeCount,
+            Instant.now(),
+            nextAllowedAt,
+            resultMessage
+        );
+        return new BackfillFetchOutcome(List.of(), rows, formatBackfillMessage(decision.sessionKey(), status, resultMessage));
     }
 
     private LocalDate resolveBackfillSessionStartDate() {
@@ -1516,24 +1582,73 @@ public class MarketDataSyncService {
         return new SyncResult(0, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), null, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
-    private boolean shouldRunIntradaySyncNow() {
+    private boolean shouldRunIntradaySyncNow(SyncTrigger trigger) {
         return UsdKrwIntradaySession.activeSessionStartDate(LocalDateTime.now(SEOUL_ZONE)) != null
-            || needsPreviousUsdKrwSessionBackfill();
+            || needsPreviousUsdKrwSessionBackfill(trigger);
     }
 
     private boolean needsPreviousUsdKrwSessionBackfill() {
+        return needsPreviousUsdKrwSessionBackfill(SyncTrigger.SCHEDULED_INTRADAY);
+    }
+
+    private boolean needsPreviousUsdKrwSessionBackfill(SyncTrigger trigger) {
         LocalDate targetSessionStartDate = UsdKrwIntradaySession.previousSessionStartDate(LocalDate.now(SEOUL_ZONE));
         LocalDateTime latestObservedAt = findLatestIntradayObservedAt(targetSessionStartDate);
         if (latestObservedAt == null) {
-            return true;
+            return decideBackfillSession(targetSessionStartDate, trigger, Instant.now()).canAttempt();
         }
 
-        return isSessionIncomplete(targetSessionStartDate, latestObservedAt);
+        return isSessionIncomplete(targetSessionStartDate, latestObservedAt)
+            && decideBackfillSession(targetSessionStartDate, trigger, Instant.now()).canAttempt();
     }
 
     private boolean isSessionIncomplete(LocalDate sessionStartDate, LocalDateTime latestObservedAt) {
         LocalDateTime expectedSessionEnd = UsdKrwIntradaySession.endDateTime(sessionStartDate).minusMinutes(5);
         return latestObservedAt.isBefore(expectedSessionEnd);
+    }
+
+    private BackfillSessionDecision decideBackfillSession(LocalDate sessionStartDate, SyncTrigger trigger, Instant now) {
+        String sessionKey = usdKrwBackfillSessionKey(sessionStartDate);
+        UsdKrwBackfillAttempt latestAttempt = findLatestUsdKrwBackfillAttempt(sessionKey);
+        LocalDateTime latestObservedAt = findLatestIntradayObservedAt(sessionStartDate);
+        if (latestAttempt == null) {
+            return new BackfillSessionDecision(true, sessionKey, null, latestObservedAt, 0, null, null);
+        }
+
+        if (latestAttempt.nextAllowedAt() != null && now.isBefore(latestAttempt.nextAllowedAt())) {
+            return new BackfillSessionDecision(
+                false,
+                sessionKey,
+                USD_KRW_BACKFILL_STATUS_SKIPPED_COOLDOWN,
+                latestObservedAt,
+                latestAttempt.noChangeCount(),
+                latestAttempt.nextAllowedAt(),
+                "session retry cooldown active"
+            );
+        }
+
+        int suspendThreshold = syncProperties.marketData().intradayBackfillNoChangeSuspendThreshold();
+        if (suspendThreshold > 0 && latestAttempt.noChangeCount() >= suspendThreshold && !bypassesBackfillSuspension(trigger)) {
+            return new BackfillSessionDecision(
+                false,
+                sessionKey,
+                USD_KRW_BACKFILL_STATUS_SKIPPED_SUSPENDED,
+                latestObservedAt,
+                latestAttempt.noChangeCount(),
+                latestAttempt.nextAllowedAt(),
+                "no-change threshold reached"
+            );
+        }
+
+        return new BackfillSessionDecision(true, sessionKey, null, latestObservedAt, latestAttempt.noChangeCount(), null, null);
+    }
+
+    private boolean bypassesBackfillSuspension(SyncTrigger trigger) {
+        return trigger == SyncTrigger.INTRADAY;
+    }
+
+    private String usdKrwBackfillSessionKey(LocalDate sessionStartDate) {
+        return properties.twelveData().usdKrwSymbol() + ":" + sessionStartDate;
     }
 
     private LocalDateTime findLatestIntradayObservedAt() {
@@ -1563,6 +1678,117 @@ public class MarketDataSyncService {
             sessionStart,
             sessionEnd
         ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    private void recordUsdKrwBackfillAttempt(
+        String sessionKey,
+        LocalDate sessionStartDate,
+        String status,
+        int rows,
+        LocalDateTime previousLatestObservedAt,
+        LocalDateTime latestObservedAt,
+        int noChangeCount,
+        Instant attemptedAt,
+        Instant nextAllowedAt,
+        String message
+    ) {
+        jdbcTemplate.update(
+            """
+                INSERT INTO usd_krw_intraday_backfill_attempts
+                    (session_key, currency_pair, session_start_date, status, rows_processed, previous_latest_observed_at, latest_observed_at, no_change_count, attempted_at, next_allowed_at, message)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            sessionKey,
+            properties.twelveData().usdKrwSymbol(),
+            sessionStartDate,
+            status,
+            rows,
+            previousLatestObservedAt,
+            latestObservedAt,
+            noChangeCount,
+            attemptedAt,
+            nextAllowedAt,
+            truncateErrorMessage(message)
+        );
+    }
+
+    private UsdKrwBackfillAttempt findLatestUsdKrwBackfillAttempt(String sessionKey) {
+        return jdbcTemplate.query(
+            """
+                SELECT session_key, session_start_date, status, rows_processed, previous_latest_observed_at, latest_observed_at, no_change_count, attempted_at, next_allowed_at, message
+                FROM usd_krw_intraday_backfill_attempts
+                WHERE session_key = ?
+                ORDER BY attempted_at DESC, id DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new UsdKrwBackfillAttempt(
+                rs.getString("session_key"),
+                rs.getObject("session_start_date", LocalDate.class),
+                rs.getString("status"),
+                rs.getInt("rows_processed"),
+                rs.getTimestamp("previous_latest_observed_at") == null ? null : rs.getTimestamp("previous_latest_observed_at").toLocalDateTime(),
+                rs.getTimestamp("latest_observed_at") == null ? null : rs.getTimestamp("latest_observed_at").toLocalDateTime(),
+                rs.getInt("no_change_count"),
+                rs.getTimestamp("attempted_at").toInstant(),
+                rs.getTimestamp("next_allowed_at") == null ? null : rs.getTimestamp("next_allowed_at").toInstant(),
+                rs.getString("message")
+            ),
+            sessionKey
+        ).stream().findFirst().orElse(null);
+    }
+
+    private BackfillSessionStatus findLatestUsdKrwBackfillAttempt() {
+        return jdbcTemplate.query(
+            """
+                SELECT session_key, session_start_date, status, rows_processed, previous_latest_observed_at, latest_observed_at, no_change_count, attempted_at, next_allowed_at, message
+                FROM usd_krw_intraday_backfill_attempts
+                ORDER BY attempted_at DESC, id DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new UsdKrwBackfillAttempt(
+                rs.getString("session_key"),
+                rs.getObject("session_start_date", LocalDate.class),
+                rs.getString("status"),
+                rs.getInt("rows_processed"),
+                rs.getTimestamp("previous_latest_observed_at") == null ? null : rs.getTimestamp("previous_latest_observed_at").toLocalDateTime(),
+                rs.getTimestamp("latest_observed_at") == null ? null : rs.getTimestamp("latest_observed_at").toLocalDateTime(),
+                rs.getInt("no_change_count"),
+                rs.getTimestamp("attempted_at").toInstant(),
+                rs.getTimestamp("next_allowed_at") == null ? null : rs.getTimestamp("next_allowed_at").toInstant(),
+                rs.getString("message")
+            )
+        ).stream().findFirst().map(this::toBackfillSessionStatus).orElse(null);
+    }
+
+    private BackfillSessionStatus toBackfillSessionStatus(UsdKrwBackfillAttempt attempt) {
+        String status = attempt.status();
+        String message = attempt.message();
+        Instant now = Instant.now();
+        if (attempt.nextAllowedAt() != null && now.isBefore(attempt.nextAllowedAt())) {
+            status = USD_KRW_BACKFILL_STATUS_SKIPPED_COOLDOWN;
+            message = "session retry cooldown active";
+        } else if (syncProperties.marketData().intradayBackfillNoChangeSuspendThreshold() > 0
+            && attempt.noChangeCount() >= syncProperties.marketData().intradayBackfillNoChangeSuspendThreshold()) {
+            status = USD_KRW_BACKFILL_STATUS_SKIPPED_SUSPENDED;
+            message = "no-change threshold reached";
+        }
+
+        return new BackfillSessionStatus(
+            attempt.sessionKey(),
+            attempt.sessionStartDate(),
+            status,
+            attempt.rows(),
+            attempt.previousLatestObservedAt(),
+            attempt.latestObservedAt(),
+            attempt.noChangeCount(),
+            attempt.attemptedAt(),
+            attempt.nextAllowedAt(),
+            message
+        );
+    }
+
+    private String formatBackfillMessage(String sessionKey, String status, String message) {
+        return "backfillSession=" + sessionKey + ", backfillStatus=" + status + (message == null ? "" : ", backfillMessage=" + message);
     }
 
     private SyncWindow currentSyncWindow(String jobName, Duration cooldown, Instant now) {
@@ -1850,6 +2076,37 @@ public class MarketDataSyncService {
     private record LatestSourceRun(String status, Instant startedAt) {
     }
 
+    private record IntradaySyncOutcome(int rows, String message) {
+    }
+
+    private record BackfillFetchOutcome(List<TwelveDataClient.IntradayExchangePayload> observations, int rows, String message) {
+    }
+
+    private record BackfillSessionDecision(
+        boolean canAttempt,
+        String sessionKey,
+        String status,
+        LocalDateTime latestObservedAt,
+        int noChangeCount,
+        Instant nextAllowedAt,
+        String message
+    ) {
+    }
+
+    private record UsdKrwBackfillAttempt(
+        String sessionKey,
+        LocalDate sessionStartDate,
+        String status,
+        int rows,
+        LocalDateTime previousLatestObservedAt,
+        LocalDateTime latestObservedAt,
+        int noChangeCount,
+        Instant attemptedAt,
+        Instant nextAllowedAt,
+        String message
+    ) {
+    }
+
     private String toEcosQuarter(YearMonth month) {
         int quarter = (month.getMonthValue() - 1) / 3 + 1;
         return month.getYear() + "Q" + quarter;
@@ -1908,7 +2165,8 @@ public class MarketDataSyncService {
         Instant nextAllowedAt,
         long remainingCooldownSeconds,
         boolean canSync,
-        List<SourceRunStatus> sourceRuns
+        List<SourceRunStatus> sourceRuns,
+        BackfillSessionStatus backfillSession
     ) {
     }
 
@@ -1920,6 +2178,20 @@ public class MarketDataSyncService {
         String errorMessage,
         Instant startedAt,
         Instant endedAt
+    ) {
+    }
+
+    public record BackfillSessionStatus(
+        String sessionKey,
+        LocalDate sessionStartDate,
+        String status,
+        int rows,
+        LocalDateTime previousLatestObservedAt,
+        LocalDateTime latestObservedAt,
+        int noChangeCount,
+        Instant attemptedAt,
+        Instant nextAllowedAt,
+        String message
     ) {
     }
 }
