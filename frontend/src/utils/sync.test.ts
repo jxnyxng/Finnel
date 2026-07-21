@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { getMarketDailyStatus, getServiceStatus, isFailedSyncStatus } from './sync';
+import { getMarketDailyStatus, getServiceStatus, getServiceUpdateInterval, isFailedSyncStatus } from './sync';
 import type { DailyDashboardResponse, SyncStatus } from '../types';
 
 describe('sync freshness status', () => {
+  it('shows the weekly ranking update window after the Friday USD/KRW session closes', () => {
+    expect(getServiceUpdateInterval('ranking')).toBe('랭킹 토요일 장종료 후');
+  });
+
   it('does not treat partial success as healthy', () => {
     const syncStatus = syncStatusFixture('PARTIAL_SUCCESS');
 
@@ -74,7 +78,10 @@ describe('sync freshness status', () => {
         neerRank: 1,
         totalCount: 10,
         reerBaseDate: null,
-        reerValue: null
+        reerValue: null,
+        previousNeerRank: null,
+        previousNeerValue: null,
+        neerValueChange: null
       }],
       seoulDate: '2026-07-21',
       seoulTime: '10:30',

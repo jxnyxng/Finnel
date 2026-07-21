@@ -181,7 +181,7 @@ export function getServiceUpdateInterval(activeTab: MainTabKey) {
   }
 
   if (activeTab === 'ranking') {
-    return '랭킹 09:10/15:10';
+    return '랭킹 토요일 장종료 후';
   }
 
   if (activeTab === 'governmentBriefings') {

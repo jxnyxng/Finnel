@@ -390,6 +390,21 @@ function GovernmentBriefingModal({
     return lockBodyScroll();
   }, [article]);
 
+  React.useEffect(() => {
+    if (!article) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [article, onClose]);
+
   if (!article) {
     return null;
   }

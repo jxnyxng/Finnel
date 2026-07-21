@@ -20,6 +20,12 @@ type RechartsMouseState = {
   activePayload?: Array<{ payload?: ChartPoint }>;
   activeIndex?: number | string;
   activeTooltipIndex?: number | string;
+  chartY?: number;
+  yAxisMap?: Record<string, {
+    scale?: {
+      invert?: (value: number) => number;
+    };
+  }>;
   activeCoordinate?: {
     x?: number;
     y?: number;
@@ -29,7 +35,7 @@ type RechartsMouseState = {
 export function getActiveChartHover(
   state: unknown,
   series: ChartPoint[],
-  bounds: { plotLeft: number; plotTop: number; plotBottom: number }
+  bounds: { chartBottom: number; plotLeft: number; plotTop: number; plotBottom: number }
 ): ChartHoverState | null {
   const typedState = state as RechartsMouseState | null;
   const activeIndex = typedState?.activeIndex ?? typedState?.activeTooltipIndex;
@@ -37,13 +43,13 @@ export function getActiveChartHover(
   const pointFromIndex = Number.isFinite(numericIndex) ? series[numericIndex] : null;
   const point = typedState?.activePayload?.[0]?.payload ?? pointFromIndex;
   const x = typedState?.activeCoordinate?.x;
-  const y = typedState?.activeCoordinate?.y;
+  const y = typedState?.chartY ?? typedState?.activeCoordinate?.y;
 
   if (!point || typeof x !== 'number' || typeof y !== 'number') {
     return null;
   }
 
-  if (x < bounds.plotLeft || y < bounds.plotTop || y > bounds.plotBottom) {
+  if (x < bounds.plotLeft || y < bounds.plotTop || y > bounds.chartBottom) {
     return null;
   }
 
@@ -51,11 +57,18 @@ export function getActiveChartHover(
     return null;
   }
 
-  return { point, x, y };
+  const hoverY = Math.min(bounds.chartBottom, Math.max(bounds.plotTop, y));
+  return { point, value: getScaledHoverValue(typedState, hoverY), x, y: hoverY };
 }
 
-export function getAxisValueLabelTop(value: number) {
-  return Math.min(chartHeightPx - 36, Math.max(10, value));
+function getScaledHoverValue(state: RechartsMouseState | null, y: number) {
+  const yAxis = Object.values(state?.yAxisMap ?? {})[0];
+  const value = yAxis?.scale?.invert?.(y);
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+export function getAxisValueLabelTopForChart(value: number, chartHeight: number) {
+  return Math.min(chartHeight - 36, Math.max(10, value));
 }
 
 export function getAxisTimeLabelLeft(value: number) {
@@ -290,6 +303,7 @@ export function LatestValueFloatingLabel({
 
 export function ChartCrosshairOverlay({
   bottom,
+  chartHeight,
   hover,
   left,
   range,
@@ -298,6 +312,7 @@ export function ChartCrosshairOverlay({
   yDomain
 }: {
   bottom: number;
+  chartHeight: number;
   hover: ChartHoverState | null;
   left: number;
   range: RangeKey;
@@ -309,7 +324,7 @@ export function ChartCrosshairOverlay({
     return null;
   }
 
-  const displayValue = getHoverAxisValue(hover.y, top, bottom, yDomain, hover.point.value);
+  const displayValue = hover.value ?? getHoverAxisValue(hover.y, top, bottom, chartHeight, yDomain, hover.point.value);
 
   return (
     <>
@@ -329,7 +344,7 @@ export function ChartCrosshairOverlay({
           top: hover.y
         }}
       />
-      <div className="chart-axis-value-label" style={{ top: getAxisValueLabelTop(hover.y) }}>
+      <div className="chart-axis-value-label" style={{ top: getAxisValueLabelTopForChart(hover.y, chartHeight) }}>
         <span>{formatValue(displayValue)}</span>
       </div>
       <div className="chart-axis-time-label" style={{ left: getAxisTimeLabelLeft(hover.x) }}>
@@ -343,6 +358,7 @@ function getHoverAxisValue(
   y: number,
   top: number,
   bottom: number,
+  chartHeight: number,
   domain: [number, number] | ['auto', 'auto'],
   fallbackValue: number
 ) {
@@ -356,7 +372,7 @@ function getHoverAxisValue(
   }
 
   const plotTop = top;
-  const plotBottom = chartHeightPx - bottom;
+  const plotBottom = chartHeight - bottom;
   if (plotBottom <= plotTop) {
     return fallbackValue;
   }
