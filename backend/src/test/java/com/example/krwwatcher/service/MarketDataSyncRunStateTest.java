@@ -292,7 +292,8 @@ class MarketDataSyncRunStateTest {
             Duration.ofHours(1),
             3,
             Duration.ofMinutes(30),
-            ""
+            "",
+            new SyncProperties.SyncPostSecurity("test-admin-token", "", Duration.ofMinutes(15))
         ));
     }
 
