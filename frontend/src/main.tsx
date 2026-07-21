@@ -46,6 +46,7 @@ import { findMetric, sortMetrics } from './utils/metrics';
 import {
   getIntradayStatusLabel,
   getLatestSyncLabel,
+  getMarketDailyStatus,
   getServiceStatus,
   getServiceUpdateInterval
 } from './utils/sync';
@@ -100,6 +101,7 @@ function App() {
   const [newsPage, setNewsPage] = React.useState(1);
   const [newsTotalCount, setNewsTotalCount] = React.useState(0);
   const [newsTotalPages, setNewsTotalPages] = React.useState(0);
+  const [latestNewsFetchedAt, setLatestNewsFetchedAt] = React.useState<string | null>(null);
   const [governmentBriefings, setGovernmentBriefings] = React.useState<GovernmentBriefingArticle[]>([]);
   const [governmentBriefingCategories, setGovernmentBriefingCategories] = React.useState<GovernmentBriefingCategory[]>([]);
   const [isGovernmentBriefingsConfigured, setIsGovernmentBriefingsConfigured] = React.useState(false);
@@ -111,6 +113,7 @@ function App() {
   const [governmentBriefingsPage, setGovernmentBriefingsPage] = React.useState(1);
   const [governmentBriefingsTotalCount, setGovernmentBriefingsTotalCount] = React.useState(0);
   const [governmentBriefingsTotalPages, setGovernmentBriefingsTotalPages] = React.useState(0);
+  const [latestGovernmentBriefingFetchedAt, setLatestGovernmentBriefingFetchedAt] = React.useState<string | null>(null);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const isMainAppPage = activePage === 'home' || activePage === 'dashboard' || activePage === 'exchangeGuide' || activePage === 'koreaStatus' || activePage === 'ranking' || activePage === 'newsroom' || activePage === 'governmentBriefings';
   const mainTabNavRef = React.useRef<HTMLElement | null>(null);
@@ -249,8 +252,10 @@ function App() {
       setNewsPage(response.data.page);
       setNewsTotalCount(response.data.totalCount);
       setNewsTotalPages(response.data.totalPages);
+      setLatestNewsFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
     } catch {
       setNewsArticles([]);
+      setLatestNewsFetchedAt(null);
     } finally {
       setHasNewsLoaded(true);
       if (showLoading) {
@@ -286,8 +291,10 @@ function App() {
       setGovernmentBriefingsPage(response.data.page);
       setGovernmentBriefingsTotalCount(response.data.totalCount);
       setGovernmentBriefingsTotalPages(response.data.totalPages);
+      setLatestGovernmentBriefingFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
     } catch {
       setGovernmentBriefings([]);
+      setLatestGovernmentBriefingFetchedAt(null);
     } finally {
       setHasGovernmentBriefingsLoaded(true);
       if (showLoading) {
@@ -392,7 +399,9 @@ function App() {
     domesticIndicators,
     isGovernmentBriefingsConfigured,
     intradayStatus,
+    latestGovernmentBriefingFetchedAt,
     isNewsConfigured,
+    latestNewsFetchedAt,
     latestIntradayDate,
     ranks: currencyStrengthRanks,
     seoulDate: seoulToday,
@@ -400,18 +409,14 @@ function App() {
     syncStatus
   });
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
-  const marketDailyStatusFailed = syncStatus?.latestStatus
-    ? syncStatus.latestStatus !== 'SUCCESS' && syncStatus.latestStatus !== 'PARTIAL_SUCCESS' && !syncStatus.latestStatus.startsWith('SKIPPED')
-    : false;
-  const marketDailyStatusLabel = marketDailyStatusFailed ? '업데이트 점검' : (syncStatus?.latestStatus ? '업데이트 원활' : '업데이트 대기');
-  const marketDailyStatusTone = marketDailyStatusFailed ? 'error' : (syncStatus?.latestStatus ? 'healthy' : 'idle');
+  const marketDailyStatus = getMarketDailyStatus(dashboard, syncStatus);
   const showUsdKrwLatestValueDot = usdKrwRange === '1D' && activeServiceStatus.tone !== 'idle' && isUsdKrwIntradayActive;
   const usdKrwStatusNode = (
     <UpdateStatusBox
       interval={usdKrwRange === '1D' ? '환율 1분봉 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
-      statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatusLabel}
+      statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatus.label}
       todayLabel={todayLabel}
-      tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatusTone}
+      tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatus.tone}
     />
   );
   const showPageStatus = activePage !== 'exchangeGuide' && activePage !== 'serviceGuide' && activePage !== 'dataSources';
@@ -1245,6 +1250,15 @@ function getCurrencyShortLabel(code: string) {
 
 function getCurrencyDetailText(rate: ForeignExchangeRate) {
   return `${rate.displayCode} · ${formatForeignExchangeUpdatedAt(new Date(rate.fetchedAt))} 업데이트`;
+}
+
+function getLatestFetchedAt(items: Array<NewsArticle | GovernmentBriefingArticle>) {
+  const latestMs = items
+    .map((item) => new Date(item.fetchedAt).getTime())
+    .filter(Number.isFinite)
+    .reduce<number | null>((latest, fetchedAt) => latest === null ? fetchedAt : Math.max(latest, fetchedAt), null);
+
+  return latestMs === null ? null : new Date(latestMs).toISOString();
 }
 
 function formatForeignExchangeUpdatedAt(date: Date) {
