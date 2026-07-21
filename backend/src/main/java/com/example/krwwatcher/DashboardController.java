@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/dashboard")
 @CrossOrigin(origins = "${app.cors.allowed-origins}")
 public class DashboardController {
-
     private final DashboardService dashboardService;
 
     public DashboardController(DashboardService dashboardService) {
