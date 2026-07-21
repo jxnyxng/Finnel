@@ -145,6 +145,7 @@ export type SyncStatus = {
   canSync: boolean;
   sourceRuns?: SourceRunStatus[];
   backfillSession?: BackfillSessionStatus | null;
+  holidayCalendars?: HolidayCalendarStatus[];
 };
 
 export type SourceRunStatus = {
@@ -167,6 +168,13 @@ export type BackfillSessionStatus = {
   noChangeCount: number;
   attemptedAt: string;
   nextAllowedAt: string | null;
+  message: string | null;
+};
+
+export type HolidayCalendarStatus = {
+  year: number;
+  status: string;
+  lastSyncedAt: string | null;
   message: string | null;
 };
 
