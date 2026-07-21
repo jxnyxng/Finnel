@@ -83,6 +83,20 @@ class MarketDataSyncRunStateTest {
                 PRIMARY KEY (id)
             )
             """);
+        jdbcTemplate.execute("""
+            CREATE TABLE effective_exchange_rates (
+                id BIGINT NOT NULL AUTO_INCREMENT,
+                base_date DATE NOT NULL,
+                area_code VARCHAR(10) NOT NULL,
+                area_name VARCHAR(100) NOT NULL,
+                index_type VARCHAR(10) NOT NULL,
+                basket_type VARCHAR(10) NOT NULL,
+                value DECIMAL(19, 6) NOT NULL,
+                source VARCHAR(50) NOT NULL,
+                fetched_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (id)
+            )
+            """);
         marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, null, null, null, null, null, null, jdbcTemplate);
     }
 
@@ -212,6 +226,104 @@ class MarketDataSyncRunStateTest {
     }
 
     @Test
+    void effectiveExchangeRatesSyncRunsInitiallyRegardlessOfWeekday() {
+        Boolean shouldSync = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 7, 21, 9, 0)
+        );
+
+        assertThat(shouldSync).isTrue();
+    }
+
+    @Test
+    void effectiveExchangeRatesSyncWaitsUntilSaturdayMorningAfterCurrentWeekIsSynced() {
+        insertEffectiveExchangeRate(Instant.parse("2026-07-20T00:00:00Z"));
+        insertSourceRun("MARKET_DATA_SYNC", "currencyStrength", "SUCCESS", Instant.parse("2026-07-18T00:10:00Z"));
+
+        Boolean shouldSyncFriday = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 7, 24, 15, 0)
+        );
+        Boolean shouldSyncBeforeSaturdayClose = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 7, 25, 5, 59)
+        );
+        Boolean shouldSyncAfterSaturdayClose = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 7, 25, 6, 0)
+        );
+
+        assertThat(shouldSyncFriday).isFalse();
+        assertThat(shouldSyncBeforeSaturdayClose).isFalse();
+        assertThat(shouldSyncAfterSaturdayClose).isTrue();
+    }
+
+    @Test
+    void effectiveExchangeRatesSyncUsesSevenAmSaturdayInStandardTime() {
+        insertEffectiveExchangeRate(Instant.parse("2026-01-05T00:00:00Z"));
+        insertSourceRun("MARKET_DATA_SYNC", "currencyStrength", "SUCCESS", Instant.parse("2026-01-03T00:10:00Z"));
+
+        Boolean shouldSyncBeforeSaturdayClose = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 1, 10, 6, 59)
+        );
+        Boolean shouldSyncAfterSaturdayClose = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 1, 10, 7, 0)
+        );
+
+        assertThat(shouldSyncBeforeSaturdayClose).isFalse();
+        assertThat(shouldSyncAfterSaturdayClose).isTrue();
+    }
+
+    @Test
+    void effectiveExchangeRatesSyncRunsOnlyOnceForCompletedWeeklyWindow() {
+        insertEffectiveExchangeRate(Instant.parse("2026-07-20T00:00:00Z"));
+        insertSourceRun("MARKET_DATA_SYNC", "currencyStrength", "SUCCESS", Instant.parse("2026-07-24T21:10:00Z"));
+
+        Boolean shouldSync = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 7, 27, 9, 0)
+        );
+
+        assertThat(shouldSync).isFalse();
+    }
+
+    @Test
+    void effectiveExchangeRatesSyncCatchesUpMissedSaturdayRunOnStartup() {
+        insertEffectiveExchangeRate(Instant.parse("2026-07-20T00:00:00Z"));
+        insertSourceRun("MARKET_DATA_SYNC", "currencyStrength", "SUCCESS", Instant.parse("2026-07-18T00:10:00Z"));
+
+        Boolean shouldSync = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 7, 27, 9, 0)
+        );
+
+        assertThat(shouldSync).isTrue();
+    }
+
+    @Test
+    void effectiveExchangeRatesSyncDoesNotRepeatAfterSuccessfulEmptyInitialRun() {
+        insertSourceRun("MARKET_DATA_SYNC", "currencyStrength", "SUCCESS", Instant.parse("2026-07-21T01:00:00Z"));
+
+        Boolean shouldSync = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "shouldSyncEffectiveExchangeRates",
+            LocalDateTime.of(2026, 7, 21, 10, 0)
+        );
+
+        assertThat(shouldSync).isFalse();
+    }
+
+    @Test
     void usdKrwBackfillSessionCooldownPreventsImmediateRetry() throws Exception {
         LocalDate sessionStartDate = LocalDate.of(2026, 7, 17);
         Instant attemptedAt = Instant.parse("2026-07-18T00:10:00Z");
@@ -311,6 +423,24 @@ class MarketDataSyncRunStateTest {
         );
     }
 
+    private void insertEffectiveExchangeRate(Instant fetchedAt) {
+        jdbcTemplate.update(
+            """
+                INSERT INTO effective_exchange_rates
+                    (base_date, area_code, area_name, index_type, basket_type, value, source, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            LocalDate.of(2026, 6, 30),
+            "KR",
+            "Korea",
+            "NEER",
+            "BROAD",
+            "100.000000",
+            "BIS:WS_EER",
+            fetchedAt
+        );
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Object syncTrigger(String name) throws Exception {
         Class enumClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$SyncTrigger");
@@ -351,7 +481,7 @@ class MarketDataSyncRunStateTest {
     private DataSource dataSource() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("org.h2.Driver");
-        dataSource.setUrl("jdbc:h2:mem:market-data-sync-run-state-" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1");
+        dataSource.setUrl("jdbc:h2:mem:market-data-sync-run-state-" + UUID.randomUUID() + ";MODE=MySQL;DATABASE_TO_UPPER=false;NON_KEYWORDS=VALUE;DB_CLOSE_DELAY=-1");
         return dataSource;
     }
 }

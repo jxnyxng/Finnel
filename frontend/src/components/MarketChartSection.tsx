@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react';
+import { type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   chartBottomMarginPx,
@@ -25,7 +25,6 @@ type RangeSelectorOption<T extends RangeKey> = {
 type AxisTickProps = {
   x?: number;
   y?: number;
-  index?: number;
   payload?: {
     value?: number | string;
   };
@@ -104,9 +103,30 @@ export function MarketChartSection<T extends RangeKey>({
 }: MarketChartSectionProps<T>) {
   const latestPoint = series[series.length - 1] ?? null;
   const chartBottom = chartBottomMarginPx + xAxisHeight;
-  const plotBottom = chartHeightPx - chartBottom;
+  const chartSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const [chartPixelHeight, setChartPixelHeight] = useState(chartHeightPx);
+  const plotBottom = chartPixelHeight - chartBottom;
   const axisWidth = 58;
   const plotInsetLeft = 18;
+
+  useLayoutEffect(() => {
+    const element = chartSurfaceRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateHeight = () => {
+      const nextHeight = element.getBoundingClientRect().height;
+      if (nextHeight > 0) {
+        setChartPixelHeight(nextHeight);
+      }
+    };
+
+    updateHeight();
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   return (
     <div className={`relative ${headerAction ? 'pt-7' : ''}`}>
@@ -125,7 +145,7 @@ export function MarketChartSection<T extends RangeKey>({
           </div>
 
           <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
-            <div className="chart-grid-surface relative h-72 min-w-0 overflow-hidden rounded-2xl sm:h-80 lg:h-full lg:min-h-96">
+            <div className="chart-grid-surface relative h-72 min-w-0 overflow-hidden rounded-2xl sm:h-80 lg:h-full lg:min-h-96" ref={chartSurfaceRef}>
               <div className="chart-range-enter absolute inset-0" key={range}>
                 <ChartPlotGrid bottom={chartBottom} left={plotInsetLeft} right={axisWidth} top={chartTopMarginPx} />
                 {series.length === 0 ? (
@@ -137,6 +157,7 @@ export function MarketChartSection<T extends RangeKey>({
                       margin={{ top: chartTopMarginPx, right: 0, bottom: 0, left: plotInsetLeft }}
                       onMouseLeave={() => onHoverChange(null)}
                       onMouseMove={(state) => onHoverChange(getActiveChartHover(state, series, {
+                        chartBottom: chartPixelHeight,
                         plotBottom,
                         plotLeft: plotInsetLeft,
                         plotTop: chartTopMarginPx
@@ -202,6 +223,7 @@ export function MarketChartSection<T extends RangeKey>({
                 )}
                 <ChartCrosshairOverlay
                   bottom={chartBottom}
+                  chartHeight={chartPixelHeight}
                   hover={hover}
                   left={plotInsetLeft}
                   range={range}
@@ -244,7 +266,7 @@ export function MarketChartSection<T extends RangeKey>({
   );
 }
 
-function YAxisTick({ index = 0, payload, x = 0, y = 0 }: AxisTickProps) {
+function YAxisTick({ payload, x = 0, y = 0 }: AxisTickProps) {
   return (
     <text
       dy={4}
@@ -252,7 +274,7 @@ function YAxisTick({ index = 0, payload, x = 0, y = 0 }: AxisTickProps) {
       fontSize={10}
       textAnchor="start"
       x={x}
-      y={index === 0 ? y - 14 : y}
+      y={y}
     >
       {formatValue(Number(payload?.value))}
     </text>

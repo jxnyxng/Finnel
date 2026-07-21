@@ -407,6 +407,21 @@ function IndicatorInfoPanel({
   }, [indicator]);
 
   React.useEffect(() => {
+    if (!indicator) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [indicator, onClose]);
+
+  React.useEffect(() => {
     if (!indicator || !shouldShowHistoryChart(indicator)) {
       setHistory(null);
       setHistoryError(null);

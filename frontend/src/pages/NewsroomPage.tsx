@@ -245,23 +245,23 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
   return (
     <article
-      className="glass-list-card group/card min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-white/10 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-200/50 motion-reduce:transition-none"
+      className="glass-list-card group/card min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-white/10 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-200/50 sm:h-32 md:h-36 motion-reduce:transition-none"
       onClick={openArticle}
       onKeyDown={openArticleWithKeyboard}
       role="link"
       tabIndex={0}
     >
-      <div className="grid sm:grid-cols-[128px_minmax(0,1fr)] md:grid-cols-[144px_minmax(0,1fr)]">
+      <div className="grid sm:h-full sm:grid-cols-[128px_minmax(0,1fr)] md:grid-cols-[144px_minmax(0,1fr)]">
         <NewsThumbnail article={article} isNew={isNew} />
-        <div className="min-w-0 p-3 sm:p-3">
+        <div className="min-w-0 overflow-hidden p-3 sm:p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/55">
+              <div className="flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-[11px] text-white/55">
                 <span className="rounded bg-white/10 px-2 py-0.5 font-semibold text-white/70">{article.categoryName}</span>
                 <span>{formatNewsDate(article.publishedAt)}</span>
-                <span>검색어 {article.queryText}</span>
+                <span className="truncate">검색어 {article.queryText}</span>
               </div>
-              <span className="mt-2 block text-sm font-semibold leading-5 text-white">
+              <span className="text-clamp-2 mt-2 block text-sm font-semibold leading-5 text-white">
                 {article.title}
               </span>
             </div>
@@ -278,11 +278,11 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
               </a>
             ) : null}
           </div>
-          {article.description ? <p className="mt-2 text-xs leading-5 text-white/65">{article.description}</p> : null}
-          <div className="mt-3 flex flex-wrap gap-2 border-t border-white/10 pt-2 text-[11px] text-white/45">
+          {article.description ? <p className="text-clamp-1 mt-2 text-xs leading-5 text-white/65">{article.description}</p> : null}
+          <div className="mt-3 flex min-w-0 gap-2 overflow-hidden whitespace-nowrap border-t border-white/10 pt-2 text-[11px] text-white/45">
             <span>수집 {formatNewsDate(article.fetchedAt)}</span>
             {article.aiSummary ? <span>AI 요약 있음</span> : <span>AI 요약 대기</span>}
-            {article.marketSentiment ? <span>{article.marketSentiment}</span> : null}
+            {article.marketSentiment ? <span className="truncate">{article.marketSentiment}</span> : null}
           </div>
         </div>
       </div>
@@ -307,11 +307,11 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
 
   if (article.imageUrl && !hasImageError) {
     return (
-      <div className="relative h-28 w-full overflow-hidden bg-zinc-900/50 sm:h-full sm:min-h-32">
+      <div className="relative h-28 w-full self-start overflow-hidden bg-zinc-900/50 sm:h-32 md:h-36">
         {isNew ? <NewBadge /> : null}
         <img
           alt=""
-          className="h-full w-full object-cover transition-opacity duration-200 ease-out group-hover/card:opacity-95"
+          className="block h-full w-full object-cover transition-opacity duration-200 ease-out group-hover/card:opacity-95"
           loading="lazy"
           onError={() => setHasImageError(true)}
           src={article.imageUrl}
@@ -321,7 +321,7 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
   }
 
   return (
-    <div className="relative grid h-28 w-full place-items-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#3f3f46)] text-center text-white sm:h-full sm:min-h-32">
+    <div className="relative grid h-28 w-full self-start place-items-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#3f3f46)] text-center text-white sm:h-32 md:h-36">
       {isNew ? <NewBadge /> : null}
       <div>
         <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white text-lg font-bold text-teal-700">₩</span>
