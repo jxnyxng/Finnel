@@ -32,6 +32,9 @@ export type CurrencyStrengthRank = {
   totalCount: number;
   reerBaseDate: string | null;
   reerValue: number | null;
+  previousNeerRank: number | null;
+  previousNeerValue: number | null;
+  neerValueChange: number | null;
 };
 
 export type ForeignExchangeRate = {
@@ -269,6 +272,7 @@ export type ChartPoint = {
 
 export type ChartHoverState = {
   point: ChartPoint;
+  value: number | null;
   x: number;
   y: number;
 };
