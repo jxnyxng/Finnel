@@ -37,6 +37,8 @@ app:
       zone: ${MARKET_DATA_SYNC_ZONE:Asia/Seoul}
       intraday-cooldown: ${MARKET_DATA_SYNC_INTRADAY_COOLDOWN:5m}
       intraday-cron: ${MARKET_DATA_SYNC_INTRADAY_CRON:30 */5 * * * *}
+      intraday-backfill-session-cooldown: ${MARKET_DATA_SYNC_INTRADAY_BACKFILL_SESSION_COOLDOWN:1h}
+      intraday-backfill-no-change-suspend-threshold: ${MARKET_DATA_SYNC_INTRADAY_BACKFILL_NO_CHANGE_SUSPEND_THRESHOLD:3}
       daily-backfill-cooldown: ${MARKET_DATA_SYNC_DAILY_BACKFILL_COOLDOWN:30m}
       daily-backfill-cron: ${MARKET_DATA_SYNC_DAILY_BACKFILL_CRON:0 5 8-18 * * MON-FRI}
       news-cron: ${NEWS_SYNC_CRON:0 */10 * * * MON-FRI}

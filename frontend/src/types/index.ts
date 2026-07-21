@@ -144,6 +144,7 @@ export type SyncStatus = {
   remainingCooldownSeconds: number;
   canSync: boolean;
   sourceRuns?: SourceRunStatus[];
+  backfillSession?: BackfillSessionStatus | null;
 };
 
 export type SourceRunStatus = {
@@ -154,6 +155,19 @@ export type SourceRunStatus = {
   errorMessage: string | null;
   startedAt: string;
   endedAt: string | null;
+};
+
+export type BackfillSessionStatus = {
+  sessionKey: string;
+  sessionStartDate: string;
+  status: string;
+  rows: number;
+  previousLatestObservedAt: string | null;
+  latestObservedAt: string | null;
+  noChangeCount: number;
+  attemptedAt: string;
+  nextAllowedAt: string | null;
+  message: string | null;
 };
 
 export type NewsCategory = {
