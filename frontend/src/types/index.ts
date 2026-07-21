@@ -3,6 +3,7 @@ export type HistoryRangeKey = '1Y' | '3Y' | '5Y';
 export type MainTabKey = 'dashboard' | 'exchangeGuide' | 'koreaStatus' | 'ranking' | 'newsroom' | 'governmentBriefings';
 export type PageKey = MainTabKey | 'home' | 'serviceGuide' | 'dataSources';
 export type ServiceStatusTone = 'healthy' | 'idle' | 'error';
+export type FreshnessStatus = 'FRESH' | 'STALE' | 'MISSING';
 
 export type MetricSnapshot = {
   code: string;
@@ -81,6 +82,10 @@ export type DomesticIndicator = {
   note: string;
   status: string;
   detailUrl: string | null;
+  freshnessStatus: FreshnessStatus;
+  staleReason: string | null;
+  expectedNextUpdateAt: string | null;
+  lastSuccessfulFetchedAt: string | null;
 };
 
 export type DomesticIndicatorHistoryResponse = {
@@ -107,6 +112,10 @@ export type DailyDashboardResponse = {
   exchangeRateCalculator: ExchangeRateCalculatorMeta;
   domesticIndicators: DomesticIndicator[];
   dataSources: DataSourceInfo[];
+  freshnessStatus: FreshnessStatus;
+  staleReason: string | null;
+  expectedNextUpdateAt: string | null;
+  lastSuccessfulFetchedAt: string | null;
 };
 
 export type SyncResult = {
@@ -172,6 +181,10 @@ export type NewsResponse = {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  freshnessStatus?: FreshnessStatus;
+  staleReason?: string | null;
+  expectedNextUpdateAt?: string | null;
+  lastSuccessfulFetchedAt?: string | null;
 };
 
 export type GovernmentBriefingArticle = {
@@ -207,6 +220,10 @@ export type GovernmentBriefingResponse = {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+  freshnessStatus?: FreshnessStatus;
+  staleReason?: string | null;
+  expectedNextUpdateAt?: string | null;
+  lastSuccessfulFetchedAt?: string | null;
 };
 
 export type ChartPoint = {
