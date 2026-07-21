@@ -19,7 +19,15 @@ public record SyncProperties(
         Duration intradayBackfillSessionCooldown,
         int intradayBackfillNoChangeSuspendThreshold,
         Duration dailyBackfillCooldown,
-        String dailyBackfillCron
+        String dailyBackfillCron,
+        SyncPostSecurity postSecurity
+    ) {
+    }
+
+    public record SyncPostSecurity(
+        String adminToken,
+        String allowedInternalCidrs,
+        Duration backfillRateLimitCooldown
     ) {
     }
 }
