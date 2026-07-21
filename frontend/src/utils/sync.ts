@@ -59,7 +59,9 @@ export function getServiceStatus({
   isGovernmentBriefingsConfigured,
   intradayStatus,
   isNewsConfigured,
+  latestGovernmentBriefingFetchedAt,
   latestIntradayDate,
+  latestNewsFetchedAt,
   ranks,
   seoulDate,
   seoulTime,
@@ -72,18 +74,20 @@ export function getServiceStatus({
   isGovernmentBriefingsConfigured: boolean;
   intradayStatus: SyncStatus | null;
   isNewsConfigured: boolean;
+  latestGovernmentBriefingFetchedAt?: string | null;
   latestIntradayDate: string | null;
+  latestNewsFetchedAt?: string | null;
   ranks: CurrencyStrengthRank[];
   seoulDate: string;
   seoulTime: string;
   syncStatus: SyncStatus | null;
 }): { label: string; tone: ServiceStatusTone } {
   if (activeTab === 'newsroom') {
-    return isNewsConfigured ? { label: '업데이트 원활', tone: 'healthy' } : { label: '업데이트 대기', tone: 'idle' };
+    return getContentFreshnessStatus(isNewsConfigured, latestNewsFetchedAt, 60);
   }
 
   if (activeTab === 'governmentBriefings') {
-    return isGovernmentBriefingsConfigured ? { label: '업데이트 원활', tone: 'healthy' } : { label: '업데이트 대기', tone: 'idle' };
+    return getContentFreshnessStatus(isGovernmentBriefingsConfigured, latestGovernmentBriefingFetchedAt, 60);
   }
 
   if (!dashboard && dashboardLoadState === 'loading') {
@@ -95,10 +99,21 @@ export function getServiceStatus({
   }
 
   const marketSyncFailed = isFailedSyncStatus(syncStatus?.latestStatus);
+  const marketSyncRunning = isRunningSyncStatus(syncStatus?.latestStatus);
   if (activeTab === 'koreaStatus') {
     const hasDomesticData = domesticIndicators.some((indicator) => indicator.value !== null);
-    if (marketSyncFailed || !dashboard || !hasDomesticData) {
+    const hasStaleDomesticData = domesticIndicators.some((indicator) => indicator.freshnessStatus === 'STALE');
+    if (marketSyncFailed) {
       return { label: '업데이트 점검', tone: 'error' };
+    }
+    if (marketSyncRunning) {
+      return { label: '업데이트 중', tone: 'idle' };
+    }
+    if (hasStaleDomesticData) {
+      return { label: '업데이트 지연', tone: 'error' };
+    }
+    if (!dashboard || !hasDomesticData) {
+      return { label: '업데이트 대기', tone: 'idle' };
     }
 
     return { label: '업데이트 원활', tone: 'healthy' };
@@ -109,20 +124,40 @@ export function getServiceStatus({
       return { label: '업데이트 대기', tone: 'idle' };
     }
 
-    if (marketSyncFailed || ranks.length === 0) {
+    if (marketSyncFailed) {
       return { label: '업데이트 점검', tone: 'error' };
+    }
+    if (marketSyncRunning) {
+      return { label: '업데이트 중', tone: 'idle' };
+    }
+    if (hasSuccessfulSync(syncStatus) && ranks.length === 0) {
+      return { label: '업데이트 지연', tone: 'error' };
+    }
+    if (ranks.length === 0) {
+      return { label: '업데이트 대기', tone: 'idle' };
     }
 
     return { label: '업데이트 원활', tone: 'healthy' };
   }
 
   const intradayFailed = isFailedSyncStatus(intradayStatus?.latestStatus);
+  const intradayRunning = isRunningSyncStatus(intradayStatus?.latestStatus);
+  const usdKrw = dashboard?.domesticIndicators.find((indicator) => indicator.code === 'USD_KRW') ?? null;
   if (!isIntradayExchangeUpdateWindow(seoulDate, seoulTime)) {
     return { label: '업데이트 대기', tone: 'idle' };
   }
 
-  if (marketSyncFailed || intradayFailed || !dashboard || !latestIntradayDate) {
+  if (marketSyncFailed || intradayFailed) {
     return { label: '업데이트 점검', tone: 'error' };
+  }
+  if (marketSyncRunning || intradayRunning) {
+    return { label: '업데이트 중', tone: 'idle' };
+  }
+  if (usdKrw?.freshnessStatus === 'STALE' || (hasSuccessfulSync(intradayStatus) && !latestIntradayDate)) {
+    return { label: '업데이트 지연', tone: 'error' };
+  }
+  if (!dashboard || !latestIntradayDate) {
+    return { label: '업데이트 대기', tone: 'idle' };
   }
 
   return { label: '업데이트 원활', tone: 'healthy' };
@@ -175,12 +210,69 @@ export function getRequestErrorMessage(error: unknown, fallback: string) {
   return `${fallback} ${axiosError.message}`;
 }
 
-function isFailedSyncStatus(status: string | null | undefined) {
+export function isFailedSyncStatus(status: string | null | undefined) {
   if (!status) {
     return false;
   }
 
-  return status !== 'SUCCESS' && status !== 'PARTIAL_SUCCESS' && !status.startsWith('SKIPPED');
+  return status !== 'SUCCESS' && status !== 'RUNNING' && !status.startsWith('SKIPPED');
+}
+
+export function getMarketDailyStatus(
+  dashboard: DailyDashboardResponse | null,
+  syncStatus: SyncStatus | null
+): { label: string; tone: ServiceStatusTone } {
+  if (syncStatus?.latestStatus && isFailedSyncStatus(syncStatus.latestStatus)) {
+    return { label: '업데이트 점검', tone: 'error' };
+  }
+  if (isRunningSyncStatus(syncStatus?.latestStatus)) {
+    return { label: '업데이트 중', tone: 'idle' };
+  }
+  if (!dashboard) {
+    return { label: '업데이트 대기', tone: 'idle' };
+  }
+
+  const usdKrw = dashboard?.domesticIndicators.find((indicator) => indicator.code === 'USD_KRW') ?? null;
+  if (usdKrw?.freshnessStatus === 'STALE') {
+    return { label: '업데이트 지연', tone: 'error' };
+  }
+
+  if (hasSuccessfulSync(syncStatus) && (!usdKrw || usdKrw.freshnessStatus === 'MISSING')) {
+    return { label: '업데이트 지연', tone: 'error' };
+  }
+
+  if (usdKrw?.freshnessStatus === 'FRESH' || hasSuccessfulSync(syncStatus)) {
+    return { label: '업데이트 원활', tone: 'healthy' };
+  }
+
+  return { label: '업데이트 대기', tone: 'idle' };
+}
+
+function getContentFreshnessStatus(isConfigured: boolean, latestFetchedAt: string | null | undefined, maxAgeMinutes: number) {
+  if (!isConfigured) {
+    return { label: '업데이트 대기', tone: 'idle' as const };
+  }
+
+  if (!latestFetchedAt) {
+    return { label: '업데이트 대기', tone: 'idle' as const };
+  }
+
+  const latestMs = new Date(latestFetchedAt).getTime();
+  if (!Number.isFinite(latestMs)) {
+    return { label: '업데이트 점검', tone: 'error' as const };
+  }
+
+  return Date.now() - latestMs > maxAgeMinutes * 60_000
+    ? { label: '업데이트 지연', tone: 'error' as const }
+    : { label: '업데이트 원활', tone: 'healthy' as const };
+}
+
+function hasSuccessfulSync(syncStatus: SyncStatus | null) {
+  return syncStatus?.latestStatus === 'SUCCESS';
+}
+
+function isRunningSyncStatus(status: string | null | undefined) {
+  return status === 'RUNNING';
 }
 
 function isIntradayExchangeUpdateWindow(seoulDate: string, seoulTime: string) {

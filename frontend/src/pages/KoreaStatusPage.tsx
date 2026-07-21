@@ -826,8 +826,12 @@ function collectionStatusLabel(indicator: DomesticIndicator) {
     return '대기';
   }
 
+  if (indicator.freshnessStatus === 'STALE') {
+    return '지연';
+  }
+
   if (indicator.value === null || indicator.status === '데이터 없음') {
-    return '오류';
+    return '대기';
   }
 
   return '정상';
@@ -839,7 +843,7 @@ function collectionStatusClassName(indicator: DomesticIndicator) {
     return 'border border-amber-300/30 bg-amber-400/15 text-amber-100';
   }
 
-  if (label === '오류') {
+  if (label === '지연') {
     return 'border border-rose-300/30 bg-rose-400/15 text-rose-100';
   }
 

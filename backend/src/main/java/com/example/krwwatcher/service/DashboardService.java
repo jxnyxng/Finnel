@@ -2,6 +2,7 @@ package com.example.krwwatcher.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -32,6 +33,10 @@ public class DashboardService {
 
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final List<String> FOREIGN_EXCHANGE_ORDER = List.of("USD", "JPY", "EUR", "CNY", "CNH", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD");
+    private static final String FRESH = "FRESH";
+    private static final String STALE = "STALE";
+    private static final String MISSING = "MISSING";
+    private static final Duration MACRO_COLLECTION_STALE_AFTER = Duration.ofDays(2);
 
     private final ExternalApiProperties properties;
     private final ExchangeRateRepository exchangeRateRepository;
@@ -91,6 +96,8 @@ public class DashboardService {
 
         TimeSeriesPoint latestUsdKrw = usdKrwSeries.isEmpty() ? null : usdKrwSeries.get(usdKrwSeries.size() - 1);
         LocalDate baseDate = latestUsdKrw != null ? latestUsdKrw.baseDate() : LocalDate.now();
+        List<DomesticIndicator> domesticIndicators = domesticIndicators(latestUsdKrw, latestUsdKrwDaily, usdKrwIntradaySeries, latestKrRate, latestUsRate, latestForeignReserve, currencyStrengthRanks);
+        FreshnessInfo dashboardFreshness = aggregateFreshness(domesticIndicators);
 
         return new DailyDashboardResponse(
             baseDate,
@@ -110,8 +117,12 @@ public class DashboardService {
             currencyStrengthRanks,
             foreignExchangeRates,
             exchangeRateCalculatorMeta(foreignExchangeRates),
-            domesticIndicators(latestUsdKrw, latestUsdKrwDaily, usdKrwIntradaySeries, latestKrRate, latestUsRate, latestForeignReserve, currencyStrengthRanks),
-            dataSourceInfos()
+            domesticIndicators,
+            dataSourceInfos(),
+            dashboardFreshness.freshnessStatus(),
+            dashboardFreshness.staleReason(),
+            dashboardFreshness.expectedNextUpdateAt(),
+            dashboardFreshness.lastSuccessfulFetchedAt()
         );
     }
 
@@ -171,6 +182,7 @@ public class DashboardService {
             .findTopByBaseDateBeforeOrderByBaseDateDesc(latestForeignReserve.getBaseDate())
             .orElse(null);
         IntradayTimeSeriesPoint latestIntraday = usdKrwIntradaySeries.isEmpty() ? null : usdKrwIntradaySeries.get(usdKrwIntradaySeries.size() - 1);
+        FreshnessInfo usdKrwFreshness = usdKrwFreshness(latestIntraday, latestUsdKrwDaily, latestUsdKrw == null ? null : latestUsdKrw.baseDate(), latestUsdKrw == null ? null : latestUsdKrw.value(), Instant.now());
 
         BigDecimal rateGap = rateGap(latestUsRate, latestKrRate);
         BigDecimal previousRateGap = rateGap(previousUsRate, previousKrRate);
@@ -192,12 +204,17 @@ public class DashboardService {
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getDealBasRate(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getBaseDate(),
             latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min",
-            latestIntraday == null && latestUsdKrwDaily != null ? latestUsdKrwDaily.getFetchedAt() : null,
+            latestIntraday == null ? latestUsdKrwDaily == null ? null : latestUsdKrwDaily.getFetchedAt() : latestIntraday.fetchedAt(),
             "환율 상승은 같은 1달러를 사기 위해 더 많은 원화가 필요하다는 뜻이어서 원화 약세 압력으로 봅니다.",
             "Twelve Data 1분봉과 일별 저장 환율을 함께 사용합니다.",
-            statusLabel(latestUsdKrw == null ? null : latestUsdKrw.value()),
-            null
+            statusLabel(usdKrwFreshness),
+            null,
+            usdKrwFreshness.freshnessStatus(),
+            usdKrwFreshness.staleReason(),
+            usdKrwFreshness.expectedNextUpdateAt(),
+            usdKrwFreshness.lastSuccessfulFetchedAt()
         ));
+        FreshnessInfo krPolicyFreshness = freshness("KR_POLICY_RATE", latestKrRate == null ? null : latestKrRate.getBaseDate(), latestKrRate == null ? null : latestKrRate.getRateValue(), latestKrRate == null ? null : latestKrRate.getFetchedAt(), Instant.now());
         indicators.add(new DomesticIndicator(
             "KR_POLICY_RATE",
             "한국 기준금리",
@@ -211,9 +228,14 @@ public class DashboardService {
             latestKrRate == null ? null : latestKrRate.getFetchedAt(),
             "한국 금리가 상대적으로 높아지면 원화 보유 유인이 커질 수 있지만, 성장 둔화 우려와 함께 봐야 합니다.",
             "한국은행 ECOS에서 발표된 기준금리 저장값입니다.",
-            statusLabel(latestKrRate == null ? null : latestKrRate.getRateValue()),
-            null
+            statusLabel(krPolicyFreshness),
+            null,
+            krPolicyFreshness.freshnessStatus(),
+            krPolicyFreshness.staleReason(),
+            krPolicyFreshness.expectedNextUpdateAt(),
+            krPolicyFreshness.lastSuccessfulFetchedAt()
         ));
+        FreshnessInfo usPolicyFreshness = freshness("US_POLICY_RATE", latestUsRate == null ? null : latestUsRate.getBaseDate(), latestUsRate == null ? null : latestUsRate.getRateValue(), latestUsRate == null ? null : latestUsRate.getFetchedAt(), Instant.now());
         indicators.add(new DomesticIndicator(
             "US_POLICY_RATE",
             "미국 기준금리",
@@ -227,9 +249,15 @@ public class DashboardService {
             latestUsRate == null ? null : latestUsRate.getFetchedAt(),
             "미국 금리가 높거나 인하 기대가 약하면 달러 선호가 강해져 원화에는 부담이 될 수 있습니다.",
             "FRED의 미국 정책금리 계열을 저장합니다.",
-            statusLabel(latestUsRate == null ? null : latestUsRate.getRateValue()),
-            null
+            statusLabel(usPolicyFreshness),
+            null,
+            usPolicyFreshness.freshnessStatus(),
+            usPolicyFreshness.staleReason(),
+            usPolicyFreshness.expectedNextUpdateAt(),
+            usPolicyFreshness.lastSuccessfulFetchedAt()
         ));
+        Instant rateGapFetchedAt = latestUsRate == null ? null : latestUsRate.getFetchedAt();
+        FreshnessInfo rateGapFreshness = freshness("KR_US_RATE_GAP", rateGapBaseDate, rateGap, rateGapFetchedAt, Instant.now());
         indicators.add(new DomesticIndicator(
             "KR_US_RATE_GAP",
             "한미 기준금리차",
@@ -240,12 +268,17 @@ public class DashboardService {
             previousRateGap,
             previousRateGapBaseDate,
             "FRED/ECOS",
-            latestUsRate == null ? null : latestUsRate.getFetchedAt(),
+            rateGapFetchedAt,
             "값이 플러스면 미국 기준금리가 한국보다 높다는 뜻입니다. 격차 확대는 원화 약세 요인으로 해석될 수 있습니다.",
             "미국 기준금리에서 한국 기준금리를 뺀 값입니다.",
-            statusLabel(rateGap),
-            null
+            statusLabel(rateGapFreshness),
+            null,
+            rateGapFreshness.freshnessStatus(),
+            rateGapFreshness.staleReason(),
+            rateGapFreshness.expectedNextUpdateAt(),
+            rateGapFreshness.lastSuccessfulFetchedAt()
         ));
+        FreshnessInfo foreignReserveFreshness = freshness("FOREIGN_RESERVES", latestForeignReserve == null ? null : latestForeignReserve.getBaseDate(), latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion(), latestForeignReserve == null ? null : latestForeignReserve.getFetchedAt(), Instant.now());
         indicators.add(new DomesticIndicator(
             "FOREIGN_RESERVES",
             "외환보유액",
@@ -259,8 +292,12 @@ public class DashboardService {
             latestForeignReserve == null ? null : latestForeignReserve.getFetchedAt(),
             "외환보유액은 급격한 외환시장 변동에 대응할 수 있는 완충 여력으로 봅니다.",
             "한국은행 ECOS 외환보유액 월별 발표값입니다.",
-            statusLabel(latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion()),
-            null
+            statusLabel(foreignReserveFreshness),
+            null,
+            foreignReserveFreshness.freshnessStatus(),
+            foreignReserveFreshness.staleReason(),
+            foreignReserveFreshness.expectedNextUpdateAt(),
+            foreignReserveFreshness.lastSuccessfulFetchedAt()
         ));
         indicators.addAll(domesticPolicyIndicators());
         return indicators;
@@ -301,6 +338,7 @@ public class DashboardService {
         }
 
         DomesticPolicyIndicatorRow previous = findPreviousDomesticPolicyIndicator(code, latest.baseDate());
+        FreshnessInfo freshness = freshness(latest.code(), latest.baseDate(), latest.value(), latest.fetchedAt(), Instant.now());
         return new DomesticIndicator(
             latest.code(),
             latest.title(),
@@ -314,8 +352,12 @@ public class DashboardService {
             latest.fetchedAt(),
             domesticPolicyImpact(latest.code()),
             domesticPolicyNote(latest.code()),
-            statusLabel(latest.value()),
-            detailUrl(latest.source())
+            statusLabel(freshness),
+            detailUrl(latest.source()),
+            freshness.freshnessStatus(),
+            freshness.staleReason(),
+            freshness.expectedNextUpdateAt(),
+            freshness.lastSuccessfulFetchedAt()
         );
     }
 
@@ -366,6 +408,10 @@ public class DashboardService {
             krwImpact,
             note,
             "연동 필요",
+            null,
+            MISSING,
+            "저장된 최신 수집값이 없습니다.",
+            null,
             null
         );
     }
@@ -516,7 +562,7 @@ public class DashboardService {
         LocalDateTime sessionEnd = UsdKrwIntradaySession.endDateTime(currentDisplaySessionStartDate);
         return jdbcTemplate.query(
             """
-                SELECT observed_at, close_rate
+                SELECT observed_at, close_rate, fetched_at
                 FROM intraday_exchange_rates
                 WHERE currency_pair = ?
                   AND observed_at BETWEEN ? AND ?
@@ -524,7 +570,8 @@ public class DashboardService {
                 """,
             (rs, rowNum) -> new IntradayTimeSeriesPoint(
                 rs.getTimestamp("observed_at").toLocalDateTime(),
-                rs.getBigDecimal("close_rate")
+                rs.getBigDecimal("close_rate"),
+                rs.getTimestamp("fetched_at").toInstant()
             ),
             properties.twelveData().usdKrwSymbol(),
             sessionStart,
@@ -553,8 +600,143 @@ public class DashboardService {
         return new MetricSnapshot(code, label, value, unit, null);
     }
 
-    private String statusLabel(BigDecimal value) {
-        return value == null ? "데이터 없음" : "정상 수집";
+    private String statusLabel(FreshnessInfo freshness) {
+        if (MISSING.equals(freshness.freshnessStatus())) {
+            return "데이터 없음";
+        }
+        if (STALE.equals(freshness.freshnessStatus())) {
+            return "업데이트 지연";
+        }
+        return "정상 수집";
+    }
+
+    private FreshnessInfo usdKrwFreshness(IntradayTimeSeriesPoint latestIntraday, ExchangeRate latestDaily, LocalDate baseDate, BigDecimal value, Instant now) {
+        if (value == null) {
+            return missingFreshness();
+        }
+
+        LocalDateTime seoulNow = LocalDateTime.ofInstant(now, SEOUL_ZONE);
+        if (latestIntraday != null && UsdKrwIntradaySession.activeSessionStartDate(seoulNow) != null) {
+            Instant lastObservedAt = latestIntraday.observedAt().atZone(SEOUL_ZONE).toInstant();
+            Instant expectedNextUpdateAt = lastObservedAt.plus(Duration.ofMinutes(10));
+            return now.isAfter(expectedNextUpdateAt)
+                ? staleFreshness("USD/KRW 1분봉이 장중 허용 지연 10분을 넘었습니다.", expectedNextUpdateAt, latestIntraday.fetchedAt())
+                : freshFreshness(expectedNextUpdateAt, latestIntraday.fetchedAt());
+        }
+
+        Instant fetchedAt = latestDaily == null ? null : latestDaily.getFetchedAt();
+        return freshnessByBusinessDays("USD/KRW 일별 환율", baseDate, value, fetchedAt, now, 1);
+    }
+
+    private FreshnessInfo freshness(String code, LocalDate baseDate, BigDecimal value, Instant fetchedAt, Instant now) {
+        if (value == null) {
+            return missingFreshness();
+        }
+
+        return switch (code) {
+            case "US_10Y_TREASURY", "VIX", "WTI_OIL", "KOREA_CDS" -> freshnessByBusinessDays(code, baseDate, value, fetchedAt, now, 2);
+            case "US_POLICY_RATE" -> freshnessByBusinessDays(code, baseDate, value, fetchedAt, now, 2);
+            case "RESERVES_TO_SHORT_TERM_DEBT" -> freshnessByMonths(code, baseDate, value, fetchedAt, now, 4);
+            default -> freshnessByMonths(code, baseDate, value, fetchedAt, now, 2);
+        };
+    }
+
+    private FreshnessInfo freshnessByBusinessDays(String label, LocalDate baseDate, BigDecimal value, Instant fetchedAt, Instant now, int allowedBusinessDays) {
+        if (value == null || baseDate == null) {
+            return missingFreshness();
+        }
+        if (isRecentlyFetched(fetchedAt, now)) {
+            return freshFreshness(nextCollectionCheckAt(fetchedAt), fetchedAt);
+        }
+
+        LocalDate expectedDate = addBusinessDays(baseDate, allowedBusinessDays);
+        Instant expectedNextUpdateAt = expectedDate.atTime(18, 0).atZone(SEOUL_ZONE).toInstant();
+        return now.isAfter(expectedNextUpdateAt)
+            ? staleFreshness(label + " 최신 발표 기준일이 허용 지연을 넘었습니다.", expectedNextUpdateAt, fetchedAt)
+            : freshFreshness(expectedNextUpdateAt, fetchedAt);
+    }
+
+    private FreshnessInfo freshnessByMonths(String label, LocalDate baseDate, BigDecimal value, Instant fetchedAt, Instant now, int allowedMonths) {
+        if (value == null || baseDate == null) {
+            return missingFreshness();
+        }
+        if (isRecentlyFetched(fetchedAt, now)) {
+            return freshFreshness(nextCollectionCheckAt(fetchedAt), fetchedAt);
+        }
+
+        Instant expectedNextUpdateAt = baseDate.plusMonths(allowedMonths).atTime(18, 0).atZone(SEOUL_ZONE).toInstant();
+        return now.isAfter(expectedNextUpdateAt)
+            ? staleFreshness(label + " 발표 주기 기준 허용 지연을 넘었습니다.", expectedNextUpdateAt, fetchedAt)
+            : freshFreshness(expectedNextUpdateAt, fetchedAt);
+    }
+
+    private LocalDate addBusinessDays(LocalDate date, int days) {
+        LocalDate cursor = date;
+        int added = 0;
+        while (added < days) {
+            cursor = cursor.plusDays(1);
+            if (isWeekday(cursor)) {
+                added++;
+            }
+        }
+        return cursor;
+    }
+
+    private boolean isRecentlyFetched(Instant fetchedAt, Instant now) {
+        return fetchedAt != null && !now.isAfter(fetchedAt.plus(MACRO_COLLECTION_STALE_AFTER));
+    }
+
+    private Instant nextCollectionCheckAt(Instant fetchedAt) {
+        return fetchedAt == null ? null : fetchedAt.plus(MACRO_COLLECTION_STALE_AFTER);
+    }
+
+    private FreshnessInfo aggregateFreshness(List<DomesticIndicator> indicators) {
+        List<DomesticIndicator> staleIndicators = indicators.stream()
+            .filter(indicator -> STALE.equals(indicator.freshnessStatus()))
+            .toList();
+        if (!staleIndicators.isEmpty()) {
+            Instant oldestExpectedUpdate = staleIndicators.stream()
+                .map(DomesticIndicator::expectedNextUpdateAt)
+                .filter(Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+            Instant latestSuccessfulFetch = indicators.stream()
+                .map(DomesticIndicator::lastSuccessfulFetchedAt)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+            return new FreshnessInfo(
+                STALE,
+                staleIndicators.get(0).title() + " 등 " + staleIndicators.size() + "개 지표 업데이트가 지연되었습니다.",
+                oldestExpectedUpdate,
+                latestSuccessfulFetch
+            );
+        }
+
+        boolean hasFresh = indicators.stream().anyMatch(indicator -> FRESH.equals(indicator.freshnessStatus()));
+        Instant nextUpdate = indicators.stream()
+            .map(DomesticIndicator::expectedNextUpdateAt)
+            .filter(Objects::nonNull)
+            .min(Comparator.naturalOrder())
+            .orElse(null);
+        Instant latestSuccessfulFetch = indicators.stream()
+            .map(DomesticIndicator::lastSuccessfulFetchedAt)
+            .filter(Objects::nonNull)
+            .max(Comparator.naturalOrder())
+            .orElse(null);
+        return hasFresh ? new FreshnessInfo(FRESH, null, nextUpdate, latestSuccessfulFetch) : missingFreshness();
+    }
+
+    private FreshnessInfo missingFreshness() {
+        return new FreshnessInfo(MISSING, "저장된 최신 수집값이 없습니다.", null, null);
+    }
+
+    private FreshnessInfo freshFreshness(Instant expectedNextUpdateAt, Instant fetchedAt) {
+        return new FreshnessInfo(FRESH, null, expectedNextUpdateAt, fetchedAt);
+    }
+
+    private FreshnessInfo staleFreshness(String reason, Instant expectedNextUpdateAt, Instant fetchedAt) {
+        return new FreshnessInfo(STALE, reason, expectedNextUpdateAt, fetchedAt);
     }
 
     private String sourceLabel(String source) {
@@ -1241,7 +1423,11 @@ public class DashboardService {
         List<ForeignExchangeRate> foreignExchangeRates,
         ExchangeRateCalculatorMeta exchangeRateCalculator,
         List<DomesticIndicator> domesticIndicators,
-        List<DataSourceInfo> dataSources
+        List<DataSourceInfo> dataSources,
+        String freshnessStatus,
+        String staleReason,
+        Instant expectedNextUpdateAt,
+        Instant lastSuccessfulFetchedAt
     ) {
     }
 
@@ -1262,7 +1448,8 @@ public class DashboardService {
 
     public record IntradayTimeSeriesPoint(
         LocalDateTime observedAt,
-        BigDecimal value
+        BigDecimal value,
+        Instant fetchedAt
     ) {
     }
 
@@ -1375,7 +1562,19 @@ public class DashboardService {
         String krwImpact,
         String note,
         String status,
-        String detailUrl
+        String detailUrl,
+        String freshnessStatus,
+        String staleReason,
+        Instant expectedNextUpdateAt,
+        Instant lastSuccessfulFetchedAt
+    ) {
+    }
+
+    private record FreshnessInfo(
+        String freshnessStatus,
+        String staleReason,
+        Instant expectedNextUpdateAt,
+        Instant lastSuccessfulFetchedAt
     ) {
     }
 
