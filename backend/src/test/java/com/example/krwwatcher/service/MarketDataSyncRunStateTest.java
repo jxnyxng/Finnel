@@ -13,6 +13,8 @@ import javax.sql.DataSource;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.example.krwwatcher.config.SyncProperties;
+import com.example.krwwatcher.external.FetchResult;
+import com.example.krwwatcher.external.FetchStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -173,6 +175,40 @@ class MarketDataSyncRunStateTest {
             String.class
         );
         assertThat(sourceRun).isEqualTo("MARKET_DATA_SYNC|krRate|FAILED|0|IllegalStateException|ECOS quota exceeded");
+    }
+
+    @Test
+    void abnormalFetchResultIsRecordedAsSourceRunFailure() throws Exception {
+        Class<?> counterClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$SyncCounter");
+        var constructor = counterClass.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object counter = constructor.newInstance();
+        IntSupplier schemaMismatchSource = () -> FetchResult
+            .failure(FetchStatus.SCHEMA_MISMATCH, "missing observations")
+            .rowsOrThrow("FRED DEXKOUS")
+            .size();
+
+        Integer rows = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "runSource",
+            null,
+            "MARKET_DATA_SYNC",
+            "exchange",
+            counter,
+            Duration.ofMinutes(15),
+            schemaMismatchSource
+        );
+
+        assertThat(rows).isZero();
+        String sourceRun = jdbcTemplate.queryForObject(
+            """
+                SELECT CONCAT(source_name, '|', status, '|', rows_processed, '|', error_code, '|', error_message)
+                FROM batch_job_source_runs
+                WHERE source_name = 'exchange'
+                """,
+            String.class
+        );
+        assertThat(sourceRun).isEqualTo("exchange|FAILED|0|ExternalApiFetchException|FRED DEXKOUS SCHEMA_MISMATCH: missing observations");
     }
 
     @Test

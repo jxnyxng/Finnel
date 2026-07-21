@@ -5,11 +5,14 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -19,6 +22,7 @@ public class EcosClient {
 
     private static final DateTimeFormatter MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyyMM");
     private static final BigDecimal THOUSAND = new BigDecimal("1000");
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
@@ -99,7 +103,7 @@ public class EcosClient {
     }
 
     private List<EcosObservation> fetchRawObservations(String statCode, String cycle, String start, String end, String... itemCodes) {
-        EcosStatisticSearchResponse response = restClient.get()
+        String response = restClient.get()
             .uri(uriBuilder -> uriBuilder
                 .path("/StatisticSearch/{apiKey}/json/kr/1/1000/{statCode}/{cycle}/{start}/{end}")
                 .path(itemPath(itemCodes))
@@ -111,16 +115,56 @@ public class EcosClient {
                     end
                 ))
             .retrieve()
-            .body(EcosStatisticSearchResponse.class);
+            .body(String.class);
 
-        if (response == null || response.statisticSearch() == null || response.statisticSearch().row() == null) {
-            return List.of();
+        return parseRawObservations(response).rowsOrThrow("ECOS " + statCode);
+    }
+
+    static FetchResult<EcosObservation> parseRawObservations(String response) {
+        if (!StringUtils.hasText(response)) {
+            return FetchResult.failure(FetchStatus.PARSE_ERROR, "ECOS response body is empty");
+        }
+        if (response.trim().startsWith("<")) {
+            return FetchResult.failure(FetchStatus.PARSE_ERROR, "ECOS returned non-JSON response");
         }
 
-        return response.statisticSearch().row().stream()
-            .filter(item -> StringUtils.hasText(item.time()))
-            .filter(item -> StringUtils.hasText(item.dataValue()))
-            .toList();
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(response);
+            JsonNode statisticSearch = root.path("StatisticSearch");
+            if (statisticSearch.isMissingNode() || statisticSearch.isNull()) {
+                JsonNode result = root.path("RESULT");
+                if (!result.isMissingNode()) {
+                    String code = result.path("CODE").asText();
+                    String message = result.path("MESSAGE").asText("ECOS remote result");
+                    return "INFO-200".equalsIgnoreCase(code)
+                        ? FetchResult.success(List.of())
+                        : FetchResult.failure(FetchStatus.REMOTE_ERROR, message);
+                }
+                return FetchResult.failure(FetchStatus.SCHEMA_MISMATCH, "ECOS response is missing StatisticSearch");
+            }
+
+            JsonNode rows = statisticSearch.path("row");
+            if (rows.isMissingNode() || rows.isNull() || !rows.isArray()) {
+                return FetchResult.failure(FetchStatus.SCHEMA_MISMATCH, "ECOS response is missing row array");
+            }
+            if (rows.isEmpty()) {
+                return FetchResult.success(List.of());
+            }
+
+            List<EcosObservation> observations = new ArrayList<>();
+            for (JsonNode row : rows) {
+                String time = row.path("TIME").asText(null);
+                String dataValue = row.path("DATA_VALUE").asText(null);
+                if (!StringUtils.hasText(time) || !StringUtils.hasText(dataValue)) {
+                    return FetchResult.failure(FetchStatus.SCHEMA_MISMATCH, "ECOS row is missing TIME or DATA_VALUE");
+                }
+                observations.add(new EcosObservation(time, dataValue));
+            }
+
+            return FetchResult.success(observations);
+        } catch (RuntimeException | java.io.IOException exception) {
+            return FetchResult.failure(FetchStatus.PARSE_ERROR, exception.getMessage());
+        }
     }
 
     private String itemPath(String... itemCodes) {

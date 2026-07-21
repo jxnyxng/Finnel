@@ -52,21 +52,29 @@ public class OpenFiscalClient {
     }
 
     public List<OpenFiscalObservationPayload> fetchBudgetBalances(int startYear, int endYear) {
-        return fetchYearlyService("BudgetBalance", startYear, endYear, BUDGET_BALANCE_VALUE_KEYS);
+        return fetchBudgetBalancesResult(startYear, endYear).rowsOrThrow("OpenFiscal BudgetBalance");
     }
 
     public List<OpenFiscalObservationPayload> fetchGovernmentDebtMonths(int startYear, int endYear) {
+        return fetchGovernmentDebtMonthsResult(startYear, endYear).rowsOrThrow("OpenFiscal GovernmentDebtMonth");
+    }
+
+    FetchResult<OpenFiscalObservationPayload> fetchBudgetBalancesResult(int startYear, int endYear) {
+        return fetchYearlyService("BudgetBalance", startYear, endYear, BUDGET_BALANCE_VALUE_KEYS);
+    }
+
+    FetchResult<OpenFiscalObservationPayload> fetchGovernmentDebtMonthsResult(int startYear, int endYear) {
         return fetchYearlyService("GovernmentDebtMonth", startYear, endYear, GOVERNMENT_DEBT_VALUE_KEYS);
     }
 
-    private List<OpenFiscalObservationPayload> fetchYearlyService(
+    private FetchResult<OpenFiscalObservationPayload> fetchYearlyService(
         String serviceName,
         int startYear,
         int endYear,
         List<String> valueKeyCandidates
     ) {
         if (!StringUtils.hasText(properties.openFiscal().apiKey())) {
-            return List.of();
+            return FetchResult.failure(FetchStatus.NOT_CONFIGURED, "OpenFiscal API key is not configured");
         }
 
         List<OpenFiscalObservationPayload> observations = new ArrayList<>();
@@ -87,15 +95,22 @@ public class OpenFiscalClient {
                 .retrieve()
                 .body(String.class);
 
-            observations.addAll(parseObservations(response, valueKeyCandidates));
+            FetchResult<OpenFiscalObservationPayload> result = parseObservations(response, valueKeyCandidates);
+            if (result.status() != FetchStatus.SUCCESS_EMPTY && result.status() != FetchStatus.SUCCESS_WITH_ROWS) {
+                return result;
+            }
+            observations.addAll(result.rows());
         }
 
-        return observations;
+        return FetchResult.success(observations);
     }
 
-    private List<OpenFiscalObservationPayload> parseObservations(String response, List<String> valueKeyCandidates) {
-        if (!StringUtils.hasText(response) || response.trim().startsWith("<")) {
-            return List.of();
+    static FetchResult<OpenFiscalObservationPayload> parseObservations(String response, List<String> valueKeyCandidates) {
+        if (!StringUtils.hasText(response)) {
+            return FetchResult.failure(FetchStatus.PARSE_ERROR, "OpenFiscal response body is empty");
+        }
+        if (response.trim().startsWith("<")) {
+            return FetchResult.failure(FetchStatus.PARSE_ERROR, "OpenFiscal returned non-JSON response");
         }
 
         try {
@@ -103,21 +118,52 @@ public class OpenFiscalClient {
             if (root.isTextual()) {
                 root = OBJECT_MAPPER.readTree(root.asText());
             }
+            if (root.path("RESULT").path("CODE").isTextual() && !"INFO-000".equals(root.path("RESULT").path("CODE").asText())) {
+                return FetchResult.failure(FetchStatus.REMOTE_ERROR, root.path("RESULT").path("MESSAGE").asText("OpenFiscal remote error"));
+            }
             List<OpenFiscalObservationPayload> observations = new ArrayList<>();
-            collectRows(root).forEach(row -> parseObservation(row, valueKeyCandidates).ifPresent(observations::add));
-            return observations;
-        } catch (Exception ignored) {
-            return List.of();
+            List<JsonNode> rows = collectRows(root);
+            if (rows.isEmpty()) {
+                return hasExplicitEmptyArray(root)
+                    ? FetchResult.success(List.of())
+                    : FetchResult.failure(FetchStatus.SCHEMA_MISMATCH, "OpenFiscal response has no rows with known date fields");
+            }
+
+            rows.forEach(row -> parseObservation(row, valueKeyCandidates).ifPresent(observations::add));
+            if (observations.isEmpty()) {
+                return FetchResult.failure(FetchStatus.SCHEMA_MISMATCH, "OpenFiscal rows are missing required date or value fields");
+            }
+            return FetchResult.success(observations);
+        } catch (Exception exception) {
+            return FetchResult.failure(FetchStatus.PARSE_ERROR, exception.getMessage());
         }
     }
 
-    private List<JsonNode> collectRows(JsonNode node) {
+    private static boolean hasExplicitEmptyArray(JsonNode node) {
+        if (node == null) {
+            return false;
+        }
+        if (node.isArray() && node.isEmpty()) {
+            return true;
+        }
+        if (node.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                if (hasExplicitEmptyArray(fields.next().getValue())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static List<JsonNode> collectRows(JsonNode node) {
         List<JsonNode> rows = new ArrayList<>();
         collectRows(node, rows);
         return rows;
     }
 
-    private void collectRows(JsonNode node, List<JsonNode> rows) {
+    private static void collectRows(JsonNode node, List<JsonNode> rows) {
         if (node == null) {
             return;
         }
@@ -135,7 +181,7 @@ public class OpenFiscalClient {
         }
     }
 
-    private Optional<OpenFiscalObservationPayload> parseObservation(JsonNode row, List<String> valueKeyCandidates) {
+    private static Optional<OpenFiscalObservationPayload> parseObservation(JsonNode row, List<String> valueKeyCandidates) {
         Optional<LocalDate> baseDate = parseDate(row);
         Optional<BigDecimal> value = parseValue(row, valueKeyCandidates);
         if (baseDate.isEmpty() || value.isEmpty()) {
@@ -145,7 +191,7 @@ public class OpenFiscalClient {
         return Optional.of(new OpenFiscalObservationPayload(baseDate.get(), value.get()));
     }
 
-    private Optional<LocalDate> parseDate(JsonNode row) {
+    private static Optional<LocalDate> parseDate(JsonNode row) {
         for (String key : DATE_KEYS) {
             String value = text(row, key);
             if (StringUtils.hasText(value)) {
@@ -170,7 +216,7 @@ public class OpenFiscalClient {
         return year.map(value -> LocalDate.of(value, 12, 31));
     }
 
-    private Optional<BigDecimal> parseValue(JsonNode row, List<String> valueKeyCandidates) {
+    private static Optional<BigDecimal> parseValue(JsonNode row, List<String> valueKeyCandidates) {
         for (String key : valueKeyCandidates) {
             Optional<BigDecimal> value = decimal(row, key);
             if (value.isPresent()) {
@@ -193,7 +239,7 @@ public class OpenFiscalClient {
         return Optional.empty();
     }
 
-    private Optional<Integer> firstInteger(JsonNode row, List<String> keys) {
+    private static Optional<Integer> firstInteger(JsonNode row, List<String> keys) {
         for (String key : keys) {
             String value = text(row, key);
             if (StringUtils.hasText(value)) {
@@ -207,7 +253,7 @@ public class OpenFiscalClient {
         return Optional.empty();
     }
 
-    private String text(JsonNode row, String key) {
+    private static String text(JsonNode row, String key) {
         JsonNode node = row.get(key);
         if (node == null) {
             node = row.get(key.toLowerCase());
@@ -215,7 +261,7 @@ public class OpenFiscalClient {
         return node == null || node.isNull() ? null : node.asText();
     }
 
-    private Optional<BigDecimal> decimal(JsonNode row, String key) {
+    private static Optional<BigDecimal> decimal(JsonNode row, String key) {
         JsonNode node = row.get(key);
         if (node == null) {
             node = row.get(key.toLowerCase());
@@ -223,7 +269,7 @@ public class OpenFiscalClient {
         return decimal(node);
     }
 
-    private Optional<BigDecimal> decimal(JsonNode node) {
+    private static Optional<BigDecimal> decimal(JsonNode node) {
         if (node == null || node.isNull()) {
             return Optional.empty();
         }
