@@ -143,6 +143,17 @@ export type SyncStatus = {
   nextAllowedAt: string | null;
   remainingCooldownSeconds: number;
   canSync: boolean;
+  sourceRuns?: SourceRunStatus[];
+};
+
+export type SourceRunStatus = {
+  sourceName: string;
+  status: string;
+  rows: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: string;
+  endedAt: string | null;
 };
 
 export type NewsCategory = {
