@@ -63,6 +63,20 @@ public class MarketDataSyncService {
     );
     private static final int CURRENT_EXCHANGE_RATE_BATCH_SIZE = 4;
     private static final Duration CURRENT_EXCHANGE_RATE_STALE_AFTER = Duration.ofMinutes(60);
+    private static final Duration STALE_RUNNING_TTL = Duration.ofHours(2);
+    private static final Set<String> CORE_SOURCE_NAMES = Set.of(
+        "exchange",
+        "intradayExchange",
+        "dollarIndex",
+        "currencyStrength",
+        "usRate",
+        "krRate",
+        "foreignReserve",
+        "domesticPolicy",
+        "currentExchange",
+        "dailyBackfill",
+        "exchangeRateHistoryBackfill"
+    );
 
     private final ExternalApiProperties properties;
     private final SyncProperties syncProperties;
@@ -110,7 +124,7 @@ public class MarketDataSyncService {
     public SyncResult requestManualSync() {
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), now);
-        if (!syncWindow.canSync()) {
+        if (!syncWindow.canSync() && !hasRetryableFailedCoreSource(JOB_NAME, syncProperties.marketData().manualCooldown(), now)) {
             return skipped("SKIPPED_COOLDOWN", "Manual sync cooldown is active", SyncTrigger.MANUAL, syncWindow);
         }
 
@@ -235,7 +249,8 @@ public class MarketDataSyncService {
             latestJob == null ? null : latestJob.message(),
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
-            syncWindow.canSync() && !syncLock.isLocked()
+            syncWindow.canSync() && !syncLock.isLocked(),
+            latestJob == null ? List.of() : findLatestSourceRuns(JOB_NAME, latestJob.startedAt())
         );
     }
 
@@ -249,7 +264,8 @@ public class MarketDataSyncService {
             latestJob == null ? null : latestJob.message(),
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
-            syncWindow.canSync() && !intradaySyncLock.isLocked()
+            syncWindow.canSync() && !intradaySyncLock.isLocked(),
+            latestJob == null ? List.of() : findLatestSourceRuns(INTRADAY_JOB_NAME, latestJob.startedAt())
         );
     }
 
@@ -263,7 +279,8 @@ public class MarketDataSyncService {
             latestJob == null ? null : latestJob.message(),
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
-            syncWindow.canSync() && !dailyBackfillLock.isLocked()
+            syncWindow.canSync() && !dailyBackfillLock.isLocked(),
+            latestJob == null ? List.of() : findLatestSourceRuns(DAILY_BACKFILL_JOB_NAME, latestJob.startedAt())
         );
     }
 
@@ -277,7 +294,8 @@ public class MarketDataSyncService {
             latestJob == null ? null : latestJob.message(),
             syncWindow.nextAllowedAt(),
             syncWindow.remainingCooldownSeconds(),
-            syncWindow.canSync() && !exchangeRateHistoryBackfillLock.isLocked()
+            syncWindow.canSync() && !exchangeRateHistoryBackfillLock.isLocked(),
+            latestJob == null ? List.of() : findLatestSourceRuns(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, latestJob.startedAt())
         );
     }
 
@@ -348,17 +366,17 @@ public class MarketDataSyncService {
         Long jobId = startJob(JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
 
-        int exchangeRows = runSource("exchange", counter, this::syncExchangeRates);
-        int dailyBackfillRows = runSource("dailyBackfill", counter, this::backfillMissingWeekdaysFromIntraday);
+        int exchangeRows = runSource(jobId, JOB_NAME, "exchange", counter, syncProperties.marketData().manualCooldown(), this::syncExchangeRates);
+        int dailyBackfillRows = runSource(jobId, JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().manualCooldown(), this::backfillMissingWeekdaysFromIntraday);
         int intradayExchangeRows = 0;
-        int dollarIndexRows = runSource("dollarIndex", counter, this::syncDollarIndexes);
-        int currencyStrengthRows = runSource("currencyStrength", counter, this::syncEffectiveExchangeRates);
-        int usRateRows = runSource("usRate", counter, this::syncUsPolicyRate);
-        int krRateRows = runSource("krRate", counter, this::syncKoreanPolicyRate);
-        int foreignReserveRows = runSource("foreignReserve", counter, this::syncForeignReserves);
-        int domesticPolicyRows = runSource("domesticPolicy", counter, this::syncDomesticPolicyIndicators);
+        int dollarIndexRows = runSource(jobId, JOB_NAME, "dollarIndex", counter, syncProperties.marketData().manualCooldown(), this::syncDollarIndexes);
+        int currencyStrengthRows = runSource(jobId, JOB_NAME, "currencyStrength", counter, syncProperties.marketData().manualCooldown(), this::syncEffectiveExchangeRates);
+        int usRateRows = runSource(jobId, JOB_NAME, "usRate", counter, syncProperties.marketData().manualCooldown(), this::syncUsPolicyRate);
+        int krRateRows = runSource(jobId, JOB_NAME, "krRate", counter, syncProperties.marketData().manualCooldown(), this::syncKoreanPolicyRate);
+        int foreignReserveRows = runSource(jobId, JOB_NAME, "foreignReserve", counter, syncProperties.marketData().manualCooldown(), this::syncForeignReserves);
+        int domesticPolicyRows = runSource(jobId, JOB_NAME, "domesticPolicy", counter, syncProperties.marketData().manualCooldown(), this::syncDomesticPolicyIndicators);
 
-        String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
+        String status = syncStatus(counter);
         String message = "exchange=" + exchangeRows + ", dailyBackfill=" + dailyBackfillRows + ", intradayExchange=" + intradayExchangeRows + ", dollarIndex=" + dollarIndexRows + ", currencyStrength=" + currencyStrengthRows + ", usRate=" + usRateRows + ", krRate=" + krRateRows + ", foreignReserve=" + foreignReserveRows + ", domesticPolicy=" + domesticPolicyRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now());
@@ -371,9 +389,9 @@ public class MarketDataSyncService {
         Long jobId = startJob(INTRADAY_JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
 
-        int intradayExchangeRows = runSource("intradayExchange", counter, this::syncUsdKrwIntraday);
+        int intradayExchangeRows = runSource(jobId, INTRADAY_JOB_NAME, "intradayExchange", counter, syncProperties.marketData().intradayCooldown(), this::syncUsdKrwIntraday);
 
-        String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
+        String status = syncStatus(counter);
         String message = "intradayExchange=" + intradayExchangeRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), Instant.now());
@@ -386,9 +404,9 @@ public class MarketDataSyncService {
         Long jobId = startJob(DAILY_BACKFILL_JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
 
-        int exchangeRows = runSource("dailyBackfill", counter, this::syncUsdKrwDailyBackfill);
+        int exchangeRows = runSource(jobId, DAILY_BACKFILL_JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().dailyBackfillCooldown(), this::syncUsdKrwDailyBackfill);
 
-        String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
+        String status = syncStatus(counter);
         String message = "dailyBackfill=" + exchangeRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
@@ -401,9 +419,9 @@ public class MarketDataSyncService {
         Long jobId = startJob(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
 
-        int exchangeRows = runSource("exchangeRateHistoryBackfill", counter, this::syncExchangeRatesFromFred);
+        int exchangeRows = runSource(jobId, EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, "exchangeRateHistoryBackfill", counter, syncProperties.marketData().dailyBackfillCooldown(), this::syncExchangeRatesFromFred);
 
-        String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
+        String status = syncStatus(counter);
         String message = "exchangeRateHistoryBackfill=" + exchangeRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
@@ -416,20 +434,34 @@ public class MarketDataSyncService {
         Long jobId = startJob(CURRENT_EXCHANGE_RATE_JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
 
-        int exchangeRows = runSource("currentExchange", counter, () -> syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE));
+        int exchangeRows = runSource(jobId, CURRENT_EXCHANGE_RATE_JOB_NAME, "currentExchange", counter, Duration.ZERO, () -> syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE));
 
-        String status = counter.failures == 0 ? "SUCCESS" : "PARTIAL_SUCCESS";
+        String status = syncStatus(counter);
         String message = "currentExchange=" + exchangeRows + counter.message;
         finishJob(jobId, status, Instant.now(), message);
         return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, null, 0);
     }
 
-    private int runSource(String sourceName, SyncCounter counter, IntSupplier supplier) {
+    private int runSource(Long jobId, String jobName, String sourceName, SyncCounter counter, Duration sourceCooldown, IntSupplier supplier) {
+        Instant startedAt = Instant.now();
+        if (!canRunSource(jobName, sourceName, sourceCooldown, startedAt)) {
+            recordSourceRun(jobId, jobName, sourceName, "SKIPPED_COOLDOWN", 0, null, null, startedAt, startedAt);
+            counter.skippedSources++;
+            counter.message += ", " + sourceName + "=SKIPPED_COOLDOWN";
+            return 0;
+        }
+
         try {
-            return supplier.getAsInt();
+            int rows = supplier.getAsInt();
+            recordSourceRun(jobId, jobName, sourceName, "SUCCESS", rows, null, null, startedAt, Instant.now());
+            return rows;
         } catch (RuntimeException exception) {
             counter.failures++;
+            if (isCoreSource(sourceName)) {
+                counter.coreFailures++;
+            }
             counter.message += ", " + sourceName + "Error=" + exception.getClass().getSimpleName();
+            recordSourceRun(jobId, jobName, sourceName, "FAILED", 0, exception.getClass().getSimpleName(), exception.getMessage(), startedAt, Instant.now());
             return 0;
         }
     }
@@ -1443,6 +1475,43 @@ public class MarketDataSyncService {
         );
     }
 
+    private void recordSourceRun(
+        Long jobId,
+        String jobName,
+        String sourceName,
+        String status,
+        int rows,
+        String errorCode,
+        String errorMessage,
+        Instant startedAt,
+        Instant endedAt
+    ) {
+        jdbcTemplate.update(
+            """
+                INSERT INTO batch_job_source_runs
+                    (batch_job_run_id, job_name, source_name, status, rows_processed, error_code, error_message, started_at, ended_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            jobId,
+            jobName,
+            sourceName,
+            status,
+            rows,
+            errorCode,
+            truncateErrorMessage(errorMessage),
+            startedAt,
+            endedAt
+        );
+    }
+
+    private String truncateErrorMessage(String errorMessage) {
+        if (errorMessage == null || errorMessage.length() <= 1000) {
+            return errorMessage;
+        }
+
+        return errorMessage.substring(0, 1000);
+    }
+
     private SyncResult skipped(String status, String message, SyncTrigger trigger, SyncWindow syncWindow) {
         return new SyncResult(0, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), null, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
@@ -1497,7 +1566,7 @@ public class MarketDataSyncService {
     }
 
     private SyncWindow currentSyncWindow(String jobName, Duration cooldown, Instant now) {
-        Instant lastStartedAt = findLatestStartedAt(jobName);
+        Instant lastStartedAt = findLatestStartedAt(jobName, now);
         if (lastStartedAt == null) {
             return new SyncWindow(null, 0, true);
         }
@@ -1507,18 +1576,29 @@ public class MarketDataSyncService {
         return new SyncWindow(nextAllowedAt, remainingSeconds, remainingSeconds == 0);
     }
 
-    private Instant findLatestStartedAt(String jobName) {
+    private Instant findLatestStartedAt(String jobName, Instant now) {
         return jdbcTemplate.query(
             """
                 SELECT started_at
                 FROM batch_job_runs
                 WHERE job_name = ?
-                  AND status IN ('RUNNING', 'SUCCESS', 'PARTIAL_SUCCESS')
+                  AND (
+                    status IN ('RUNNING', 'SUCCESS')
+                    OR (status IN ('DEGRADED', 'FAILED_CORE_SOURCE') AND NOT EXISTS (
+                        SELECT 1
+                        FROM batch_job_source_runs s
+                        WHERE s.batch_job_run_id = batch_job_runs.id
+                          AND s.status = 'FAILED'
+                          AND s.source_name IN (%s)
+                    ))
+                  )
+                  AND (status <> 'RUNNING' OR started_at >= ?)
                 ORDER BY started_at DESC
                 LIMIT 1
-            """,
+            """.formatted(coreSourceSqlList()),
             (rs, rowNum) -> rs.getTimestamp("started_at").toInstant(),
-            jobName
+            jobName,
+            now.minus(STALE_RUNNING_TTL)
         ).stream().findFirst().orElse(null);
     }
 
@@ -1531,14 +1611,118 @@ public class MarketDataSyncService {
                 ORDER BY started_at DESC
                 LIMIT 1
                 """,
-            (rs, rowNum) -> new LatestJob(
-                rs.getString("status"),
-                rs.getTimestamp("started_at").toInstant(),
-                rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant(),
-                rs.getString("message")
-            ),
+            (rs, rowNum) -> {
+                Instant startedAt = rs.getTimestamp("started_at").toInstant();
+                String status = rs.getString("status");
+                if ("RUNNING".equals(status) && isStaleRunning(startedAt, Instant.now())) {
+                    status = "STALE_RUNNING";
+                }
+                return new LatestJob(
+                    status,
+                    startedAt,
+                    rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant(),
+                    rs.getString("message")
+                );
+            },
             jobName
         ).stream().findFirst().orElse(null);
+    }
+
+    private boolean canRunSource(String jobName, String sourceName, Duration cooldown, Instant now) {
+        if (cooldown.isZero() || !isCoreSource(sourceName)) {
+            return true;
+        }
+
+        LatestSourceRun latest = findLatestSourceRun(jobName, sourceName);
+        if (latest == null || "FAILED".equals(latest.status())) {
+            return true;
+        }
+
+        if (!"SUCCESS".equals(latest.status()) && !"SKIPPED_COOLDOWN".equals(latest.status())) {
+            return true;
+        }
+
+        Instant nextAllowedAt = latest.startedAt().plus(cooldown);
+        return !now.isBefore(nextAllowedAt);
+    }
+
+    private boolean hasRetryableFailedCoreSource(String jobName, Duration cooldown, Instant now) {
+        return CORE_SOURCE_NAMES.stream()
+            .filter(sourceName -> hasRecentFailedSource(jobName, sourceName, cooldown, now))
+            .anyMatch(sourceName -> canRunSource(jobName, sourceName, cooldown, now));
+    }
+
+    private boolean hasRecentFailedSource(String jobName, String sourceName, Duration cooldown, Instant now) {
+        LatestSourceRun latest = findLatestSourceRun(jobName, sourceName);
+        if (latest == null || !"FAILED".equals(latest.status())) {
+            return false;
+        }
+
+        return !latest.startedAt().plus(cooldown).isBefore(now);
+    }
+
+    private LatestSourceRun findLatestSourceRun(String jobName, String sourceName) {
+        return jdbcTemplate.query(
+            """
+                SELECT status, started_at
+                FROM batch_job_source_runs
+                WHERE job_name = ?
+                  AND source_name = ?
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new LatestSourceRun(
+                rs.getString("status"),
+                rs.getTimestamp("started_at").toInstant()
+            ),
+            jobName,
+            sourceName
+        ).stream().findFirst().orElse(null);
+    }
+
+    private List<SourceRunStatus> findLatestSourceRuns(String jobName, Instant jobStartedAt) {
+        return jdbcTemplate.query(
+            """
+                SELECT source_name, status, rows_processed, error_code, error_message, started_at, ended_at
+                FROM batch_job_source_runs
+                WHERE job_name = ?
+                  AND started_at >= ?
+                ORDER BY started_at ASC, source_name ASC
+                """,
+            (rs, rowNum) -> new SourceRunStatus(
+                rs.getString("source_name"),
+                rs.getString("status"),
+                rs.getInt("rows_processed"),
+                rs.getString("error_code"),
+                rs.getString("error_message"),
+                rs.getTimestamp("started_at").toInstant(),
+                rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant()
+            ),
+            jobName,
+            jobStartedAt
+        );
+    }
+
+    private boolean isCoreSource(String sourceName) {
+        return CORE_SOURCE_NAMES.contains(sourceName);
+    }
+
+    private String syncStatus(SyncCounter counter) {
+        if (counter.coreFailures > 0) {
+            return "FAILED_CORE_SOURCE";
+        }
+        if (counter.failures > 0) {
+            return "DEGRADED";
+        }
+        return "SUCCESS";
+    }
+
+    private String coreSourceSqlList() {
+        return String.join(", ", CORE_SOURCE_NAMES.stream().map(source -> "'" + source + "'").toList());
+    }
+
+    private boolean isStaleRunning(Instant startedAt, Instant now) {
+        return startedAt.plus(STALE_RUNNING_TTL).isBefore(now);
     }
 
     private Instant startOfTodayInSeoul() {
@@ -1641,6 +1825,8 @@ public class MarketDataSyncService {
 
     private static class SyncCounter {
         private int failures;
+        private int coreFailures;
+        private int skippedSources;
         private String message = "";
     }
 
@@ -1659,6 +1845,9 @@ public class MarketDataSyncService {
     }
 
     private record LatestJob(String status, Instant startedAt, Instant endedAt, String message) {
+    }
+
+    private record LatestSourceRun(String status, Instant startedAt) {
     }
 
     private String toEcosQuarter(YearMonth month) {
@@ -1718,7 +1907,19 @@ public class MarketDataSyncService {
         String latestMessage,
         Instant nextAllowedAt,
         long remainingCooldownSeconds,
-        boolean canSync
+        boolean canSync,
+        List<SourceRunStatus> sourceRuns
+    ) {
+    }
+
+    public record SourceRunStatus(
+        String sourceName,
+        String status,
+        int rows,
+        String errorCode,
+        String errorMessage,
+        Instant startedAt,
+        Instant endedAt
     ) {
     }
 }
