@@ -255,7 +255,8 @@ public class MarketDataSyncService {
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !syncLock.isLocked(),
             latestJob == null ? List.of() : findLatestSourceRuns(JOB_NAME, latestJob.startedAt()),
-            null
+            null,
+            findHolidayCalendarStatuses()
         );
     }
 
@@ -271,7 +272,8 @@ public class MarketDataSyncService {
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !intradaySyncLock.isLocked(),
             latestJob == null ? List.of() : findLatestSourceRuns(INTRADAY_JOB_NAME, latestJob.startedAt()),
-            findLatestUsdKrwBackfillAttempt()
+            findLatestUsdKrwBackfillAttempt(),
+            findHolidayCalendarStatuses()
         );
     }
 
@@ -287,7 +289,8 @@ public class MarketDataSyncService {
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !dailyBackfillLock.isLocked(),
             latestJob == null ? List.of() : findLatestSourceRuns(DAILY_BACKFILL_JOB_NAME, latestJob.startedAt()),
-            null
+            null,
+            findHolidayCalendarStatuses()
         );
     }
 
@@ -303,7 +306,8 @@ public class MarketDataSyncService {
             syncWindow.remainingCooldownSeconds(),
             syncWindow.canSync() && !exchangeRateHistoryBackfillLock.isLocked(),
             latestJob == null ? List.of() : findLatestSourceRuns(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, latestJob.startedAt()),
-            null
+            null,
+            findHolidayCalendarStatuses()
         );
     }
 
@@ -520,7 +524,8 @@ public class MarketDataSyncService {
         Set<LocalDate> existingDates = new HashSet<>(findDailyUsdKrwDates(startDate, endDate));
         int rows = 0;
         for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            if (!businessDayService.isKoreanBusinessDay(date) || existingDates.contains(date)) {
+            BusinessDayService.KoreanBusinessDayStatus businessDayStatus = businessDayService.koreanBusinessDayStatus(date);
+            if (businessDayStatus != BusinessDayService.KoreanBusinessDayStatus.BUSINESS_DAY || existingDates.contains(date)) {
                 continue;
             }
 
@@ -1787,6 +1792,15 @@ public class MarketDataSyncService {
         );
     }
 
+    private List<BusinessDayService.HolidayCalendarStatus> findHolidayCalendarStatuses() {
+        if (businessDayService == null) {
+            return List.of();
+        }
+
+        int year = LocalDate.now(SEOUL_ZONE).getYear();
+        return businessDayService.holidayCalendarStatuses(year - 1, year + 1);
+    }
+
     private String formatBackfillMessage(String sessionKey, String status, String message) {
         return "backfillSession=" + sessionKey + ", backfillStatus=" + status + (message == null ? "" : ", backfillMessage=" + message);
     }
@@ -2166,7 +2180,8 @@ public class MarketDataSyncService {
         long remainingCooldownSeconds,
         boolean canSync,
         List<SourceRunStatus> sourceRuns,
-        BackfillSessionStatus backfillSession
+        BackfillSessionStatus backfillSession,
+        List<BusinessDayService.HolidayCalendarStatus> holidayCalendars
     ) {
     }
 

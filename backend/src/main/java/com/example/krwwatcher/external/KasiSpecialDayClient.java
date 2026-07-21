@@ -53,13 +53,13 @@ public class KasiSpecialDayClient {
             .body(String.class);
 
         if (!StringUtils.hasText(body)) {
-            return Set.of();
+            throw new IllegalStateException("KASI holiday response body is empty");
         }
 
         try {
             return parseHolidayDates(body);
         } catch (IOException exception) {
-            return Set.of();
+            throw new IllegalStateException("Failed to parse KASI holiday response", exception);
         }
     }
 
