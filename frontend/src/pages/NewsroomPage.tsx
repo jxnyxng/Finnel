@@ -16,7 +16,7 @@ type NewsroomPageProps = {
   totalPages: number;
   onCategoryChange: (category: string) => void;
   onFiltersApply: (filters: NewsFilters) => void;
-  onPageChange: (page: number) => void;
+  onLoadMore: (page: number) => void;
 };
 
 export function NewsroomPage({
@@ -33,7 +33,7 @@ export function NewsroomPage({
   totalPages,
   onCategoryChange,
   onFiltersApply,
-  onPageChange
+  onLoadMore
 }: NewsroomPageProps) {
   const [draftFilters, setDraftFilters] = React.useState(filters);
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
@@ -72,6 +72,7 @@ export function NewsroomPage({
     });
   };
   const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
+  const hasMore = page < totalPages;
 
   return (
     <section className="grid min-w-0 gap-3">
@@ -85,7 +86,7 @@ export function NewsroomPage({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <p className="hidden text-[11px] text-white/55 sm:block">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
+            <p className="hidden text-[11px] text-white/55 sm:block">총 {totalCount}건 · {articles.length}건 표시</p>
           </div>
         </div>
         {statusNode ? <div className="mt-1 flex justify-end">{statusNode}</div> : null}
@@ -140,7 +141,7 @@ export function NewsroomPage({
             <CategoryButton
               active={selectedCategory === category.code}
               key={category.code}
-              label={category.name}
+              label={`${category.name} ${category.articleCount}`}
               onClick={() => onCategoryChange(category.code)}
             />
           ))}
@@ -154,7 +155,7 @@ export function NewsroomPage({
       ) : null}
 
       <section className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
-        {isLoading ? (
+        {isLoading && articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">뉴스를 불러오는 중입니다.</div>
         ) : isPendingInitialLoad ? (
           <div className="min-h-40" />
@@ -167,9 +168,12 @@ export function NewsroomPage({
             ))}
           </div>
         )}
-        {totalPages > 1 ? (
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={onPageChange} />
-        ) : null}
+        <InfiniteLoadMarker
+          hasItems={articles.length > 0}
+          hasMore={hasMore}
+          isLoading={isLoading}
+          onLoadMore={() => onLoadMore(page + 1)}
+        />
       </section>
     </section>
   );
@@ -331,60 +335,46 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
   );
 }
 
-function Pagination({
-  currentPage,
-  onPageChange,
-  totalPages
+function InfiniteLoadMarker({
+  hasItems,
+  hasMore,
+  isLoading,
+  onLoadMore
 }: {
-  currentPage: number;
-  onPageChange: (page: number) => void;
-  totalPages: number;
+  hasItems: boolean;
+  hasMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
 }) {
-  const startPage = Math.max(1, currentPage - 2);
-  const endPage = Math.min(totalPages, startPage + 4);
-  const pages = [];
-  for (let page = startPage; page <= endPage; page += 1) {
-    pages.push(page);
+  const markerRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker || !hasMore || isLoading) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          observer.disconnect();
+          onLoadMore();
+        }
+      },
+      { rootMargin: '360px 0px' }
+    );
+    observer.observe(marker);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, onLoadMore]);
+
+  if (!hasItems) {
+    return null;
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-2 border-t border-white/10 pt-4">
-      <PageButton disabled={currentPage <= 1} label="이전" onClick={() => onPageChange(currentPage - 1)} />
-      {pages.map((page) => (
-        <PageButton
-          active={page === currentPage}
-          key={page}
-          label={String(page)}
-          onClick={() => onPageChange(page)}
-        />
-      ))}
-      <PageButton disabled={currentPage >= totalPages} label="다음" onClick={() => onPageChange(currentPage + 1)} />
+    <div className="mt-4 grid min-h-12 place-items-center border-t border-white/10 pt-4 text-xs font-semibold text-white/45" ref={markerRef}>
+      {isLoading ? '뉴스를 더 불러오는 중입니다.' : hasMore ? '아래로 스크롤하면 더 불러옵니다.' : '마지막 뉴스입니다.'}
     </div>
-  );
-}
-
-function PageButton({
-  active = false,
-  disabled = false,
-  label,
-  onClick
-}: {
-  active?: boolean;
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`h-8 min-w-8 rounded border px-2 text-xs font-semibold ${
-        active ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
-      } disabled:cursor-not-allowed disabled:opacity-40`}
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-    </button>
   );
 }
 

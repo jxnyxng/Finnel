@@ -162,22 +162,22 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
         className="home-deck-track"
       style={{ transform: `translate3d(0, -${activeSection * 100}%, 0)` }}
       >
-      <section className="home-snap-section home-copy relative mx-auto grid h-[calc(100vh-112px)] max-w-6xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-10 lg:justify-items-stretch lg:text-left">
-        <div className="grid w-full min-w-0 -translate-y-8 gap-6 lg:-translate-y-7 lg:grid-cols-[minmax(0,0.86fr)_minmax(340px,0.58fr)] lg:items-center lg:gap-x-7 lg:gap-y-3">
-          <div className="min-w-0 lg:-translate-y-14">
+      <section className="home-snap-section home-copy relative mx-auto grid h-[calc(100vh-112px)] max-w-6xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-10 xl:justify-items-stretch xl:text-left">
+        <div className="grid w-full min-w-0 -translate-y-8 gap-6 xl:-translate-y-7 xl:grid-cols-[minmax(0,0.86fr)_minmax(340px,0.58fr)] xl:items-center xl:gap-x-7 xl:gap-y-3">
+          <div className="min-w-0 xl:-translate-y-14">
             <div className="text-3xl leading-none sm:text-4xl md:text-6xl" aria-hidden="true">₩</div>
             <p className="mt-3 text-xs font-bold tracking-[0.2em] text-teal-100/80 sm:mt-4 sm:text-sm sm:tracking-[0.24em]">KOREA WON MONITOR</p>
-            <h1 className="mt-3 max-w-[760px] text-3xl font-extrabold leading-[1.18] tracking-normal sm:text-4xl md:text-5xl md:leading-[1.12]">
+            <h1 className="mx-auto mt-3 max-w-[760px] text-3xl font-extrabold leading-[1.18] tracking-normal sm:text-4xl md:text-5xl md:leading-[1.12] xl:mx-0">
               그때 환전한 돈, 지금은 얼마일까요?
             </h1>
-            <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-white/72 sm:text-base sm:leading-8">
+            <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-white/72 sm:text-base sm:leading-8 xl:mx-0">
               과거 환전 시점의 환율과 현재 환율을 비교해
               <br />
               환차익과 환차손을 바로 계산합니다.
             </p>
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3 xl:justify-start">
               <button
-                className="inline-flex h-10 items-center justify-center rounded-full border border-teal-200/30 bg-teal-300/18 px-4 text-sm font-extrabold text-white shadow-lg shadow-teal-950/20 backdrop-blur-md transition-colors duration-150 hover:bg-teal-300/28 lg:hidden"
+                className="inline-flex h-10 items-center justify-center rounded-full border border-teal-200/30 bg-teal-300/18 px-4 text-sm font-extrabold text-white shadow-lg shadow-teal-950/20 backdrop-blur-md transition-colors duration-150 hover:bg-teal-300/28 xl:hidden"
                 onClick={() => setIsCalculatorModalOpen(true)}
                 type="button"
               >
@@ -185,34 +185,34 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
               </button>
             </div>
           </div>
-          <div className="hidden justify-self-end lg:block lg:w-[420px] lg:translate-y-12 xl:w-[450px]">
+          <div className="hidden justify-self-end xl:block xl:w-[450px] xl:translate-y-12">
             <ExchangeProfitCalculator calculatorMeta={calculatorMeta} rates={rates} />
           </div>
-          <p className="inline-flex w-full max-w-md translate-y-4 flex-col items-center justify-center gap-1 justify-self-center px-4 text-center text-xs font-semibold leading-5 text-teal-100/78 lg:col-start-1 lg:row-start-2 lg:w-fit lg:max-w-2xl lg:translate-y-7 lg:justify-self-start lg:px-0">
+          <p className="inline-flex w-full max-w-md translate-y-4 flex-col items-center justify-center gap-1 justify-self-center px-4 text-center text-xs font-semibold leading-5 text-teal-100/78 xl:col-start-1 xl:row-start-2 xl:w-fit xl:max-w-2xl xl:translate-y-7 xl:justify-self-start xl:px-0">
             <span>스크롤해서 더 많은 정보를 확인할 수 있습니다.</span>
             <span className="home-scroll-cue" aria-hidden="true">⌄</span>
           </p>
         </div>
       </section>
 
-      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-5xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14 md:justify-items-stretch md:text-left">
-        <div className="grid gap-6 md:grid-cols-[0.95fr_1fr] md:items-center md:gap-8">
+      <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-5xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14 xl:justify-items-stretch xl:text-left">
+        <div className="grid justify-items-center gap-6 xl:grid-cols-[0.95fr_1fr] xl:items-center xl:justify-items-stretch xl:gap-8">
           <div>
-            <p className="text-xs font-bold tracking-[0.22em] text-teal-100/75">ABOUT KOREAWON</p>
-            <h2 className="max-w-[680px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
+            <p className="mb-3 text-xs font-bold tracking-[0.22em] text-teal-100/75 sm:mb-4">ABOUT KOREAWON</p>
+            <h2 className="mx-auto max-w-[680px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14] xl:mx-0">
               코리아원은 원화 기준으로 환율을 읽는 도구입니다.
             </h2>
-            <p className="mt-4 max-w-2xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base md:text-lg">
+            <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base md:text-lg xl:mx-0">
               환차익 계산에서 시작해 주요 통화, 달러 흐름, 관련 지표와 뉴스를 한 화면 흐름으로 이어 봅니다.
             </p>
           </div>
-          <div className="grid w-full max-w-md grid-cols-2 gap-3 sm:max-w-none sm:grid-cols-1 sm:gap-6">
+          <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-3 xl:mx-0 xl:max-w-none xl:grid-cols-1 xl:gap-6">
             {servicePoints.map((point) => (
-              <section className="grid justify-items-center gap-1.5 rounded-xl bg-white/7 px-2.5 py-3 sm:grid-cols-[3.5rem_1fr] sm:justify-items-start sm:gap-5 sm:bg-transparent sm:p-0" key={point.title}>
+              <section className="grid justify-items-center gap-1.5 rounded-xl bg-white/7 px-2.5 py-3 text-center xl:grid-cols-[3.5rem_1fr] xl:justify-items-start xl:gap-5 xl:bg-transparent xl:p-0 xl:text-left" key={point.title}>
                 <span className="text-2xl leading-none sm:text-4xl md:text-5xl" aria-hidden="true">{point.emoji}</span>
                 <span>
                   <h3 className="text-sm font-extrabold tracking-normal text-white sm:text-lg md:text-xl">{point.title}</h3>
-                  <p className="hidden mt-1 max-w-sm text-xs font-medium leading-5 text-white/64 min-[430px]:block sm:mt-2 sm:max-w-xl sm:text-sm sm:leading-7 md:text-base">{point.body}</p>
+                  <p className="hidden mt-1 max-w-sm text-xs font-medium leading-5 text-white/64 min-[430px]:block sm:mt-2 sm:max-w-xl sm:text-sm sm:leading-7 md:text-base xl:text-left">{point.body}</p>
                 </span>
               </section>
             ))}
@@ -442,7 +442,7 @@ function ExchangeProfitCalculator({
             <span>{amountInputMode === 'foreign' ? '환전한 외화 금액' : '당시 사용한 원화 금액'}</span>
             <span className="relative grid h-6 w-[4.75rem] grid-cols-2 rounded-full border border-white/10 bg-white/10 p-0.5 shadow-sm">
               <span
-                className={`pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 w-[calc((100%-0.25rem)/2)] rounded-full bg-teal-600 transition-transform duration-150 ease-out ${
+                className={`moving-tab-indicator pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 w-[calc((100%-0.25rem)/2)] ${
                   amountInputMode === 'krw' ? 'translate-x-full' : 'translate-x-0'
                 }`}
                 aria-hidden="true"

@@ -64,6 +64,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   statusNode?: ReactNode;
   headerAction?: ReactNode;
   showLatestValueDot?: boolean;
+  showLoadingOverlay?: boolean;
 };
 
 export function MarketChartSection<T extends RangeKey>({
@@ -81,6 +82,7 @@ export function MarketChartSection<T extends RangeKey>({
   panelFooterText,
   headerAction,
   showLatestValueDot = false,
+  showLoadingOverlay = false,
   plotLeft,
   plotRight,
   range,
@@ -232,6 +234,13 @@ export function MarketChartSection<T extends RangeKey>({
                   yDomain={yDomain}
                 />
               </div>
+              {showLoadingOverlay ? (
+                <div className="chart-loading-overlay absolute inset-0 z-20 grid place-items-center px-4 text-center">
+                  <div className="rounded-md border border-white/15 bg-zinc-950/78 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-zinc-950/30 backdrop-blur-md">
+                    새로운 정보를 받아오는 중...
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <aside className="glass-subcard flex min-w-0 flex-col justify-between rounded-2xl p-3 lg:min-h-96">
