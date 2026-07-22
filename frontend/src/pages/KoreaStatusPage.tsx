@@ -125,7 +125,9 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
 
     updateIndicator();
     window.addEventListener('resize', updateIndicator);
-    return () => window.removeEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
   }, [activeSectionKey, sectionTabButtonWidth]);
 
   return (
@@ -150,7 +152,7 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
         <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto lg:overflow-visible" ref={sectionTabNavRef}>
           {sectionTabIndicator.width > 0 ? (
             <span
-              className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-600 transition-[transform,width,height] duration-200 ease-out"
+              className="moving-tab-indicator pointer-events-none absolute left-0 top-0"
               style={{
                 height: Math.max(0, sectionTabIndicator.height - 2),
                 transform: `translate(${sectionTabIndicator.left + 1}px, ${sectionTabIndicator.top + 1}px)`,
@@ -230,7 +232,7 @@ function ViewModeToggle({
   return (
     <div className="relative grid h-8 shrink-0 grid-cols-2 rounded-full border border-white/15 bg-white/10 p-0.5">
       <span
-        className="pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 rounded-full bg-teal-600 transition-transform duration-200 ease-out"
+        className="moving-tab-indicator pointer-events-none absolute bottom-0.5 left-0.5 top-0.5"
         style={{
           transform: value === 'list' ? 'translateX(100%) scale(1)' : 'translateX(0) scale(1)',
           transformOrigin: 'center',
@@ -590,7 +592,9 @@ function HistoryRangeSelector({
 
     updateIndicator();
     window.addEventListener('resize', updateIndicator);
-    return () => window.removeEventListener('resize', updateIndicator);
+    return () => {
+      window.removeEventListener('resize', updateIndicator);
+    };
   }, [options, value]);
 
   if (options.length === 0) {
@@ -605,7 +609,7 @@ function HistoryRangeSelector({
     <div className="relative inline-flex h-10 shrink-0 rounded-full border border-white/15 bg-white/10 p-0.5" ref={containerRef}>
       {indicator.width > 0 ? (
         <span
-          className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-600 transition-[transform,width,height] duration-200 ease-out"
+          className="moving-tab-indicator pointer-events-none absolute left-0 top-0"
           style={{
             height: indicator.height,
             transform: `translate(${indicator.left + 1}px, ${indicator.top - 1}px)`,
