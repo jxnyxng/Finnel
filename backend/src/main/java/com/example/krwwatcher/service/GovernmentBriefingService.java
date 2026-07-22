@@ -177,7 +177,7 @@ public class GovernmentBriefingService {
         FreshnessInfo freshness = contentFreshness(findLatestBriefingFetchedAt());
         return new GovernmentBriefingResponse(
             policyBriefingClient.isConfigured(),
-            briefingCategories(),
+            briefingCategories(fromDate, toDate, keyword),
             articles,
             normalizedPage,
             normalizedPageSize,
@@ -227,27 +227,36 @@ public class GovernmentBriefingService {
         return "WHERE " + String.join(" AND ", conditions);
     }
 
-    private List<GovernmentBriefingCategory> briefingCategories() {
+    private List<GovernmentBriefingCategory> briefingCategories(LocalDate fromDate, LocalDate toDate, String keyword) {
         Map<String, String> labelByCode = new LinkedHashMap<>();
         CATEGORY_RULES.forEach(rule -> labelByCode.put(rule.code(), rule.label()));
-        return jdbcTemplate.query(
+        List<Object> params = new ArrayList<>();
+        String whereClause = buildWhereClause("all", fromDate, toDate, keyword, params);
+        Map<String, Integer> countByCode = jdbcTemplate.query(
             """
                 SELECT category, COUNT(*) AS article_count
                 FROM government_briefings
-                WHERE category IN (%s)
-                    AND body IS NOT NULL
-                    AND CHAR_LENGTH(body) >= ?
-                    AND body NOT LIKE ?
+                %s
                 GROUP BY category
                 ORDER BY article_count DESC, category ASC
-                """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
-            (rs, rowNum) -> new GovernmentBriefingCategory(
-                rs.getString("category"),
-                labelByCode.getOrDefault(rs.getString("category"), rs.getString("category")),
-                rs.getInt("article_count")
-            ),
-            relevantCategoryQualityParams()
+                """.formatted(whereClause),
+            rs -> {
+                Map<String, Integer> counts = new LinkedHashMap<>();
+                while (rs.next()) {
+                    counts.put(rs.getString("category"), rs.getInt("article_count"));
+                }
+                return counts;
+            },
+            params.toArray()
         );
+
+        return CATEGORY_RULES.stream()
+            .map(rule -> new GovernmentBriefingCategory(
+                rule.code(),
+                labelByCode.getOrDefault(rule.code(), rule.code()),
+                countByCode.getOrDefault(rule.code(), 0)
+            ))
+            .toList();
     }
 
     private int upsertRelevantBriefing(PolicyBriefingClient.PolicyBriefingPayload payload) {

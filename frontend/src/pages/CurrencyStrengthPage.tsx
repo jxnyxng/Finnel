@@ -54,7 +54,7 @@ export function CurrencyStrengthPage({
               <p>전체 {sortedRanks.length}개 지역 · <span className={`font-semibold ${sortMode === 'strong' ? 'text-teal-100' : 'text-rose-200'}`}>{sortMode === 'strong' ? '강세 순 정렬' : '약세 순 정렬'}</span></p>
               <div className="relative grid h-8 grid-cols-2 rounded-full border border-white/15 bg-white/10 p-0.5">
                 <span
-                  className="pointer-events-none absolute bottom-0.5 top-0.5 rounded-full bg-teal-600 transition-transform duration-200 ease-out"
+                  className="moving-tab-indicator pointer-events-none absolute bottom-0.5 top-0.5"
                   style={{
                     left: '2px',
                     transform: sortMode === 'weak' ? 'translateX(100%)' : 'translateX(0)',

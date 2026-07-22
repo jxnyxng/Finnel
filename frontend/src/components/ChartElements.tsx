@@ -224,7 +224,7 @@ export function RangeSelector<T extends string>({
     >
       {indicator.width > 0 ? (
         <span
-          className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-600 transition-[transform,width,height] duration-200 ease-out"
+          className="moving-tab-indicator pointer-events-none absolute left-0 top-0"
           style={{
             height: indicator.height,
             transform: `translate(${indicator.left + 1}px, ${indicator.top - 1}px)`,

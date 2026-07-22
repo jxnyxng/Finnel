@@ -185,6 +185,7 @@ export type NewsCategory = {
   code: string;
   name: string;
   query: string;
+  articleCount: number;
 };
 
 export type NewsArticle = {

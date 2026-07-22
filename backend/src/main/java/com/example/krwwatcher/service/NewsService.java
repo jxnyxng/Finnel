@@ -36,11 +36,11 @@ public class NewsService {
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private static final List<NewsCategory> CATEGORIES = List.of(
-        new NewsCategory("fx", "환율", "원달러 환율"),
-        new NewsCategory("market", "외환시장", "외환시장"),
-        new NewsCategory("rate", "금리·거시", "한국은행 기준금리"),
-        new NewsCategory("fomc", "미국 연준", "미국 연준 FOMC"),
-        new NewsCategory("policy", "국내 정책", "외환당국 환율")
+        new NewsCategory("fx", "환율", "원달러 환율", 0),
+        new NewsCategory("market", "외환시장", "외환시장", 0),
+        new NewsCategory("rate", "금리·거시", "한국은행 기준금리", 0),
+        new NewsCategory("fomc", "미국 연준", "미국 연준 FOMC", 0),
+        new NewsCategory("policy", "국내 정책", "외환당국 환율", 0)
     );
 
     private final NaverNewsClient naverNewsClient;
@@ -160,7 +160,7 @@ public class NewsService {
         FreshnessInfo freshness = contentFreshness(findLatestNewsFetchedAt());
         return new NewsResponse(
             naverNewsClient.isConfigured(),
-            CATEGORIES,
+            categories(fromDate, toDate, keyword),
             articles,
             normalizedPage,
             normalizedPageSize,
@@ -371,6 +371,42 @@ public class NewsService {
         return count == null ? 0 : count;
     }
 
+    private List<NewsCategory> categories(LocalDate fromDate, LocalDate toDate, String keyword) {
+        NewsArticleSearchCriteria criteria = new NewsArticleSearchCriteria("all", fromDate, toDate, keyword);
+        List<Object> params = new ArrayList<>();
+        String whereClause = buildArticleWhereClause(criteria, params);
+        java.util.Map<String, Integer> countByCode = jdbcTemplate.query(
+            """
+                SELECT n.category_code, COUNT(*) AS article_count
+                FROM news_articles n
+                INNER JOIN (
+                    SELECT MAX(id) AS id
+                    FROM news_articles
+                    %s
+                    GROUP BY COALESCE(dedupe_key, article_key)
+                ) latest ON latest.id = n.id
+                GROUP BY n.category_code
+                """.formatted(whereClause),
+            rs -> {
+                java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+                while (rs.next()) {
+                    counts.put(rs.getString("category_code"), rs.getInt("article_count"));
+                }
+                return counts;
+            },
+            params.toArray()
+        );
+
+        return CATEGORIES.stream()
+            .map(category -> new NewsCategory(
+                category.code(),
+                category.name(),
+                category.query(),
+                countByCode.getOrDefault(category.code(), 0)
+            ))
+            .toList();
+    }
+
     private Instant findLatestNewsFetchedAt() {
         return jdbcTemplate.query(
             """
@@ -451,7 +487,7 @@ public class NewsService {
         return new FreshnessInfo("FRESH", null, expectedNextUpdateAt, lastSuccessfulFetchedAt);
     }
 
-    public record NewsCategory(String code, String name, String query) {
+    public record NewsCategory(String code, String name, String query, int articleCount) {
     }
 
     public record NewsArticle(
