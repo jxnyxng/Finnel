@@ -80,6 +80,7 @@ function App() {
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus | null>(null);
   const [intradayStatus, setIntradayStatus] = React.useState<SyncStatus | null>(null);
   const [dashboardLoadState, setDashboardLoadState] = React.useState<DashboardLoadState>('idle');
+  const dashboardLoadStateRef = React.useRef<DashboardLoadState>('idle');
   const [dashboardErrorMessage, setDashboardErrorMessage] = React.useState<string | null>(null);
   const [usdKrwRange, setUsdKrwRange] = React.useState<RangeKey>('1D');
   const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
@@ -121,12 +122,35 @@ function App() {
   const [mainTabIndicator, setMainTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
   const [mainTabButtonWidth, setMainTabButtonWidth] = React.useState(0);
   const mainTabHighlightTimeoutRef = React.useRef<number | null>(null);
+  const mainTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
   const [isMainTabHighlightActive, setIsMainTabHighlightActive] = React.useState(false);
   const [mainTabHighlightKey, setMainTabHighlightKey] = React.useState(0);
+  const [isFloatingMainTabsVisible, setIsFloatingMainTabsVisible] = React.useState(false);
+  const [isMainTabIndicatorMoving, setIsMainTabIndicatorMoving] = React.useState(false);
+  const [isMainTabIndicatorEntering, setIsMainTabIndicatorEntering] = React.useState(false);
+  const suppressFloatingTabsUntilRef = React.useRef(0);
   const goDashboard = React.useCallback(() => {
     setActiveTab('dashboard');
     setActivePage('dashboard');
   }, []);
+  const navigateMainTab = React.useCallback((tabKey: MainTabKey) => {
+    const isEnteringFromUnselectedPage = !mainTabs.some((tab) => tab.key === activePage);
+    setIsMainTabIndicatorEntering(isEnteringFromUnselectedPage);
+    setIsMainTabIndicatorMoving(true);
+    if (mainTabIndicatorMotionTimeoutRef.current !== null) {
+      window.clearTimeout(mainTabIndicatorMotionTimeoutRef.current);
+    }
+    mainTabIndicatorMotionTimeoutRef.current = window.setTimeout(() => {
+      setIsMainTabIndicatorMoving(false);
+      setIsMainTabIndicatorEntering(false);
+      mainTabIndicatorMotionTimeoutRef.current = null;
+    }, 450);
+    setActiveTab(tabKey);
+    setActivePage(tabKey);
+    setIsFloatingMainTabsVisible(false);
+    suppressFloatingTabsUntilRef.current = window.performance.now() + 900;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activePage]);
   const highlightMainTabs = React.useCallback(() => {
     if (mainTabHighlightTimeoutRef.current !== null) {
       window.clearTimeout(mainTabHighlightTimeoutRef.current);
@@ -143,7 +167,47 @@ function App() {
     if (mainTabHighlightTimeoutRef.current !== null) {
       window.clearTimeout(mainTabHighlightTimeoutRef.current);
     }
+    if (mainTabIndicatorMotionTimeoutRef.current !== null) {
+      window.clearTimeout(mainTabIndicatorMotionTimeoutRef.current);
+    }
   }, []);
+
+  React.useEffect(() => {
+    if (!isMainAppPage) {
+      setIsFloatingMainTabsVisible(false);
+      return undefined;
+    }
+
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
+    const updateFloatingTabs = () => {
+      const currentScrollY = window.scrollY;
+      const delta = currentScrollY - lastScrollY;
+
+      if (window.performance.now() < suppressFloatingTabsUntilRef.current || currentScrollY < 120) {
+        setIsFloatingMainTabsVisible(false);
+      } else if (delta < -8) {
+        setIsFloatingMainTabsVisible(true);
+      } else if (delta > 8) {
+        setIsFloatingMainTabsVisible(false);
+      }
+
+      lastScrollY = currentScrollY;
+      ticking = false;
+    };
+
+    const handleScroll = () => {
+      if (ticking) {
+        return;
+      }
+      ticking = true;
+      window.requestAnimationFrame(updateFloatingTabs);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isMainAppPage]);
 
   React.useLayoutEffect(() => {
     if (!isMainAppPage) {
@@ -229,7 +293,8 @@ function App() {
     category = selectedNewsCategory,
     page = newsPage,
     showLoading = false,
-    filters = newsFilters
+    filters = newsFilters,
+    mode: 'replace' | 'append' = 'replace'
   ) => {
     if (showLoading) {
       setIsNewsLoading(true);
@@ -246,7 +311,22 @@ function App() {
           to: filters.toDate || undefined
         }
       });
-      setNewsArticles(response.data.articles);
+      setNewsArticles((current) => {
+        if (mode === 'replace') {
+          return response.data.articles;
+        }
+
+        const seen = new Set(current.map((article) => `${article.categoryCode}-${article.link || article.originLink || article.title}`));
+        const nextArticles = response.data.articles.filter((article) => {
+          const key = `${article.categoryCode}-${article.link || article.originLink || article.title}`;
+          if (seen.has(key)) {
+            return false;
+          }
+          seen.add(key);
+          return true;
+        });
+        return [...current, ...nextArticles];
+      });
       setNewsCategories(response.data.categories);
       setIsNewsConfigured(response.data.configured);
       setNewsPage(response.data.page);
@@ -254,8 +334,10 @@ function App() {
       setNewsTotalPages(response.data.totalPages);
       setLatestNewsFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
     } catch {
-      setNewsArticles([]);
-      setLatestNewsFetchedAt(null);
+      if (mode === 'replace') {
+        setNewsArticles([]);
+        setLatestNewsFetchedAt(null);
+      }
     } finally {
       setHasNewsLoaded(true);
       if (showLoading) {
@@ -268,7 +350,8 @@ function App() {
     category = selectedGovernmentBriefingCategory,
     page = governmentBriefingsPage,
     showLoading = false,
-    filters = governmentBriefingFilters
+    filters = governmentBriefingFilters,
+    mode: 'replace' | 'append' = 'replace'
   ) => {
     if (showLoading) {
       setIsGovernmentBriefingsLoading(true);
@@ -285,7 +368,22 @@ function App() {
           to: filters.toDate || undefined
         }
       });
-      setGovernmentBriefings(response.data.articles);
+      setGovernmentBriefings((current) => {
+        if (mode === 'replace') {
+          return response.data.articles;
+        }
+
+        const seen = new Set(current.map((article) => article.originalUrl || `${article.title}-${article.publishedAt ?? ''}`));
+        const nextArticles = response.data.articles.filter((article) => {
+          const key = article.originalUrl || `${article.title}-${article.publishedAt ?? ''}`;
+          if (seen.has(key)) {
+            return false;
+          }
+          seen.add(key);
+          return true;
+        });
+        return [...current, ...nextArticles];
+      });
       setGovernmentBriefingCategories(response.data.categories);
       setIsGovernmentBriefingsConfigured(response.data.configured);
       setGovernmentBriefingsPage(response.data.page);
@@ -293,8 +391,10 @@ function App() {
       setGovernmentBriefingsTotalPages(response.data.totalPages);
       setLatestGovernmentBriefingFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
     } catch {
-      setGovernmentBriefings([]);
-      setLatestGovernmentBriefingFetchedAt(null);
+      if (mode === 'replace') {
+        setGovernmentBriefings([]);
+        setLatestGovernmentBriefingFetchedAt(null);
+      }
     } finally {
       setHasGovernmentBriefingsLoaded(true);
       if (showLoading) {
@@ -304,11 +404,17 @@ function App() {
   }, [governmentBriefingFilters, governmentBriefingsPage, selectedGovernmentBriefingCategory]);
 
   React.useEffect(() => {
+    dashboardLoadStateRef.current = dashboardLoadState;
+  }, [dashboardLoadState]);
+
+  React.useEffect(() => {
     loadDashboard(true);
     loadSyncStatus();
     loadIntradayStatus();
 
-    const dashboardTimer = window.setInterval(loadDashboard, 15_000);
+    const dashboardTimer = window.setInterval(() => {
+      loadDashboard(dashboardLoadStateRef.current === 'error');
+    }, 15_000);
     const statusTimer = window.setInterval(loadSyncStatus, 15_000);
     const intradayStatusTimer = window.setInterval(loadIntradayStatus, 15_000);
     const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1_000);
@@ -333,20 +439,24 @@ function App() {
       return undefined;
     }
 
-    loadNews(selectedNewsCategory, newsPage, newsArticles.length === 0);
-    const newsTimer = window.setInterval(() => loadNews(selectedNewsCategory, newsPage), 60_000);
-    return () => window.clearInterval(newsTimer);
-  }, [activePage, loadNews, newsPage, selectedNewsCategory]);
+    if (newsArticles.length === 0) {
+      loadNews(selectedNewsCategory, 1, true, newsFilters);
+    }
+
+    return undefined;
+  }, [activePage, loadNews, newsArticles.length, newsFilters, selectedNewsCategory]);
 
   React.useEffect(() => {
     if (activePage !== 'governmentBriefings') {
       return undefined;
     }
 
-    loadGovernmentBriefings(selectedGovernmentBriefingCategory, governmentBriefingsPage, governmentBriefings.length === 0);
-    const briefingTimer = window.setInterval(() => loadGovernmentBriefings(selectedGovernmentBriefingCategory, governmentBriefingsPage), 60_000);
-    return () => window.clearInterval(briefingTimer);
-  }, [activePage, governmentBriefingsPage, loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
+    if (governmentBriefings.length === 0) {
+      loadGovernmentBriefings(selectedGovernmentBriefingCategory, 1, true, governmentBriefingFilters);
+    }
+
+    return undefined;
+  }, [activePage, governmentBriefingFilters, governmentBriefings.length, loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
 
   const metrics = sortMetrics(dashboard?.metrics ?? []);
   const usdKrwMetric = findMetric(metrics, 'USD/KRW');
@@ -361,6 +471,7 @@ function App() {
   const domesticIndicators = dashboard?.domesticIndicators ?? [];
   const dataSources = dashboard?.dataSources ?? [];
   const isInitialDashboardLoading = dashboardLoadState === 'loading' && dashboard === null;
+  const shouldCoverDashboardCharts = dashboardLoadState === 'loading' && dashboard !== null;
   const hasDashboardError = dashboardLoadState === 'error';
   const dashboardEmptyText = isInitialDashboardLoading
     ? '저장된 대시보드 데이터를 불러오는 중입니다.'
@@ -472,8 +583,7 @@ function App() {
   }, [loadNews, newsFilters]);
 
   const changeNewsPage = React.useCallback((page: number) => {
-    setNewsPage(page);
-    loadNews(selectedNewsCategory, page, true, newsFilters);
+    loadNews(selectedNewsCategory, page, true, newsFilters, page === 1 ? 'replace' : 'append');
   }, [loadNews, newsFilters, selectedNewsCategory]);
 
   const applyNewsFilters = React.useCallback((filters: NewsFilters) => {
@@ -483,8 +593,7 @@ function App() {
   }, [loadNews, selectedNewsCategory]);
 
   const changeGovernmentBriefingsPage = React.useCallback((page: number) => {
-    setGovernmentBriefingsPage(page);
-    loadGovernmentBriefings(selectedGovernmentBriefingCategory, page, true, governmentBriefingFilters);
+    loadGovernmentBriefings(selectedGovernmentBriefingCategory, page, true, governmentBriefingFilters, page === 1 ? 'replace' : 'append');
   }, [governmentBriefingFilters, loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
 
   const changeGovernmentBriefingCategory = React.useCallback((category: string) => {
@@ -501,22 +610,45 @@ function App() {
 
   return (
     <main className="app-shell min-h-screen bg-transparent text-zinc-950">
+      {isMainAppPage ? (
+        <nav
+          aria-label="스크롤 중 주요 화면"
+          className={`floating-main-tabs scrollbar-none fixed left-1/2 top-3 z-50 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-nowrap justify-start gap-1 overflow-x-auto rounded-full border border-white/15 bg-zinc-950/82 p-1 shadow-2xl shadow-zinc-950/35 backdrop-blur-xl transition-[opacity,transform] duration-200 ease-out ${
+            isFloatingMainTabsVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-5 opacity-0'
+          }`}
+        >
+          {mainTabs.map((tab) => (
+            <button
+              className={`relative inline-flex h-9 shrink-0 items-center justify-center rounded-full px-3.5 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
+                activePage === tab.key ? 'bg-teal-600 text-white shadow-sm shadow-teal-950/20' : 'text-white hover:bg-white/12'
+              }`}
+              key={tab.key}
+              onClick={() => navigateMainTab(tab.key)}
+              type="button"
+            >
+              <span className="whitespace-nowrap">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
+      ) : null}
       <header className="py-3 sm:pb-0 sm:pt-4">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-3 px-3 sm:min-h-[58px] sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:pr-5">
-          <button
-            className="flex min-w-0 items-center justify-center gap-3 text-white sm:justify-start sm:py-1"
-            onClick={() => {
-              setActivePage('home');
-            }}
-            type="button"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-500 text-xl font-black text-white shadow-lg shadow-teal-950/25">₩</span>
-            <span className="truncate text-lg font-extrabold tracking-normal drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]">코리아원</span>
-          </button>
-          {isMainAppPage ? <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} /> : null}
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-2 px-3 sm:px-4 sm:pr-5 lg:min-h-[60px] lg:flex-row lg:justify-between lg:gap-4">
+          <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:justify-start lg:gap-3">
+            <button
+              className="flex min-w-0 shrink-0 items-center justify-center gap-2.5 py-1 text-white sm:justify-start lg:gap-3"
+              onClick={() => {
+                setActivePage('home');
+              }}
+              type="button"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-500 text-xl font-black text-white shadow-lg shadow-teal-950/25 lg:h-11 lg:w-11 lg:text-2xl">₩</span>
+              <span className="truncate text-xl font-extrabold tracking-normal drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)] lg:text-[1.35rem]">코리아원</span>
+            </button>
+            {isMainAppPage ? <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} /> : null}
+          </div>
           {isMainAppPage ? (
             <nav
-              className={`scrollbar-none relative mx-auto flex w-fit max-w-full flex-nowrap justify-center gap-1 overflow-x-auto rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md sm:mx-0 sm:w-auto sm:flex-wrap sm:justify-end sm:overflow-visible ${
+              className={`scrollbar-none relative mx-auto flex w-fit max-w-full flex-wrap justify-center gap-1 overflow-visible rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md lg:mx-0 lg:justify-end ${
                 activePage === 'home' && isMainTabHighlightActive && mainTabHighlightKey > 0
                   ? mainTabHighlightKey % 2 === 0 ? 'main-tab-color-pulse-even' : 'main-tab-color-pulse-odd'
                   : ''
@@ -526,13 +658,21 @@ function App() {
             >
               {mainTabIndicator.width > 0 ? (
                 <span
-                  className="moving-tab-indicator pointer-events-none absolute left-0 top-0 rounded-full bg-teal-600 transition-[transform,width,height] duration-200 ease-out"
+                  className={`moving-tab-indicator-frame pointer-events-none absolute left-0 top-0 ${isMainTabIndicatorEntering ? 'moving-tab-indicator-instant-position' : ''}`}
                   style={{
                     height: mainTabIndicator.height,
                     transform: `translate(${mainTabIndicator.left + 1}px, ${mainTabIndicator.top - 1}px)`,
                     width: Math.max(0, mainTabIndicator.width - 2)
                   }}
-                />
+                >
+                  <span
+                    className={`moving-tab-indicator block h-full w-full ${
+                      isMainTabIndicatorEntering
+                        ? 'moving-tab-indicator-enter'
+                        : isMainTabIndicatorMoving ? 'moving-tab-indicator-liquid' : ''
+                    }`}
+                  />
+                </span>
               ) : null}
               {mainTabs.map((tab) => (
                 <button
@@ -540,17 +680,14 @@ function App() {
                     activePage === tab.key ? 'text-white' : 'text-white/70 hover:text-white'
                   }`}
                   key={tab.key}
-                  onClick={() => {
-                    setActiveTab(tab.key);
-                    setActivePage(tab.key);
-                  }}
+                  onClick={() => navigateMainTab(tab.key)}
                   ref={(node) => {
                     mainTabButtonRefs.current[tab.key] = node;
                   }}
                   style={mainTabButtonWidth > 0 ? { width: mainTabButtonWidth } : undefined}
                   type="button"
                 >
-                  {tab.label}
+                  <span className="whitespace-nowrap">{tab.label}</span>
                 </button>
               ))}
             </nav>
@@ -628,6 +765,7 @@ function App() {
               referenceStroke="#5eead4"
               series={visibleUsdKrwSeries}
               showLatestValueDot={showUsdKrwLatestValueDot}
+              showLoadingOverlay={shouldCoverDashboardCharts}
               statusClassName="text-teal-100"
               statusNode={usdKrwStatusNode}
               statusText={usdKrwRange === '1D' ? intradayStatusLabel : null}
@@ -677,6 +815,7 @@ function App() {
                 referenceStroke="#cbd5e1"
                 series={visibleDxyIndexSeries}
                 showLatestValueDot={false}
+                showLoadingOverlay={shouldCoverDashboardCharts}
                 statusClassName="text-transparent"
                 statusText={null}
                 subtitle={`${getRangeLabel(dxyRange)} · 주요 7개 통화권`}
@@ -715,6 +854,7 @@ function App() {
                 referenceStroke="#cbd5e1"
                 series={visibleDollarIndexSeries}
                 showLatestValueDot={false}
+                showLoadingOverlay={shouldCoverDashboardCharts}
                 statusClassName="text-transparent"
                 statusText={null}
                 subtitle={`${getRangeLabel(dollarIndexRange)} · 26개 교역 상대`}
@@ -781,7 +921,7 @@ function App() {
               isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
               onFiltersApply={applyNewsFilters}
               onCategoryChange={changeNewsCategory}
-              onPageChange={changeNewsPage}
+              onLoadMore={changeNewsPage}
               page={newsPage}
               selectedCategory={selectedNewsCategory}
               statusNode={activeStatusNode}
@@ -802,7 +942,7 @@ function App() {
               isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
               onCategoryChange={changeGovernmentBriefingCategory}
               onFiltersApply={applyGovernmentBriefingFilters}
-              onPageChange={changeGovernmentBriefingsPage}
+              onLoadMore={changeGovernmentBriefingsPage}
               page={governmentBriefingsPage}
               selectedCategory={selectedGovernmentBriefingCategory}
               statusNode={activeStatusNode}
@@ -949,7 +1089,7 @@ function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; 
 
   if (rates.length === 0) {
     return (
-      <div className="glass-card w-full max-w-sm rounded-xl px-3 py-2 text-xs text-white/50 shadow-sm sm:mx-2 sm:w-72">
+      <div className="glass-card w-[min(12.5rem,48vw)] rounded-xl px-2.5 py-2 text-[11px] text-white/50 shadow-sm sm:w-56 lg:w-60">
         {emptyMessage}
       </div>
     );
@@ -959,63 +1099,63 @@ function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; 
 
   return (
     <div
-      className="relative z-30 w-full max-w-sm sm:mx-2 sm:w-72"
+      className="relative z-30 w-[min(12.5rem,48vw)] sm:w-56 lg:w-60"
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       ref={containerRef}
     >
       <button
         aria-expanded={isExpanded}
-        className="group relative h-12 w-full overflow-hidden rounded-xl px-3 text-left transition-colors duration-150"
+        className="group relative h-10 w-full overflow-hidden rounded-xl px-2.5 text-left transition-colors duration-150"
         onClick={() => setIsExpanded((current) => !current)}
         type="button"
       >
         {isExpanded ? (
-          <div className="flex h-full items-center justify-between gap-3">
+          <div className="flex h-full items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">주요 통화 환율</p>
+              <p className="truncate text-xs font-semibold text-white">주요 통화 환율</p>
             </div>
-            <span className="shrink-0 text-xs font-semibold text-teal-100">접기</span>
+            <span className="shrink-0 text-[11px] font-semibold text-teal-100">접기</span>
           </div>
         ) : (
           <>
             <div key={activeRate.currencyCode} className={`foreign-rate-ticker-item foreign-rate-primary-content flex h-full items-center gap-2 ${isPaused ? 'foreign-rate-ticker-paused' : ''}`}>
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/15 bg-white/10 text-lg leading-none" aria-hidden="true">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-white/15 bg-white/10 text-base leading-none" aria-hidden="true">
                 {getCurrencyFlag(activeRate.displayCode)}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-white">{getCurrencyShortLabel(activeRate.displayCode)}</span>
-                <span className="block truncate text-[11px] text-white/55">{activeRate.displayCode} · {formatForeignExchangeUpdatedAt(new Date(activeRate.fetchedAt))}</span>
+                <span className="block truncate text-[11px] font-semibold text-white">{getCurrencyShortLabel(activeRate.displayCode)}</span>
+                <span className="block truncate text-[10px] text-white/55">{activeRate.displayCode} · {formatForeignExchangeUpdatedAt(new Date(activeRate.fetchedAt))}</span>
               </span>
-              <span className="shrink-0 text-sm font-bold text-teal-100">{formatValue(activeRate.dealBasRate, 2)}원</span>
+              <span className="shrink-0 text-xs font-bold text-teal-100">{formatValue(activeRate.dealBasRate, 2)}원</span>
             </div>
-            <span className="foreign-rate-hover-content pointer-events-none absolute inset-0 grid place-items-center text-xs font-semibold text-teal-100 opacity-0 group-hover:opacity-100">
+            <span className="foreign-rate-hover-content pointer-events-none absolute inset-0 grid place-items-center text-[11px] font-semibold text-teal-100 opacity-0 group-hover:opacity-100">
               <span className="foreign-rate-hover-label">펼쳐서 보기</span>
             </span>
           </>
         )}
       </button>
       <div
-        className={`foreign-rate-dropdown absolute left-0 right-0 top-[calc(100%+0.5rem)] overflow-hidden rounded-2xl border border-white/15 bg-zinc-950/92 shadow-2xl shadow-zinc-950/35 backdrop-blur-xl ${
+        className={`foreign-rate-dropdown absolute right-0 top-[calc(100%+0.5rem)] w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-white/15 bg-zinc-950/92 shadow-2xl shadow-zinc-950/35 backdrop-blur-xl ${
           isExpanded ? 'foreign-rate-dropdown-open' : ''
         }`}
       >
         <div className="foreign-rate-list-scroll grid max-h-[min(60vh,26rem)] min-w-0 gap-2 overflow-y-auto p-2.5">
           {rates.map((rate) => (
-            <article className="glass-subcard grid min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-2 rounded-xl px-2.5 py-2.5" key={rate.currencyCode}>
-              <div className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-xl leading-none" aria-hidden="true">
+            <article className="foreign-rate-card glass-subcard grid min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-2 rounded-xl px-2.5 py-2.5" key={rate.currencyCode}>
+              <div className="foreign-rate-card-flag grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10 text-xl leading-none" aria-hidden="true">
                 {getCurrencyFlag(rate.displayCode)}
               </div>
-              <div className="min-w-0">
+              <div className="foreign-rate-card-main min-w-0">
                 <div className="flex min-w-0 items-baseline gap-1.5">
-                  <p className="truncate text-sm font-semibold text-white">{getCurrencyShortLabel(rate.displayCode)}</p>
+                  <p className="whitespace-nowrap text-sm font-semibold text-white">{getCurrencyShortLabel(rate.displayCode)}</p>
                   <span className="shrink-0 text-[10px] font-bold text-white/45">{rate.displayCode}</span>
                 </div>
-                <p className="mt-1 text-[11px] font-medium leading-4 text-white/60">
+                <p className="mt-1 whitespace-nowrap text-[11px] font-medium leading-4 text-white/60">
                   {formatForeignExchangeUpdatedAt(new Date(rate.fetchedAt))}
                 </p>
               </div>
-              <div className="shrink-0 pt-0.5 text-right">
+              <div className="foreign-rate-card-value shrink-0 pt-0.5 text-right">
                 <p className="whitespace-nowrap text-sm font-bold text-teal-100">{formatValue(rate.dealBasRate, 2)}원</p>
               </div>
             </article>

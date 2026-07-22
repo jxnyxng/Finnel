@@ -18,7 +18,7 @@ type GovernmentBriefingsPageProps = {
   totalPages: number;
   onCategoryChange: (category: string) => void;
   onFiltersApply: (filters: GovernmentBriefingFilters) => void;
-  onPageChange: (page: number) => void;
+  onLoadMore: (page: number) => void;
 };
 
 export function GovernmentBriefingsPage({
@@ -30,7 +30,7 @@ export function GovernmentBriefingsPage({
   isPendingInitialLoad = false,
   onCategoryChange,
   onFiltersApply,
-  onPageChange,
+  onLoadMore,
   page,
   selectedCategory,
   statusNode,
@@ -76,6 +76,7 @@ export function GovernmentBriefingsPage({
     });
   };
   const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
+  const hasMore = page < totalPages;
   const scrollCategories = (direction: -1 | 1) => {
     categoryScrollerRef.current?.scrollBy({
       behavior: 'smooth',
@@ -95,7 +96,7 @@ export function GovernmentBriefingsPage({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <p className="hidden text-[11px] text-white/55 sm:block">총 {totalCount}건 · {page}/{Math.max(1, totalPages)}쪽</p>
+            <p className="hidden text-[11px] text-white/55 sm:block">총 {totalCount}건 · {articles.length}건 표시</p>
           </div>
         </div>
         {statusNode ? <div className="mt-1 flex justify-end">{statusNode}</div> : null}
@@ -168,7 +169,7 @@ export function GovernmentBriefingsPage({
       ) : null}
 
       <section className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
-        {isLoading ? (
+        {isLoading && articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">정부 정책을 불러오는 중입니다.</div>
         ) : isPendingInitialLoad ? (
           <div className="min-h-40" />
@@ -185,9 +186,12 @@ export function GovernmentBriefingsPage({
             ))}
           </div>
         )}
-        {totalPages > 1 ? (
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={onPageChange} />
-        ) : null}
+        <InfiniteLoadMarker
+          hasItems={articles.length > 0}
+          hasMore={hasMore}
+          isLoading={isLoading}
+          onLoadMore={() => onLoadMore(page + 1)}
+        />
       </section>
 
       <GovernmentBriefingModal article={selectedArticle} onClose={() => setSelectedArticle(null)} />
@@ -476,42 +480,46 @@ function getBriefingParagraphs(value: string) {
     .filter(Boolean);
 }
 
-function Pagination({
-  currentPage,
-  onPageChange,
-  totalPages
+function InfiniteLoadMarker({
+  hasItems,
+  hasMore,
+  isLoading,
+  onLoadMore
 }: {
-  currentPage: number;
-  onPageChange: (page: number) => void;
-  totalPages: number;
+  hasItems: boolean;
+  hasMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
 }) {
-  return (
-    <div className="mt-4 flex items-center justify-center gap-2 border-t border-white/10 pt-4">
-      <PageButton disabled={currentPage <= 1} label="이전" onClick={() => onPageChange(currentPage - 1)} />
-      <span className="px-2 text-xs font-semibold text-white/55">{currentPage}/{totalPages}</span>
-      <PageButton disabled={currentPage >= totalPages} label="다음" onClick={() => onPageChange(currentPage + 1)} />
-    </div>
-  );
-}
+  const markerRef = React.useRef<HTMLDivElement | null>(null);
 
-function PageButton({
-  disabled = false,
-  label,
-  onClick
-}: {
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-}) {
+  React.useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker || !hasMore || isLoading) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          observer.disconnect();
+          onLoadMore();
+        }
+      },
+      { rootMargin: '360px 0px' }
+    );
+    observer.observe(marker);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, onLoadMore]);
+
+  if (!hasItems) {
+    return null;
+  }
+
   return (
-    <button
-      className="h-8 rounded border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white/60 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-    </button>
+    <div className="mt-4 grid min-h-12 place-items-center border-t border-white/10 pt-4 text-xs font-semibold text-white/45" ref={markerRef}>
+      {isLoading ? '정부 정책을 더 불러오는 중입니다.' : hasMore ? '아래로 스크롤하면 더 불러옵니다.' : '마지막 정부 정책입니다.'}
+    </div>
   );
 }
 
