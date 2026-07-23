@@ -152,7 +152,7 @@ public class GovernmentBriefingService {
         queryParams.add(offset);
         List<GovernmentBriefingArticle> articles = jdbcTemplate.query(
             """
-                SELECT title, subtitle, body, ministry, category, published_at, thumbnail_url, image_url, original_url, fetched_at
+                SELECT title, subtitle, body, ministry, category, published_at, thumbnail_url, image_url, original_url, kogl_type, fetched_at
                 FROM government_briefings
                 %s
                 ORDER BY published_at DESC, id DESC
@@ -168,6 +168,7 @@ public class GovernmentBriefingService {
                 rs.getString("thumbnail_url"),
                 rs.getString("image_url"),
                 rs.getString("original_url"),
+                rs.getString("kogl_type"),
                 rs.getTimestamp("fetched_at").toInstant()
             ),
             queryParams.toArray()
@@ -280,8 +281,8 @@ public class GovernmentBriefingService {
             : title + "|" + (payload.publishedAt() == null ? "" : payload.publishedAt().toString());
         return jdbcTemplate.update(
             """
-                INSERT INTO government_briefings (briefing_key, title, subtitle, body, ministry, category, published_at, thumbnail_url, image_url, original_url, fetched_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO government_briefings (briefing_key, title, subtitle, body, ministry, category, published_at, thumbnail_url, image_url, original_url, kogl_type, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     title = VALUES(title),
                     subtitle = VALUES(subtitle),
@@ -292,6 +293,7 @@ public class GovernmentBriefingService {
                     thumbnail_url = VALUES(thumbnail_url),
                     image_url = VALUES(image_url),
                     original_url = VALUES(original_url),
+                    kogl_type = VALUES(kogl_type),
                     fetched_at = VALUES(fetched_at)
                 """,
             sha256(keySource),
@@ -304,6 +306,7 @@ public class GovernmentBriefingService {
             truncate(payload.thumbnailUrl(), 1000),
             truncate(payload.imageUrl(), 1000),
             originalUrl,
+            truncate(payload.koglType(), 40),
             Instant.now()
         );
     }
@@ -436,6 +439,7 @@ public class GovernmentBriefingService {
         String thumbnailUrl,
         String imageUrl,
         String originalUrl,
+        String koglType,
         Instant fetchedAt
     ) {
     }

@@ -234,6 +234,7 @@ export type GovernmentBriefingArticle = {
   thumbnailUrl: string | null;
   imageUrl: string | null;
   originalUrl: string | null;
+  koglType: string | null;
   fetchedAt: string;
 };
 
