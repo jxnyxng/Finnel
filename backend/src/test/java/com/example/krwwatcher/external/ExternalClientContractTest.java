@@ -9,6 +9,37 @@ import org.junit.jupiter.api.Test;
 class ExternalClientContractTest {
 
     @Test
+    void policyBriefingV2ResponseWithoutRemovedImageFieldsParses() {
+        List<PolicyBriefingClient.PolicyBriefingPayload> result = PolicyBriefingClient.parseItems(
+            """
+                <response>
+                  <body>
+                    <items>
+                      <item>
+                        <Title>환율 안정 정책 발표</Title>
+                        <SubTitle1>시장 변동성 점검</SubTitle1>
+                        <DataContents>정부는 외환시장 변동성을 점검하고 금융시장 안정을 위한 정책 대응을 이어간다.</DataContents>
+                        <MinisterName>기획재정부</MinisterName>
+                        <GroupingCode>정책뉴스</GroupingCode>
+                        <ApproveDate>2026-07-23</ApproveDate>
+                        <OriginalUrl>https://www.korea.kr/news/policyNewsView.do?newsId=1</OriginalUrl>
+                        <KoglType>1</KoglType>
+                      </item>
+                    </items>
+                  </body>
+                </response>
+                """
+        );
+
+        assertThat(result).hasSize(1);
+        PolicyBriefingClient.PolicyBriefingPayload payload = result.get(0);
+        assertThat(payload.title()).isEqualTo("환율 안정 정책 발표");
+        assertThat(payload.thumbnailUrl()).isNull();
+        assertThat(payload.imageUrl()).isNull();
+        assertThat(payload.koglType()).isEqualTo("1");
+    }
+
+    @Test
     void openFiscalHtmlErrorIsParseError() {
         FetchResult<OpenFiscalClient.OpenFiscalObservationPayload> result = OpenFiscalClient.parseObservations(
             "<html><body>Bad Gateway</body></html>",
