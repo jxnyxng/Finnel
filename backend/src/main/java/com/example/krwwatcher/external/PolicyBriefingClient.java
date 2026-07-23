@@ -26,6 +26,7 @@ import org.xml.sax.InputSource;
 @Component
 public class PolicyBriefingClient {
 
+    private static final String POLICY_NEWS_PATH = "/1371000/policyNewsService2/policyNewsList2";
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendPattern("yyyy-MM-dd")
@@ -64,7 +65,7 @@ public class PolicyBriefingClient {
 
         String body = restClient.get()
             .uri(uriBuilder -> uriBuilder
-                .path("/1371000/policyNewsService/policyNewsList")
+                .path(POLICY_NEWS_PATH)
                 .queryParam("serviceKey", normalizedApiKey())
                 .queryParam("startDate", startDate.format(DateTimeFormatter.BASIC_ISO_DATE))
                 .queryParam("endDate", endDate.format(DateTimeFormatter.BASIC_ISO_DATE))
@@ -74,7 +75,7 @@ public class PolicyBriefingClient {
         return parseItems(body);
     }
 
-    private List<PolicyBriefingPayload> parseItems(String body) {
+    static List<PolicyBriefingPayload> parseItems(String body) {
         if (!StringUtils.hasText(body)) {
             return List.of();
         }
@@ -107,7 +108,7 @@ public class PolicyBriefingClient {
         }
     }
 
-    private PolicyBriefingPayload parseItem(Element item) {
+    private static PolicyBriefingPayload parseItem(Element item) {
         String title = firstText(item, "Title", "title");
         String subtitle = joinTexts(
             firstText(item, "SubTitle1", "subtitle1"),
@@ -121,6 +122,7 @@ public class PolicyBriefingClient {
         String thumbnailUrl = firstText(item, "ThumbnailUrl", "ThumbnailURL", "thumbnailUrl");
         String imageUrl = firstText(item, "OriginalimgUrl", "OriginalImgUrl", "ImageUrl", "imageUrl");
         String originalUrl = firstText(item, "OriginalUrl", "OriginalURL", "Link", "link");
+        String koglType = firstText(item, "KoglType", "koglType");
 
         return new PolicyBriefingPayload(
             clean(title),
@@ -131,11 +133,12 @@ public class PolicyBriefingClient {
             publishedAt,
             clean(thumbnailUrl),
             clean(imageUrl),
-            clean(originalUrl)
+            clean(originalUrl),
+            clean(koglType)
         );
     }
 
-    private String firstText(Element element, String... names) {
+    private static String firstText(Element element, String... names) {
         for (String name : names) {
             NodeList nodes = element.getElementsByTagName(name);
             if (nodes.getLength() > 0) {
@@ -148,7 +151,7 @@ public class PolicyBriefingClient {
         return null;
     }
 
-    private String joinTexts(String... values) {
+    private static String joinTexts(String... values) {
         List<String> texts = new ArrayList<>();
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -158,7 +161,7 @@ public class PolicyBriefingClient {
         return texts.isEmpty() ? null : String.join(" ", texts);
     }
 
-    private Instant parsePublishedAt(String value) {
+    private static Instant parsePublishedAt(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
@@ -183,7 +186,7 @@ public class PolicyBriefingClient {
         }
     }
 
-    private String clean(String value) {
+    private static String clean(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
         }
@@ -218,7 +221,8 @@ public class PolicyBriefingClient {
         Instant publishedAt,
         String thumbnailUrl,
         String imageUrl,
-        String originalUrl
+        String originalUrl,
+        String koglType
     ) {
     }
 }
