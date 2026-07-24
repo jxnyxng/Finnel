@@ -114,6 +114,8 @@ public class DashboardService {
             usdKrwIntradaySeries,
             advancedDollarIndexSeries,
             dollarIndexSeries,
+            dollarIndexStatus(latestAdvancedDollarIndex),
+            dollarIndexStatus(latestDollarIndex),
             currencyStrengthRanks,
             foreignExchangeRates,
             exchangeRateCalculatorMeta(foreignExchangeRates),
@@ -1470,6 +1472,13 @@ public class DashboardService {
         return latestUsRate.getRateValue().subtract(latestKrRate.getRateValue());
     }
 
+    private DollarIndexStatus dollarIndexStatus(DollarIndex latestDollarIndex) {
+        if (latestDollarIndex == null) {
+            return new DollarIndexStatus(null, null);
+        }
+        return new DollarIndexStatus(latestDollarIndex.getBaseDate(), latestDollarIndex.getFetchedAt());
+    }
+
     public record DailyDashboardResponse(
         LocalDate baseDate,
         List<MetricSnapshot> metrics,
@@ -1477,6 +1486,8 @@ public class DashboardService {
         List<IntradayTimeSeriesPoint> usdKrwIntradaySeries,
         List<TimeSeriesPoint> dxyIndexSeries,
         List<TimeSeriesPoint> dollarIndexSeries,
+        DollarIndexStatus advancedDollarIndexStatus,
+        DollarIndexStatus dollarIndexStatus,
         List<CurrencyStrengthRank> currencyStrengthRanks,
         List<ForeignExchangeRate> foreignExchangeRates,
         ExchangeRateCalculatorMeta exchangeRateCalculator,
@@ -1501,6 +1512,12 @@ public class DashboardService {
     public record TimeSeriesPoint(
         LocalDate baseDate,
         BigDecimal value
+    ) {
+    }
+
+    public record DollarIndexStatus(
+        LocalDate latestBaseDate,
+        Instant fetchedAt
     ) {
     }
 
