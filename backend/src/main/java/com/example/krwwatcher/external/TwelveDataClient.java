@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.function.LongSupplier;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -28,6 +29,7 @@ public class TwelveDataClient {
     private final RequestSleeper requestSleeper;
     private final Deque<Long> requestTimestamps = new ArrayDeque<>();
 
+    @Autowired
     public TwelveDataClient(ExternalApiProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
         this.restClient = restClientBuilder.baseUrl(properties.twelveData().baseUrl()).build();
