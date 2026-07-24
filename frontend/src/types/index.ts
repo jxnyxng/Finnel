@@ -18,6 +18,11 @@ export type TimeSeriesPoint = {
   value: number;
 };
 
+export type DollarIndexStatus = {
+  latestBaseDate: string | null;
+  fetchedAt: string | null;
+};
+
 export type IntradayTimeSeriesPoint = {
   observedAt: string;
   value: number;
@@ -110,6 +115,8 @@ export type DailyDashboardResponse = {
   usdKrwIntradaySeries: IntradayTimeSeriesPoint[];
   dxyIndexSeries: TimeSeriesPoint[];
   dollarIndexSeries: TimeSeriesPoint[];
+  advancedDollarIndexStatus: DollarIndexStatus;
+  dollarIndexStatus: DollarIndexStatus;
   currencyStrengthRanks: CurrencyStrengthRank[];
   foreignExchangeRates: ForeignExchangeRate[];
   exchangeRateCalculator: ExchangeRateCalculatorMeta;

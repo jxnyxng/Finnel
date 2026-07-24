@@ -60,4 +60,8 @@ public class DollarIndex {
     public BigDecimal getValue() {
         return value;
     }
+
+    public Instant getFetchedAt() {
+        return fetchedAt;
+    }
 }

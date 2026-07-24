@@ -29,13 +29,10 @@ import {
   buildVisibleUsdKrwSeries,
   formatDailyXTick,
   formatUsdKrwXTick,
-  getDailyReferenceLabel,
   getDailyXTicks,
   getLatestIntradayDate,
   getPanelPeriodLabel,
   getRangeLabel,
-  getUsdKrwPanelReferenceLabel,
-  getUsdKrwReferenceLabel,
   getUsdKrwXTicks,
   getValueDomain,
   getXDomain,
@@ -74,6 +71,11 @@ import type {
 } from './types';
 
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
+const dollarIndexTabs = [
+  { key: 'advanced', label: '7개국' },
+  { key: 'broad', label: '26개국' }
+] as const;
+type DollarIndexTabKey = (typeof dollarIndexTabs)[number]['key'];
 
 function App() {
   const [dashboard, setDashboard] = React.useState<DailyDashboardResponse | null>(null);
@@ -123,6 +125,12 @@ function App() {
   const [mainTabButtonWidth, setMainTabButtonWidth] = React.useState(0);
   const mainTabHighlightTimeoutRef = React.useRef<number | null>(null);
   const mainTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
+  const dollarIndexTabNavRef = React.useRef<HTMLDivElement | null>(null);
+  const dollarIndexTabButtonRefs = React.useRef<Partial<Record<DollarIndexTabKey, HTMLButtonElement | null>>>({});
+  const [dollarIndexTabIndicator, setDollarIndexTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
+  const [dollarIndexTabButtonWidth, setDollarIndexTabButtonWidth] = React.useState(0);
+  const dollarIndexTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
+  const [isDollarIndexTabIndicatorMoving, setIsDollarIndexTabIndicatorMoving] = React.useState(false);
   const [isMainTabHighlightActive, setIsMainTabHighlightActive] = React.useState(false);
   const [mainTabHighlightKey, setMainTabHighlightKey] = React.useState(0);
   const [isFloatingMainTabsVisible, setIsFloatingMainTabsVisible] = React.useState(false);
@@ -169,6 +177,9 @@ function App() {
     }
     if (mainTabIndicatorMotionTimeoutRef.current !== null) {
       window.clearTimeout(mainTabIndicatorMotionTimeoutRef.current);
+    }
+    if (dollarIndexTabIndicatorMotionTimeoutRef.current !== null) {
+      window.clearTimeout(dollarIndexTabIndicatorMotionTimeoutRef.current);
     }
   }, []);
 
@@ -254,6 +265,52 @@ function App() {
     window.addEventListener('resize', updateIndicator);
     return () => window.removeEventListener('resize', updateIndicator);
   }, [activePage, isMainAppPage, mainTabButtonWidth]);
+
+  React.useLayoutEffect(() => {
+    const activeKey: DollarIndexTabKey = showBroadDollarIndex ? 'broad' : 'advanced';
+    const updateIndicator = () => {
+      const nav = dollarIndexTabNavRef.current;
+      const button = dollarIndexTabButtonRefs.current[activeKey];
+      const maxButtonWidth = Math.ceil(Math.max(
+        0,
+        ...dollarIndexTabs.map((tab) => dollarIndexTabButtonRefs.current[tab.key]?.scrollWidth ?? 0)
+      ));
+      setDollarIndexTabButtonWidth((current) => current === maxButtonWidth ? current : maxButtonWidth);
+
+      if (!nav || !button) {
+        setDollarIndexTabIndicator({ height: 0, left: 0, top: 0, width: 0 });
+        return;
+      }
+
+      const navRect = nav.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const nextIndicator = {
+        height: buttonRect.height,
+        left: buttonRect.left - navRect.left,
+        top: buttonRect.top - navRect.top,
+        width: buttonRect.width
+      };
+      setDollarIndexTabIndicator((current) => {
+        if (
+          current.height === nextIndicator.height &&
+          current.left === nextIndicator.left &&
+          current.top === nextIndicator.top &&
+          current.width === nextIndicator.width
+        ) {
+          return current;
+        }
+        return nextIndicator;
+      });
+    };
+
+    updateIndicator();
+    const animationFrame = window.requestAnimationFrame(updateIndicator);
+    window.addEventListener('resize', updateIndicator);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', updateIndicator);
+    };
+  }, [activePage, dashboardLoadState, dollarIndexTabButtonWidth, showBroadDollarIndex]);
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
     if (showLoading) {
@@ -466,6 +523,8 @@ function App() {
   const usdKrwIntradaySeries = dashboard?.usdKrwIntradaySeries ?? [];
   const dxyIndexSeries = dashboard?.dxyIndexSeries ?? [];
   const dollarIndexSeries = dashboard?.dollarIndexSeries ?? [];
+  const advancedDollarIndexStatus = dashboard?.advancedDollarIndexStatus ?? null;
+  const dollarIndexStatus = dashboard?.dollarIndexStatus ?? null;
   const currencyStrengthRanks = dashboard?.currencyStrengthRanks ?? [];
   const foreignExchangeRates = dashboard?.foreignExchangeRates ?? [];
   const domesticIndicators = dashboard?.domesticIndicators ?? [];
@@ -497,9 +556,7 @@ function App() {
   const dollarIndexDomain = getValueDomain(visibleDollarIndexSeries, 1);
   const dollarIndexXDomain = getXDomain(visibleDollarIndexSeries, dollarIndexRange);
   const dollarIndexXTicks = getDailyXTicks(visibleDollarIndexSeries);
-  const dollarIndexReferenceLabel = getDailyReferenceLabel(visibleDollarIndexSeries);
   const todayLabel = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeZone: 'Asia/Seoul' }).format(new Date());
-  const usdKrwReferenceLabel = getUsdKrwReferenceLabel(usdKrwRange, visibleUsdKrwSeries, dashboard?.baseDate);
   const remainingCooldownSeconds = getRemainingCooldownSeconds(syncStatus, nowMs);
   const remainingIntradayCooldownSeconds = getRemainingCooldownSeconds(intradayStatus, nowMs);
   const latestSyncLabel = getLatestSyncLabel(syncStatus, remainingCooldownSeconds);
@@ -519,6 +576,24 @@ function App() {
     seoulTime,
     syncStatus
   });
+  const selectDollarIndexTab = React.useCallback((tabKey: DollarIndexTabKey) => {
+    setIsDollarIndexTabIndicatorMoving(true);
+    if (dollarIndexTabIndicatorMotionTimeoutRef.current !== null) {
+      window.clearTimeout(dollarIndexTabIndicatorMotionTimeoutRef.current);
+    }
+    dollarIndexTabIndicatorMotionTimeoutRef.current = window.setTimeout(() => {
+      setIsDollarIndexTabIndicatorMoving(false);
+      dollarIndexTabIndicatorMotionTimeoutRef.current = null;
+    }, 450);
+
+    if (tabKey === 'broad') {
+      setShowBroadDollarIndex(true);
+      setActiveAdvancedDollarHover(null);
+    } else {
+      setShowBroadDollarIndex(false);
+      setActiveBroadDollarHover(null);
+    }
+  }, []);
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
   const marketDailyStatus = getMarketDailyStatus(dashboard, syncStatus);
   const showUsdKrwLatestValueDot = usdKrwRange === '1D' && activeServiceStatus.tone !== 'idle' && isUsdKrwIntradayActive;
@@ -552,29 +627,78 @@ function App() {
     { label: '+1%', value: `${formatValue(onePercentHigherUsdKrw)} KRW` },
     { label: '-1%', value: `${formatValue(onePercentLowerUsdKrw)} KRW` },
     { label: '범위', value: getRangeLabel(usdKrwRange) },
-    { label: usdKrwRange === '1D' ? '세션' : '기간', value: getUsdKrwPanelReferenceLabel(usdKrwRange, visibleUsdKrwSeries) },
+    { label: usdKrwRange === '1D' ? '세션' : '기간', value: usdKrwRange === '1D' ? '주중 24시간 실시간 수집 환율' : `${getRangeLabel(usdKrwRange)} 일별 기준 환율` },
     { label: '의미', value: '1달러 가격' },
     { label: '해석', value: '상승하면 원화 약세' },
     { label: '출처', value: usdKrwRange === '1D' ? 'Twelve Data 1분봉' : 'Koreaexim/FRED 일별' }
   ];
   const dollarIndexPanelDetails = [
-    { label: '범위', value: getRangeLabel(dollarIndexRange) },
+    { label: '범위', value: `${getRangeLabel(dollarIndexRange)} · 26개국 교역 상대` },
     { label: '기간', value: getPanelPeriodLabel(visibleDollarIndexSeries) },
     { label: '관측값', value: `${visibleDollarIndexSeries.length}개` },
-    { label: '구성', value: '26개 교역 상대' },
+    { label: '최신 기준일', value: dollarIndexStatus?.latestBaseDate ?? latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-' },
+    { label: '수집 시각', value: formatDataFetchedAt(dollarIndexStatus?.fetchedAt ?? null) },
+    { label: '구성', value: '26개' },
     { label: '의미', value: '넓은 교역 상대 기준 달러 강도' },
     { label: '해석', value: '상승하면 달러 강세' },
     { label: '출처', value: 'FRED DTWEXBGS' }
   ];
   const dxyPanelDetails = [
-    { label: '범위', value: getRangeLabel(dxyRange) },
+    { label: '범위', value: `${getRangeLabel(dxyRange)} · 7개국 통화권` },
     { label: '기간', value: getPanelPeriodLabel(visibleDxyIndexSeries) },
     { label: '관측값', value: `${visibleDxyIndexSeries.length}개` },
-    { label: '구성', value: '유로지역·캐나다·일본·영국·스위스·호주·스웨덴' },
+    { label: '최신 기준일', value: advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-' },
+    { label: '수집 시각', value: formatDataFetchedAt(advancedDollarIndexStatus?.fetchedAt ?? null) },
+    { label: '구성', value: '7개' },
     { label: '의미', value: '주요 7개 통화권 대비 달러 강도' },
     { label: '해석', value: '상승하면 달러 강세' },
     { label: '출처', value: 'FRED DTWEXAFEGS' }
   ];
+  const activeDollarIndexRange = showBroadDollarIndex ? dollarIndexRange : dxyRange;
+  const activeDollarIndexSeries = showBroadDollarIndex ? visibleDollarIndexSeries : visibleDxyIndexSeries;
+  const activeDollarIndexMetric = showBroadDollarIndex ? dollarIndexMetric : dxyMetric;
+  const activeDollarIndexPanelDetails = showBroadDollarIndex ? dollarIndexPanelDetails : dxyPanelDetails;
+  const activeDollarIndexFooterText = showBroadDollarIndex
+    ? `최신 기준일 ${dollarIndexStatus?.latestBaseDate ?? latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-'} · 수집 ${formatDataFetchedAt(dollarIndexStatus?.fetchedAt ?? null)}`
+    : `최신 기준일 ${advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-'} · 수집 ${formatDataFetchedAt(advancedDollarIndexStatus?.fetchedAt ?? null)}`;
+  const activeDollarIndexHeaderAction = (
+    <div
+      aria-label="달러인덱스 기준"
+      className="relative inline-flex overflow-visible rounded-full border border-white/15 bg-white/10 p-1 text-[11px] font-semibold shadow-lg shadow-zinc-950/20 backdrop-blur-md"
+      ref={dollarIndexTabNavRef}
+    >
+      {dollarIndexTabIndicator.width > 0 ? (
+        <span
+          className="moving-tab-indicator-frame pointer-events-none absolute left-0 top-0"
+          style={{
+            height: dollarIndexTabIndicator.height,
+            transform: `translate(${dollarIndexTabIndicator.left + 1}px, ${dollarIndexTabIndicator.top - 1}px)`,
+            width: Math.max(0, dollarIndexTabIndicator.width - 2)
+          }}
+        >
+          <span className={`moving-tab-indicator block h-full w-full ${isDollarIndexTabIndicatorMoving ? 'moving-tab-indicator-liquid' : ''}`} />
+        </span>
+      ) : null}
+      {dollarIndexTabs.map((tab) => {
+        const isActive = showBroadDollarIndex ? tab.key === 'broad' : tab.key === 'advanced';
+        const shouldShowFallbackActive = isActive && dollarIndexTabIndicator.width === 0;
+        return (
+          <button
+            className={`relative z-10 inline-flex h-7 shrink-0 items-center justify-center rounded-full px-3 text-center text-[11px] font-semibold leading-none transition-colors duration-150 ${isActive ? 'text-white' : 'text-white/70 hover:text-white'} ${shouldShowFallbackActive ? 'bg-teal-600/70 shadow-sm shadow-teal-950/20' : ''}`}
+            key={tab.key}
+            onClick={() => selectDollarIndexTab(tab.key)}
+            ref={(node) => {
+              dollarIndexTabButtonRefs.current[tab.key] = node;
+            }}
+            style={dollarIndexTabButtonWidth > 0 ? { width: dollarIndexTabButtonWidth } : undefined}
+            type="button"
+          >
+            <span className="whitespace-nowrap leading-none">{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   const changeNewsCategory = React.useCallback((category: string) => {
     setSelectedNewsCategory(category);
@@ -769,7 +893,7 @@ function App() {
               statusClassName="text-teal-100"
               statusNode={usdKrwStatusNode}
               statusText={usdKrwRange === '1D' ? intradayStatusLabel : null}
-              subtitle={usdKrwRange === '1D' ? '주중 24시간 실시간 수집 환율' : `${getRangeLabel(usdKrwRange)} 일별 기준 환율`}
+                subtitle={null}
               title="실시간 원달러 환율"
               tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
               xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
@@ -782,91 +906,46 @@ function App() {
 
               <MarketChartSection
                 emptyText={dashboardEmptyText}
-                headerAction={(
-                  <button
-                    className="inline-flex h-7 items-center rounded border border-white/15 bg-white/10 px-2.5 text-[11px] font-semibold text-white/70 hover:bg-white/15 hover:text-white"
-                    onClick={() => setShowBroadDollarIndex((value) => !value)}
-                    type="button"
-                  >
-                    {showBroadDollarIndex ? '26개 지수 접기' : '26개 지수 보기'}
-                  </button>
-                )}
+                headerAction={activeDollarIndexHeaderAction}
                 helpAriaLabel="달러인덱스 안내"
                 helpContent={(
                   <>
-                    <p className="mt-1">FRED DTWEXAFEGS 공식 시리즈를 사용합니다. 유로지역, 캐나다, 일본, 영국, 스위스, 호주, 스웨덴 통화권 대비 달러 강도를 보는 무역가중 지표입니다.</p>
-                    <p className="mt-1">흔히 말하는 ICE DXY 6개 바스켓과는 다르며, 값이 오르면 주요 통화권 대비 달러 강세로 해석합니다.</p>
+                    <p className="mt-1">7개 통화권 지수는 FRED DTWEXAFEGS 공식 시리즈입니다. 유로지역, 캐나다, 일본, 영국, 스위스, 호주, 스웨덴 통화권 대비 달러 강도를 봅니다.</p>
+                    <p className="mt-1">26개 교역 상대 지수는 FRED DTWEXBGS 공식 시리즈입니다. 한국, 중국, 멕시코, 캐나다, 유로지역 등 주요 교역 상대 통화 대비 달러 강도를 봅니다.</p>
+                    <p className="mt-1">흔히 말하는 ICE DXY 6개 바스켓과는 다르며, 값이 오르면 해당 바스켓 대비 달러 강세로 해석합니다.</p>
                   </>
                 )}
                 helpTitle="달러인덱스"
                 helpWidthClassName="w-80"
-                hover={activeAdvancedDollarHover}
+                hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
                 lineStroke="#cbd5e1"
-                metric={dxyMetric}
-                onHoverChange={setActiveAdvancedDollarHover}
-                onRangeChange={setDxyRange}
-                panelDetails={dxyPanelDetails}
-                panelFooterText={`최신 계산 ${latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
+                keepHeaderSingleLineOnMobile
+                metric={activeDollarIndexMetric}
+                onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
+                onRangeChange={showBroadDollarIndex ? setDollarIndexRange : setDxyRange}
+                panelDetails={activeDollarIndexPanelDetails}
+                panelFooterText={activeDollarIndexFooterText}
                 plotLeft={18}
                 plotRight={66}
-                range={dxyRange}
+                range={activeDollarIndexRange}
                 rangeColumns={3}
                 rangeOptions={longRangeOptions}
                 referenceStroke="#cbd5e1"
-                series={visibleDxyIndexSeries}
+                series={activeDollarIndexSeries}
                 showLatestValueDot={false}
                 showLoadingOverlay={shouldCoverDashboardCharts}
                 statusClassName="text-transparent"
                 statusText={null}
-                subtitle={`${getRangeLabel(dxyRange)} · 주요 7개 통화권`}
+                subtitle={null}
                 title="달러인덱스"
-                tooltipContent={<DollarIndexTooltip title="주요 7개 통화권 달러" />}
+                tooltipContent={<DollarIndexTooltip title={showBroadDollarIndex ? '26개 교역 상대 달러' : '7개 통화권 달러'} />}
                 xAxisHeight={dailyXAxisHeightPx}
                 xAxisPadding={{ left: 0, right: 0 }}
-                xDomain={dxyIndexXDomain}
-                xTickFormatter={(value) => formatDailyXTick(value, dxyRange)}
-                xTicks={dxyIndexXTicks}
-                yDomain={dxyIndexDomain}
+                xDomain={showBroadDollarIndex ? dollarIndexXDomain : dxyIndexXDomain}
+                xTickFormatter={(value) => formatDailyXTick(value, activeDollarIndexRange)}
+                xTicks={showBroadDollarIndex ? dollarIndexXTicks : dxyIndexXTicks}
+                yDomain={showBroadDollarIndex ? dollarIndexDomain : dxyIndexDomain}
               />
-
-              {showBroadDollarIndex ? <MarketChartSection
-                emptyText={dashboardEmptyText}
-                helpAriaLabel="26개 교역 상대 달러인덱스 안내"
-                helpContent={(
-                  <>
-                    <p className="mt-1">FRED DTWEXBGS 공식 시리즈를 사용합니다. 한국, 중국, 멕시코, 캐나다, 유로지역 등 26개 교역 상대 통화 대비 달러 강도를 보는 무역가중 지표입니다.</p>
-                    <p className="mt-1">USD/KRW가 오를 때 이 지수도 오르면 달러 전체 강세 영향, 지수가 약한데 USD/KRW만 오르면 원화 고유 약세 가능성을 봅니다.</p>
-                  </>
-                )}
-                helpTitle="26개 교역 상대 달러인덱스"
-                hover={activeBroadDollarHover}
-                lineStroke="#cbd5e1"
-                metric={dollarIndexMetric}
-                onHoverChange={setActiveBroadDollarHover}
-                onRangeChange={setDollarIndexRange}
-                panelDetails={dollarIndexPanelDetails}
-                panelFooterText={`최신 발표 ${latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-'}`}
-                plotLeft={18}
-                plotRight={66}
-                range={dollarIndexRange}
-                rangeColumns={3}
-                rangeOptions={longRangeOptions}
-                referenceStroke="#cbd5e1"
-                series={visibleDollarIndexSeries}
-                showLatestValueDot={false}
-                showLoadingOverlay={shouldCoverDashboardCharts}
-                statusClassName="text-transparent"
-                statusText={null}
-                subtitle={`${getRangeLabel(dollarIndexRange)} · 26개 교역 상대`}
-                title="달러인덱스"
-                tooltipContent={<DollarIndexTooltip title="26개 교역 상대 달러" />}
-                xAxisHeight={dailyXAxisHeightPx}
-                xAxisPadding={{ left: 0, right: 0 }}
-                xDomain={dollarIndexXDomain}
-                xTickFormatter={(value) => formatDailyXTick(value, dollarIndexRange)}
-                xTicks={dollarIndexXTicks}
-                yDomain={dollarIndexDomain}
-              /> : null}
           </section>
         ) : null}
 
@@ -1492,6 +1571,13 @@ function formatForeignExchangeUpdatedAt(date: Date) {
     minute: '2-digit',
     timeZone: 'Asia/Seoul'
   }).format(date);
+}
+
+function formatDataFetchedAt(value: string | null) {
+  if (!value) {
+    return '-';
+  }
+  return formatForeignExchangeUpdatedAt(new Date(value));
 }
 
 function calculateKrwAmount(value: string, rate: ForeignExchangeRate | null) {
