@@ -3,10 +3,36 @@ package com.example.krwwatcher.external;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
+import com.example.krwwatcher.config.ExternalApiProperties;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.client.RestClient;
 
 class ExternalClientContractTest {
+
+    @Test
+    void twelveDataClientWaitsForNextMinuteWindowBeforeNinthRequest() {
+        AtomicLong now = new AtomicLong(1_000L);
+        AtomicLong sleptMillis = new AtomicLong(0L);
+        TwelveDataClient client = new TwelveDataClient(
+            twelveDataProperties(),
+            RestClient.builder(),
+            now::get,
+            millis -> {
+                sleptMillis.addAndGet(millis);
+                now.addAndGet(millis);
+            }
+        );
+
+        for (int i = 0; i < 8; i++) {
+            client.reserveRequestSlot();
+        }
+
+        client.reserveRequestSlot();
+
+        assertThat(sleptMillis).hasValue(60_000L);
+    }
 
     @Test
     void policyBriefingV2ResponseWithoutRemovedImageFieldsParses() {
@@ -111,6 +137,21 @@ class ExternalClientContractTest {
         FetchResult<FredClient.FredObservationPayload> result = FredClient.parseObservations("{\"observations\":[]}");
 
         assertThat(result.status()).isEqualTo(FetchStatus.SUCCESS_EMPTY);
+    }
+
+    private ExternalApiProperties twelveDataProperties() {
+        return new ExternalApiProperties(
+            null,
+            null,
+            null,
+            new ExternalApiProperties.TwelveData("https://api.twelvedata.com", "test-key", "USD/KRW", "1min", 5000),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
     }
 
     @Test
