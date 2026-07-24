@@ -4,8 +4,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import org.springframework.stereotype.Component;
@@ -16,13 +19,27 @@ import org.springframework.web.client.RestClient;
 public class TwelveDataClient {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final int REQUESTS_PER_MINUTE_LIMIT = 8;
+    private static final long REQUEST_WINDOW_MILLIS = 60_000L;
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
+    private final LongSupplier clockMillis;
+    private final RequestSleeper requestSleeper;
+    private final Deque<Long> requestTimestamps = new ArrayDeque<>();
 
     public TwelveDataClient(ExternalApiProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
         this.restClient = restClientBuilder.baseUrl(properties.twelveData().baseUrl()).build();
+        this.clockMillis = System::currentTimeMillis;
+        this.requestSleeper = Thread::sleep;
+    }
+
+    TwelveDataClient(ExternalApiProperties properties, RestClient.Builder restClientBuilder, LongSupplier clockMillis, RequestSleeper requestSleeper) {
+        this.properties = properties;
+        this.restClient = restClientBuilder.baseUrl(properties.twelveData().baseUrl()).build();
+        this.clockMillis = clockMillis;
+        this.requestSleeper = requestSleeper;
     }
 
     public List<IntradayExchangePayload> fetchUsdKrwIntraday() {
@@ -31,6 +48,7 @@ public class TwelveDataClient {
             return List.of();
         }
 
+        reserveRequestSlot();
         TwelveDataTimeSeriesResponse response = restClient.get()
             .uri(uriBuilder -> uriBuilder
                 .path("/time_series")
@@ -70,6 +88,7 @@ public class TwelveDataClient {
             return List.of();
         }
 
+        reserveRequestSlot();
         TwelveDataTimeSeriesResponse response = restClient.get()
             .uri(uriBuilder -> uriBuilder
                 .path("/time_series")
@@ -112,6 +131,7 @@ public class TwelveDataClient {
             return Optional.empty();
         }
 
+        reserveRequestSlot();
         TwelveDataExchangeRateResponse response = restClient.get()
             .uri(uriBuilder -> uriBuilder
                 .path("/exchange_rate")
@@ -140,7 +160,41 @@ public class TwelveDataClient {
         ));
     }
 
+    void reserveRequestSlot() {
+        try {
+            reserveRequestSlotOrWait();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for Twelve Data minute request limit", exception);
+        }
+    }
+
+    private synchronized void reserveRequestSlotOrWait() throws InterruptedException {
+        while (true) {
+            long now = clockMillis.getAsLong();
+            removeExpiredRequestTimestamps(now);
+            if (requestTimestamps.size() < REQUESTS_PER_MINUTE_LIMIT) {
+                requestTimestamps.addLast(now);
+                return;
+            }
+
+            long waitMillis = Math.max(1L, REQUEST_WINDOW_MILLIS - (now - requestTimestamps.peekFirst()));
+            requestSleeper.sleep(waitMillis);
+        }
+    }
+
+    private void removeExpiredRequestTimestamps(long now) {
+        while (!requestTimestamps.isEmpty() && now - requestTimestamps.peekFirst() >= REQUEST_WINDOW_MILLIS) {
+            requestTimestamps.removeFirst();
+        }
+    }
+
     public record IntradayExchangePayload(LocalDateTime observedAt, String currencyPair, BigDecimal closeRate) {
+    }
+
+    @FunctionalInterface
+    interface RequestSleeper {
+        void sleep(long millis) throws InterruptedException;
     }
 
     public record CurrentExchangeRatePayload(String symbol, BigDecimal rate, Instant observedAt) {
