@@ -143,6 +143,8 @@ function dashboardFixture(
     usdKrwIntradaySeries: [],
     dxyIndexSeries: [],
     dollarIndexSeries: [],
+    advancedDollarIndexStatus: { latestBaseDate: null, fetchedAt: null },
+    dollarIndexStatus: { latestBaseDate: null, fetchedAt: null },
     currencyStrengthRanks: [],
     foreignExchangeRates: [],
     exchangeRateCalculator: {

@@ -1,11 +1,15 @@
 package com.example.krwwatcher.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.IntSupplier;
 
@@ -15,6 +19,7 @@ import com.example.krwwatcher.config.ExternalApiProperties;
 import com.example.krwwatcher.config.SyncProperties;
 import com.example.krwwatcher.external.FetchResult;
 import com.example.krwwatcher.external.FetchStatus;
+import com.example.krwwatcher.external.FredClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -95,6 +100,18 @@ class MarketDataSyncRunStateTest {
                 source VARCHAR(50) NOT NULL,
                 fetched_at TIMESTAMP NOT NULL,
                 PRIMARY KEY (id)
+            )
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE dollar_indexes (
+                id BIGINT NOT NULL AUTO_INCREMENT,
+                base_date DATE NOT NULL,
+                series_id VARCHAR(50) NOT NULL,
+                value DECIMAL(19, 6) NOT NULL,
+                source VARCHAR(50) NOT NULL,
+                fetched_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uk_dollar_indexes_series_date (series_id, base_date)
             )
             """);
         marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, null, null, null, null, null, null, jdbcTemplate);
@@ -324,6 +341,34 @@ class MarketDataSyncRunStateTest {
     }
 
     @Test
+    void dollarIndexSyncRefreshesRecentOverlapEvenAfterTodayFetchAndBackfillsMissingRows() {
+        FredClient fredClient = org.mockito.Mockito.mock(FredClient.class);
+        marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, fredClient, null, null, null, null, null, jdbcTemplate);
+        Instant todayFetch = Instant.now();
+        insertDollarIndex("DTWEXBGS", LocalDate.of(2026, 7, 20), "130.000000", todayFetch);
+        insertDollarIndex("DTWEXAFEGS", LocalDate.of(2026, 7, 20), "120.000000", todayFetch);
+        when(fredClient.fetchObservations("DTWEXBGS", LocalDate.of(2026, 6, 20))).thenReturn(List.of(
+            new FredClient.FredObservationPayload(LocalDate.of(2026, 7, 20), new BigDecimal("131.250000")),
+            new FredClient.FredObservationPayload(LocalDate.of(2026, 7, 21), new BigDecimal("131.500000"))
+        ));
+        when(fredClient.fetchObservations("DTWEXAFEGS", LocalDate.of(2026, 6, 20))).thenReturn(List.of(
+            new FredClient.FredObservationPayload(LocalDate.of(2026, 7, 20), new BigDecimal("121.250000")),
+            new FredClient.FredObservationPayload(LocalDate.of(2026, 7, 21), new BigDecimal("121.500000"))
+        ));
+
+        Integer rows = ReflectionTestUtils.invokeMethod(marketDataSyncService, "syncDollarIndexes");
+
+        assertThat(rows).isPositive();
+        assertThat(countDollarIndexRows()).isEqualTo(4);
+        assertThat(findDollarIndexValue("DTWEXBGS", LocalDate.of(2026, 7, 20))).isEqualByComparingTo("131.250000");
+        assertThat(findDollarIndexValue("DTWEXBGS", LocalDate.of(2026, 7, 21))).isEqualByComparingTo("131.500000");
+        assertThat(findDollarIndexValue("DTWEXAFEGS", LocalDate.of(2026, 7, 20))).isEqualByComparingTo("121.250000");
+        assertThat(findDollarIndexValue("DTWEXAFEGS", LocalDate.of(2026, 7, 21))).isEqualByComparingTo("121.500000");
+        verify(fredClient).fetchObservations("DTWEXBGS", LocalDate.of(2026, 6, 20));
+        verify(fredClient).fetchObservations("DTWEXAFEGS", LocalDate.of(2026, 6, 20));
+    }
+
+    @Test
     void usdKrwBackfillSessionCooldownPreventsImmediateRetry() throws Exception {
         LocalDate sessionStartDate = LocalDate.of(2026, 7, 17);
         Instant attemptedAt = Instant.parse("2026-07-18T00:10:00Z");
@@ -441,6 +486,39 @@ class MarketDataSyncRunStateTest {
         );
     }
 
+    private void insertDollarIndex(String seriesId, LocalDate baseDate, String value, Instant fetchedAt) {
+        jdbcTemplate.update(
+            """
+                INSERT INTO dollar_indexes
+                    (base_date, series_id, value, source, fetched_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+            baseDate,
+            seriesId,
+            value,
+            "FRED",
+            fetchedAt
+        );
+    }
+
+    private BigDecimal findDollarIndexValue(String seriesId, LocalDate baseDate) {
+        return jdbcTemplate.queryForObject(
+            """
+                SELECT value
+                FROM dollar_indexes
+                WHERE series_id = ?
+                  AND base_date = ?
+                """,
+            BigDecimal.class,
+            seriesId,
+            baseDate
+        );
+    }
+
+    private Integer countDollarIndexRows() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM dollar_indexes", Integer.class);
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private Object syncTrigger(String name) throws Exception {
         Class enumClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$SyncTrigger");
@@ -467,7 +545,18 @@ class MarketDataSyncRunStateTest {
         return new ExternalApiProperties(
             null,
             null,
-            null,
+            new ExternalApiProperties.Fred(
+                "",
+                "test-key",
+                "DTWEXBGS",
+                "DTWEXAFEGS",
+                "FEDFUNDS",
+                "DEXKOUS",
+                "DGS10",
+                "VIXCLS",
+                "DCOILWTICO",
+                "BAMLH0A0HYM2"
+            ),
             new ExternalApiProperties.TwelveData("", "test-key", "USD/KRW", "1min", 5000),
             null,
             null,
