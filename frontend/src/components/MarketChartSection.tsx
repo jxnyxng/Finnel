@@ -41,6 +41,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   rangeOptions: Array<RangeSelectorOption<T>>;
   onRangeChange: (range: T) => void;
   subtitle: ReactNode;
+  keepHeaderSingleLineOnMobile?: boolean;
   statusText: ReactNode;
   statusClassName?: string;
   series: ChartPoint[];
@@ -76,6 +77,7 @@ export function MarketChartSection<T extends RangeKey>({
   hover,
   lineStroke,
   metric,
+  keepHeaderSingleLineOnMobile = false,
   onHoverChange,
   onRangeChange,
   panelDetails = [],
@@ -131,19 +133,27 @@ export function MarketChartSection<T extends RangeKey>({
   }, []);
 
   return (
-    <div className={`relative ${headerAction ? 'pt-7' : ''}`}>
-      {headerAction ? <div className="absolute right-1 top-0">{headerAction}</div> : null}
+    <div className="relative">
       <article className="glass-card min-w-0 rounded-2xl shadow-sm">
         <div className="grid gap-3 p-3 sm:gap-4 sm:p-4">
-          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className={`relative flex min-w-0 gap-2 ${
+            keepHeaderSingleLineOnMobile ? 'flex-row items-center justify-between' : 'flex-col sm:flex-row sm:items-center sm:justify-between'
+          }`}>
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <h2 className="text-base font-semibold text-white">{title}</h2>
+              <h2 className={`text-base font-semibold text-white ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>{title}</h2>
               <ChartHelpTooltip ariaLabel={helpAriaLabel} title={helpTitle} widthClassName={helpWidthClassName}>
                 {helpContent}
               </ChartHelpTooltip>
               {statusText ? <span className={`whitespace-nowrap text-xs ${statusClassName}`}>{statusText}</span> : null}
             </div>
-            <p className="shrink-0 whitespace-nowrap text-left text-xs text-white/70 sm:text-right">{subtitle}</p>
+            <div className={`flex shrink-0 items-center gap-2 sm:justify-end ${keepHeaderSingleLineOnMobile ? 'flex-nowrap' : 'flex-wrap'}`}>
+              {subtitle ? (
+                <p className="whitespace-nowrap text-left text-xs text-white/70 sm:text-right">
+                  {subtitle}
+                </p>
+              ) : null}
+              {headerAction}
+            </div>
           </div>
 
           <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">

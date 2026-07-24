@@ -50,6 +50,7 @@ public class MarketDataSyncService {
     private static final String EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME = "EXCHANGE_RATE_HISTORY_BACKFILL_SYNC";
     private static final String CURRENT_EXCHANGE_RATE_JOB_NAME = "CURRENT_EXCHANGE_RATE_SYNC";
     private static final LocalDate EXCHANGE_RATE_HISTORY_START_DATE = LocalDate.of(1999, 1, 1);
+    private static final int DOLLAR_INDEX_REFRESH_OVERLAP_DAYS = 30;
     private static final int RECENT_MONTH_REFRESH_OVERLAP = 6;
     private static final int RECENT_QUARTER_REFRESH_MONTH_OVERLAP = 12;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
@@ -961,17 +962,14 @@ public class MarketDataSyncService {
     }
 
     private int syncDollarIndex(String seriesId, String source) {
-        if (hasRecentDollarIndexFetch(seriesId, startOfTodayInSeoul())) {
-            return 0;
-        }
-
         LocalDate observationStart = findLatestDollarIndexDate(seriesId);
         if (observationStart == null) {
             observationStart = LocalDate.now(SEOUL_ZONE).minusYears(5);
         } else {
-            observationStart = observationStart.minusDays(14);
+            observationStart = observationStart.minusDays(DOLLAR_INDEX_REFRESH_OVERLAP_DAYS);
         }
         List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
+        Instant fetchedAt = Instant.now();
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
                     INSERT INTO dollar_indexes (base_date, series_id, value, source, fetched_at)
@@ -985,7 +983,7 @@ public class MarketDataSyncService {
                 seriesId,
                 payload.value(),
                 source,
-                Instant.now()
+                fetchedAt
             ))
             .sum();
     }
@@ -2056,19 +2054,6 @@ public class MarketDataSyncService {
             baseDate
         );
         return count != null && count >= MAJOR_EXCHANGE_RATE_PREFIXES.size() - 1;
-    }
-
-    private boolean hasRecentDollarIndexFetch(String seriesId, Instant threshold) {
-        return hasRecentFetch(
-            """
-                SELECT COUNT(*)
-                FROM dollar_indexes
-                WHERE series_id = ?
-                  AND fetched_at >= ?
-                """,
-            seriesId,
-            threshold
-        );
     }
 
     private boolean hasRecentInterestRateFetch(String countryCode, String rateType, Instant threshold) {
