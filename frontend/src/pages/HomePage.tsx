@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
+import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { ExchangeRateCalculatorMeta, ExchangeRateSnapshotResponse, ForeignExchangeRate } from '../types';
 
 const servicePoints = [
@@ -304,6 +305,17 @@ function ExchangeProfitCalculator({
   const [currencyCode, setCurrencyCode] = React.useState('');
   const [exchangeDate, setExchangeDate] = React.useState(() => shiftYear(calculatorMeta?.latestAllowedDate ?? new Date().toISOString().slice(0, 10), -1));
   const [amountInputMode, setAmountInputMode] = React.useState<'foreign' | 'krw'>('foreign');
+  const amountInputModeKeys = React.useMemo(() => ['foreign', 'krw'] as const, []);
+  const {
+    buttonRefs: amountInputModeButtonRefs,
+    containerRef: amountInputModeContainerRef,
+    indicator: amountInputModeIndicator,
+    isMoving: isAmountInputModeIndicatorMoving,
+    startMoving: startAmountInputModeIndicatorMoving
+  } = useMovingTabIndicator({
+    activeKey: amountInputMode,
+    keys: amountInputModeKeys
+  });
   const [foreignAmount, setForeignAmount] = React.useState('');
   const [krwAmount, setKrwAmount] = React.useState('');
   const [snapshot, setSnapshot] = React.useState<ExchangeRateSnapshotResponse | null>(null);
@@ -440,20 +452,23 @@ function ExchangeProfitCalculator({
         <label className="grid gap-2 text-[10px] font-semibold text-white/55">
           <span className="flex min-h-6 items-center justify-between gap-2">
             <span>{amountInputMode === 'foreign' ? '환전한 외화 금액' : '당시 사용한 원화 금액'}</span>
-            <span className="relative grid h-6 w-[4.75rem] grid-cols-2 rounded-full border border-white/10 bg-white/10 p-0.5 shadow-sm">
-              <span
-                className={`moving-tab-indicator pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 w-[calc((100%-0.25rem)/2)] ${
-                  amountInputMode === 'krw' ? 'translate-x-full' : 'translate-x-0'
-                }`}
-                aria-hidden="true"
-              />
+            <span className="relative grid h-6 w-[4.75rem] grid-cols-2 rounded-full border border-white/10 bg-white/10 p-0.5 shadow-sm" ref={amountInputModeContainerRef}>
+              <MovingTabIndicator compact contained indicator={amountInputModeIndicator} isMoving={isAmountInputModeIndicatorMoving} />
               {(['foreign', 'krw'] as const).map((mode) => (
                 <button
                   className={`relative z-10 h-5 rounded-full px-2 text-[10px] font-extrabold leading-5 transition-colors duration-150 ${
                     amountInputMode === mode ? 'text-white' : 'text-white/50 hover:text-white'
                   }`}
                   key={mode}
-                  onClick={() => setAmountInputMode(mode)}
+                  onClick={() => {
+                    if (amountInputMode !== mode) {
+                      startAmountInputModeIndicatorMoving();
+                    }
+                    setAmountInputMode(mode);
+                  }}
+                  ref={(node) => {
+                    amountInputModeButtonRefs.current[mode] = node;
+                  }}
                   type="button"
                 >
                   {mode === 'foreign' ? '외화' : '원화'}
