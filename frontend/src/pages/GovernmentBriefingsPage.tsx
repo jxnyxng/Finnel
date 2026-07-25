@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { GovernmentBriefingArticle, GovernmentBriefingCategory, GovernmentBriefingFilters } from '../types';
 import { lockBodyScroll } from '../utils/scrollLock';
 import { getSeoulDateString } from '../utils/time';
@@ -41,6 +42,25 @@ export function GovernmentBriefingsPage({
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
   const [selectedArticle, setSelectedArticle] = React.useState<GovernmentBriefingArticle | null>(null);
   const categoryScrollerRef = React.useRef<HTMLDivElement | null>(null);
+  const categoryTabs = React.useMemo(
+    () => [
+      { key: 'all', label: '전체' },
+      ...categories.map((category) => ({ key: category.code, label: `${category.name} ${category.articleCount}` }))
+    ],
+    [categories]
+  );
+  const categoryTabKeys = React.useMemo(() => categoryTabs.map((tab) => tab.key), [categoryTabs]);
+  const activeCategoryTabKey = categoryTabKeys.includes(selectedCategory) ? selectedCategory : null;
+  const {
+    buttonRefs: categoryButtonRefs,
+    containerRef: categoryContainerRef,
+    indicator: categoryIndicator,
+    isMoving: isCategoryIndicatorMoving,
+    startMoving: startCategoryIndicatorMoving
+  } = useMovingTabIndicator({
+    activeKey: activeCategoryTabKey,
+    keys: categoryTabKeys
+  });
 
   React.useEffect(() => {
     setDraftFilters(filters);
@@ -100,67 +120,80 @@ export function GovernmentBriefingsPage({
           </div>
         </div>
         {statusNode ? <div className="mt-1 flex justify-end">{statusNode}</div> : null}
-        <form className="mt-2 grid min-w-0 gap-2 border-t border-white/10 pt-2" onSubmit={submitFilters}>
-          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-1.5 lg:gap-2">
+      </header>
+
+      <form className="grid min-w-0 gap-2" onSubmit={submitFilters}>
+        <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-1.5 lg:gap-2">
+          <button
+            aria-label="기간 필터"
+            className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
+              isFilterOpen || filters.fromDate || filters.toDate ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/65 hover:text-white'
+            }`}
+            onClick={() => setIsFilterOpen((current) => !current)}
+            title="기간 필터"
+            type="button"
+          >
+            ⚙
+          </button>
+          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
+            <span className="sr-only">검색어</span>
+            <input
+              className="glass-field h-9 rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
+              onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
+              placeholder="제목, 부제목, 본문 검색"
+              type="search"
+              value={draftFilters.keyword}
+            />
+          </label>
+          <button className="h-9 rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700 lg:h-8" type="submit">
+            검색
+          </button>
+          <button className="h-9 rounded-full border border-white/15 bg-white/10 px-3.5 text-xs font-semibold text-white/60 hover:text-white lg:h-8" onClick={resetFilters} type="button">
+            초기화
+          </button>
+        </div>
+        {isFilterOpen ? (
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
             <button
-              aria-label="기간 필터"
-              className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
-                isFilterOpen || filters.fromDate || filters.toDate ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/65 hover:text-white'
+              className={`h-8 self-end rounded-full border px-3 text-xs font-semibold ${
+                isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
               }`}
-              onClick={() => setIsFilterOpen((current) => !current)}
-              title="기간 필터"
+              onClick={applyTodayFilter}
               type="button"
             >
-              ⚙
+              오늘
             </button>
-            <label className="grid gap-1 text-[10px] font-semibold text-white/55">
-              <span className="sr-only">검색어</span>
-              <input
-                className="glass-field h-9 rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
-                onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
-                placeholder="제목, 부제목, 본문 검색"
-                type="search"
-                value={draftFilters.keyword}
-              />
-            </label>
-            <button className="h-9 rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700 lg:h-8" type="submit">
-              검색
-            </button>
-            <button className="h-9 rounded-full border border-white/15 bg-white/10 px-3.5 text-xs font-semibold text-white/60 hover:text-white lg:h-8" onClick={resetFilters} type="button">
-              초기화
-            </button>
+            <DateFilterFields draftFilters={draftFilters} setDraftFilters={setDraftFilters} />
           </div>
-          {isFilterOpen ? (
-            <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
-              <button
-                className={`h-8 self-end rounded-full border px-3 text-xs font-semibold ${
-                  isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
-                }`}
-                onClick={applyTodayFilter}
-                type="button"
-              >
-                오늘
-              </button>
-              <DateFilterFields draftFilters={draftFilters} setDraftFilters={setDraftFilters} />
-            </div>
-          ) : null}
-        </form>
-        <div className="mt-2 grid grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 border-t border-white/10 pt-2 sm:block">
-          <CategoryScrollButton direction="left" onClick={() => scrollCategories(-1)} />
-          <div className="scrollbar-none flex min-w-0 flex-nowrap gap-1.5 overflow-x-auto sm:flex-wrap sm:overflow-visible" ref={categoryScrollerRef}>
-            <CategoryButton active={selectedCategory === 'all'} label="전체" onClick={() => onCategoryChange('all')} />
-            {categories.map((category) => (
-              <CategoryButton
-                active={selectedCategory === category.code}
-                key={category.code}
-                label={`${category.name} ${category.articleCount}`}
-                onClick={() => onCategoryChange(category.code)}
-              />
-            ))}
-          </div>
-          <CategoryScrollButton direction="right" onClick={() => scrollCategories(1)} />
+        ) : null}
+      </form>
+
+      <nav className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 sm:block" aria-label="정부 정책 카테고리">
+        <CategoryScrollButton direction="left" onClick={() => scrollCategories(-1)} />
+        <div className="scrollbar-none relative flex min-w-0 flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/15 bg-white/10 p-1 sm:flex-wrap sm:overflow-visible" ref={(node) => {
+          categoryScrollerRef.current = node;
+          categoryContainerRef.current = node;
+        }}>
+          <MovingTabIndicator indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
+          {categoryTabs.map((category) => (
+            <CategoryButton
+              active={selectedCategory === category.key}
+              key={category.key}
+              label={category.label}
+              onClick={() => {
+                if (selectedCategory !== category.key) {
+                  startCategoryIndicatorMoving();
+                }
+                onCategoryChange(category.key);
+              }}
+              ref={(node) => {
+                categoryButtonRefs.current[category.key] = node;
+              }}
+            />
+          ))}
         </div>
-      </header>
+        <CategoryScrollButton direction="right" onClick={() => scrollCategories(1)} />
+      </nav>
 
       {!configured ? (
         <section className="rounded-2xl border border-amber-300/30 bg-amber-400/15 p-4 text-sm text-amber-100 shadow-sm">
@@ -245,19 +278,24 @@ function CategoryScrollButton({ direction, onClick }: { direction: 'left' | 'rig
   );
 }
 
-function CategoryButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+const CategoryButton = React.forwardRef<HTMLButtonElement, { active: boolean; label: string; onClick: () => void }>(function CategoryButton({
+  active,
+  label,
+  onClick
+}, ref) {
   return (
     <button
-      className={`h-8 shrink-0 rounded-full border px-3.5 text-xs font-semibold ${
-        active ? 'border-teal-300/45 bg-teal-600 text-white' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
+      className={`relative z-10 h-8 shrink-0 rounded-full px-3.5 text-xs font-semibold transition-colors duration-150 ${
+        active ? 'text-white' : 'text-white/60 hover:text-white'
       }`}
       onClick={onClick}
+      ref={ref}
       type="button"
     >
       {label}
     </button>
   );
-}
+});
 
 function GovernmentBriefingCard({
   article,

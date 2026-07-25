@@ -16,6 +16,7 @@ import {
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
+import { MovingTabIndicator, useMovingTabIndicator } from './components/MovingTabs';
 import { RelatedNewsBanner, prefetchRelatedNews } from './components/RelatedNewsBanner';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
@@ -136,6 +137,18 @@ function App() {
   const [isFloatingMainTabsVisible, setIsFloatingMainTabsVisible] = React.useState(false);
   const [isMainTabIndicatorMoving, setIsMainTabIndicatorMoving] = React.useState(false);
   const [isMainTabIndicatorEntering, setIsMainTabIndicatorEntering] = React.useState(false);
+  const floatingMainTabKeys = React.useMemo(() => mainTabs.map((tab) => tab.key), []);
+  const floatingMainActiveKey = mainTabs.some((tab) => tab.key === activePage) ? activePage as MainTabKey : null;
+  const {
+    buttonRefs: floatingMainTabButtonRefs,
+    containerRef: floatingMainTabNavRef,
+    indicator: floatingMainTabIndicator,
+    isMoving: isFloatingMainTabIndicatorMoving,
+    startMoving: startFloatingMainTabIndicatorMoving
+  } = useMovingTabIndicator({
+    activeKey: floatingMainActiveKey,
+    keys: floatingMainTabKeys
+  });
   const suppressFloatingTabsUntilRef = React.useRef(0);
   const goDashboard = React.useCallback(() => {
     setActiveTab('dashboard');
@@ -737,17 +750,27 @@ function App() {
       {isMainAppPage ? (
         <nav
           aria-label="스크롤 중 주요 화면"
+          ref={floatingMainTabNavRef}
           className={`floating-main-tabs scrollbar-none fixed left-1/2 top-3 z-50 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 flex-nowrap justify-start gap-1 overflow-x-auto rounded-full border border-white/15 bg-zinc-950/82 p-1 shadow-2xl shadow-zinc-950/35 backdrop-blur-xl transition-[opacity,transform] duration-200 ease-out ${
             isFloatingMainTabsVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-5 opacity-0'
           }`}
         >
+          <MovingTabIndicator indicator={floatingMainTabIndicator} isMoving={isFloatingMainTabIndicatorMoving} />
           {mainTabs.map((tab) => (
             <button
               className={`relative inline-flex h-9 shrink-0 items-center justify-center rounded-full px-3.5 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
-                activePage === tab.key ? 'bg-teal-600 text-white shadow-sm shadow-teal-950/20' : 'text-white hover:bg-white/12'
+                activePage === tab.key ? 'z-10 text-white' : 'z-10 text-white hover:bg-white/12'
               }`}
               key={tab.key}
-              onClick={() => navigateMainTab(tab.key)}
+              onClick={() => {
+                if (floatingMainActiveKey !== tab.key) {
+                  startFloatingMainTabIndicatorMoving();
+                }
+                navigateMainTab(tab.key);
+              }}
+              ref={(node) => {
+                floatingMainTabButtonRefs.current[tab.key] = node;
+              }}
               type="button"
             >
               <span className="whitespace-nowrap">{tab.label}</span>
