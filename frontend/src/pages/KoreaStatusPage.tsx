@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ChartEmptyState } from '../components/ChartElements';
+import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
 import { formatMetricUnit, formatValue } from '../utils/format';
 import { lockBodyScroll } from '../utils/scrollLock';
@@ -80,55 +81,23 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
   const [activeSectionKey, setActiveSectionKey] = React.useState(sectionTabs[0].key);
   const [viewMode, setViewMode] = React.useState<'card' | 'list'>('list');
   const [selectedIndicator, setSelectedIndicator] = React.useState<DomesticIndicator | null>(null);
-  const sectionTabNavRef = React.useRef<HTMLDivElement | null>(null);
-  const sectionTabButtonRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
-  const [sectionTabIndicator, setSectionTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
-  const [sectionTabButtonWidth, setSectionTabButtonWidth] = React.useState(sectionTabMinButtonWidth);
+  const sectionTabKeys = React.useMemo(() => sectionTabs.map((tab) => tab.key), []);
+  const {
+    buttonRefs: sectionTabButtonRefs,
+    buttonWidth: sectionTabButtonWidth,
+    containerRef: sectionTabNavRef,
+    indicator: sectionTabIndicator,
+    isMoving: isSectionTabIndicatorMoving,
+    startMoving: startSectionTabIndicatorMoving
+  } = useMovingTabIndicator({
+    activeKey: activeSectionKey,
+    equalizeButtonWidths: true,
+    keys: sectionTabKeys,
+    minButtonWidth: sectionTabMinButtonWidth
+  });
   const indicatorMap = new Map(indicators.map((indicator) => [indicator.code, indicator]));
   const collectedIndicators = indicators.filter((indicator) => indicator.value !== null);
   const visibleSections = activeSectionKey === 'all' ? sections : sections.filter((section) => section.key === activeSectionKey);
-
-  React.useLayoutEffect(() => {
-    const updateIndicator = () => {
-      const nav = sectionTabNavRef.current;
-      const button = sectionTabButtonRefs.current[activeSectionKey];
-      const maxButtonWidth = Math.ceil(Math.max(
-        sectionTabMinButtonWidth,
-        ...sectionTabs.map((tab) => sectionTabButtonRefs.current[tab.key]?.scrollWidth ?? 0)
-      ));
-      setSectionTabButtonWidth((current) => current === maxButtonWidth ? current : maxButtonWidth);
-
-      if (!nav || !button) {
-        return;
-      }
-
-      const navRect = nav.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const nextIndicator = {
-        height: buttonRect.height,
-        left: buttonRect.left - navRect.left,
-        top: buttonRect.top - navRect.top,
-        width: buttonRect.width
-      };
-      setSectionTabIndicator((current) => {
-        if (
-          current.height === nextIndicator.height &&
-          current.left === nextIndicator.left &&
-          current.top === nextIndicator.top &&
-          current.width === nextIndicator.width
-        ) {
-          return current;
-        }
-        return nextIndicator;
-      });
-    };
-
-    updateIndicator();
-    window.addEventListener('resize', updateIndicator);
-    return () => {
-      window.removeEventListener('resize', updateIndicator);
-    };
-  }, [activeSectionKey, sectionTabButtonWidth]);
 
   return (
     <section className="grid min-w-0 gap-4">
@@ -149,24 +118,20 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
       </header>
 
       <nav className="glass-card flex min-w-0 flex-col items-stretch gap-2 rounded-2xl p-1 shadow-sm lg:flex-row lg:items-center lg:justify-between lg:rounded-full" aria-label="국내 현황 범주">
-        <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto lg:overflow-visible" ref={sectionTabNavRef}>
-          {sectionTabIndicator.width > 0 ? (
-            <span
-              className="moving-tab-indicator pointer-events-none absolute left-0 top-0"
-              style={{
-                height: Math.max(0, sectionTabIndicator.height - 2),
-                transform: `translate(${sectionTabIndicator.left + 1}px, ${sectionTabIndicator.top + 1}px)`,
-                width: Math.max(0, sectionTabIndicator.width - 2)
-              }}
-            />
-          ) : null}
+        <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden lg:overflow-visible" ref={sectionTabNavRef}>
+          <MovingTabIndicator contained indicator={sectionTabIndicator} isMoving={isSectionTabIndicatorMoving} />
           {sectionTabs.map((tab) => (
             <button
               className={`relative z-10 h-10 rounded-full px-3 text-xs font-semibold transition-colors duration-150 sm:px-4 ${
                 activeSectionKey === tab.key ? 'text-white' : 'text-white/60 hover:text-white'
               }`}
               key={tab.key}
-              onClick={() => setActiveSectionKey(tab.key)}
+              onClick={() => {
+                if (activeSectionKey !== tab.key) {
+                  startSectionTabIndicatorMoving();
+                }
+                setActiveSectionKey(tab.key);
+              }}
               ref={(node) => {
                 sectionTabButtonRefs.current[tab.key] = node;
               }}
@@ -229,26 +194,41 @@ function ViewModeToggle({
   onChange: (value: 'card' | 'list') => void;
   value: 'card' | 'list';
 }) {
+  const viewModeKeys = React.useMemo(() => ['card', 'list'] as const, []);
+  const { buttonRefs, containerRef, indicator, isMoving, startMoving } = useMovingTabIndicator({
+    activeKey: value,
+    keys: viewModeKeys
+  });
+
   return (
-    <div className="relative grid h-8 shrink-0 grid-cols-2 rounded-full border border-white/15 bg-white/10 p-0.5">
-      <span
-        className="moving-tab-indicator pointer-events-none absolute bottom-0.5 left-0.5 top-0.5"
-        style={{
-          transform: value === 'list' ? 'translateX(100%) scale(1)' : 'translateX(0) scale(1)',
-          transformOrigin: 'center',
-          width: 'calc(50% - 2px)'
-        }}
-      />
+    <div className="relative grid h-8 shrink-0 grid-cols-2 overflow-hidden rounded-full border border-white/15 bg-white/10 p-0.5" ref={containerRef}>
+      <MovingTabIndicator compact contained indicator={indicator} isMoving={isMoving} />
       <button
         className={`relative z-10 h-7 min-w-12 rounded-full px-2 text-[11px] font-semibold transition-colors duration-150 ${value === 'card' ? 'text-white' : 'text-white/60 hover:text-white'}`}
-        onClick={() => onChange('card')}
+        onClick={() => {
+          if (value !== 'card') {
+            startMoving();
+          }
+          onChange('card');
+        }}
+        ref={(node) => {
+          buttonRefs.current.card = node;
+        }}
         type="button"
       >
         카드
       </button>
       <button
         className={`relative z-10 h-7 min-w-12 rounded-full px-2 text-[11px] font-semibold transition-colors duration-150 ${value === 'list' ? 'text-white' : 'text-white/60 hover:text-white'}`}
-        onClick={() => onChange('list')}
+        onClick={() => {
+          if (value !== 'list') {
+            startMoving();
+          }
+          onChange('list');
+        }}
+        ref={(node) => {
+          buttonRefs.current.list = node;
+        }}
         type="button"
       >
         리스트
@@ -553,49 +533,15 @@ function HistoryRangeSelector({
   onChange: (value: HistoryRangeKey) => void;
   value: HistoryRangeKey;
 }) {
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const buttonRefs = React.useRef<Partial<Record<HistoryRangeKey, HTMLButtonElement | null>>>({});
-  const [indicator, setIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
   const options = React.useMemo(
     () => (history ? historyRangeOptions.filter((option) => history.availableRanges.includes(option.key)) : historyRangeOptions),
     [history]
   );
-
-  React.useLayoutEffect(() => {
-    const updateIndicator = () => {
-      const container = containerRef.current;
-      const button = buttonRefs.current[value];
-      if (!container || !button) {
-        return;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const nextIndicator = {
-        height: buttonRect.height,
-        left: buttonRect.left - containerRect.left,
-        top: buttonRect.top - containerRect.top,
-        width: buttonRect.width
-      };
-      setIndicator((current) => {
-        if (
-          current.height === nextIndicator.height &&
-          current.left === nextIndicator.left &&
-          current.top === nextIndicator.top &&
-          current.width === nextIndicator.width
-        ) {
-          return current;
-        }
-        return nextIndicator;
-      });
-    };
-
-    updateIndicator();
-    window.addEventListener('resize', updateIndicator);
-    return () => {
-      window.removeEventListener('resize', updateIndicator);
-    };
-  }, [options, value]);
+  const optionKeys = React.useMemo(() => options.map((option) => option.key), [options]);
+  const { buttonRefs, containerRef, indicator, isMoving, startMoving } = useMovingTabIndicator({
+    activeKey: value,
+    keys: optionKeys
+  });
 
   if (options.length === 0) {
     return (
@@ -607,23 +553,19 @@ function HistoryRangeSelector({
 
   return (
     <div className="relative inline-flex h-10 shrink-0 rounded-full border border-white/15 bg-white/10 p-0.5" ref={containerRef}>
-      {indicator.width > 0 ? (
-        <span
-          className="moving-tab-indicator pointer-events-none absolute left-0 top-0"
-          style={{
-            height: indicator.height,
-            transform: `translate(${indicator.left + 1}px, ${indicator.top - 1}px)`,
-            width: Math.max(0, indicator.width - 2)
-          }}
-        />
-      ) : null}
+      <MovingTabIndicator indicator={indicator} isMoving={isMoving} />
       {options.map((option) => (
         <button
           className={`relative z-10 inline-flex h-full min-w-14 items-center justify-center rounded-full px-3 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
             value === option.key ? 'text-white' : 'text-white/60 hover:text-white'
           }`}
           key={option.key}
-          onClick={() => onChange(option.key)}
+          onClick={() => {
+            if (value !== option.key) {
+              startMoving();
+            }
+            onChange(option.key);
+          }}
           ref={(node) => {
             buttonRefs.current[option.key] = node;
           }}

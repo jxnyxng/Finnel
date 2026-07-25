@@ -1,5 +1,6 @@
 import React from 'react';
 import { chartHeightPx } from '../constants';
+import { MovingTabIndicator, useMovingTabIndicator } from './MovingTabs';
 import type { ChartHoverState, ChartPoint, RangeKey } from '../types';
 import { formatCrosshairDate } from '../utils/chart';
 import { formatValue } from '../utils/format';
@@ -179,66 +180,30 @@ export function RangeSelector<T extends string>({
   options: Array<RangeSelectorOption<T>>;
   value: T;
 }) {
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const buttonRefs = React.useRef<Partial<Record<T, HTMLButtonElement | null>>>({});
-  const [indicator, setIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
-
-  React.useLayoutEffect(() => {
-    const updateIndicator = () => {
-      const container = containerRef.current;
-      const button = buttonRefs.current[value];
-      if (!container || !button) {
-        return;
-      }
-
-      const containerRect = container.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const nextIndicator = {
-        height: buttonRect.height,
-        left: buttonRect.left - containerRect.left,
-        top: buttonRect.top - containerRect.top,
-        width: buttonRect.width
-      };
-      setIndicator((current) => {
-        if (
-          current.height === nextIndicator.height &&
-          current.left === nextIndicator.left &&
-          current.top === nextIndicator.top &&
-          current.width === nextIndicator.width
-        ) {
-          return current;
-        }
-        return nextIndicator;
-      });
-    };
-
-    updateIndicator();
-    window.addEventListener('resize', updateIndicator);
-    return () => window.removeEventListener('resize', updateIndicator);
-  }, [value, options]);
+  const keys = React.useMemo(() => options.map((option) => option.key), [options]);
+  const { buttonRefs, containerRef, indicator, isMoving, startMoving } = useMovingTabIndicator({
+    activeKey: value,
+    keys
+  });
 
   return (
     <div
       className={`relative grid h-11 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-white/15 bg-white/10 p-1`}
       ref={containerRef}
     >
-      {indicator.width > 0 ? (
-        <span
-          className="moving-tab-indicator pointer-events-none absolute left-0 top-0"
-          style={{
-            height: indicator.height,
-            transform: `translate(${indicator.left + 1}px, ${indicator.top - 1}px)`,
-            width: Math.max(0, indicator.width - 2)
-          }}
-        />
-      ) : null}
+      <MovingTabIndicator indicator={indicator} isMoving={isMoving} />
       {options.map((option) => (
         <button
           className={`relative z-10 inline-flex h-full min-w-0 items-center justify-center rounded-full px-2 text-center text-xs font-semibold leading-none transition-colors ${
             value === option.key ? 'text-white' : 'text-white/60 hover:text-white'
           }`}
           key={option.key}
-          onClick={() => onChange(option.key)}
+          onClick={() => {
+            if (value !== option.key) {
+              startMoving();
+            }
+            onChange(option.key);
+          }}
           ref={(node) => {
             buttonRefs.current[option.key] = node;
           }}
