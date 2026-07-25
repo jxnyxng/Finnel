@@ -1,4 +1,5 @@
 import React from 'react';
+import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import { koreanRegionNames, specialAreaDisplays } from '../constants';
 import type { CurrencyStrengthRank } from '../types';
 import { formatValue } from '../utils/format';
@@ -15,6 +16,17 @@ export function CurrencyStrengthPage({
   statusNode?: React.ReactNode;
 }) {
   const [sortMode, setSortMode] = React.useState<'strong' | 'weak'>('strong');
+  const sortModeKeys = React.useMemo(() => ['strong', 'weak'] as const, []);
+  const {
+    buttonRefs: sortModeButtonRefs,
+    containerRef: sortModeContainerRef,
+    indicator: sortModeIndicator,
+    isMoving: isSortModeIndicatorMoving,
+    startMoving: startSortModeIndicatorMoving
+  } = useMovingTabIndicator({
+    activeKey: sortMode,
+    keys: sortModeKeys
+  });
   const sortedRanks = React.useMemo(
     () => [...ranks].sort((a, b) => sortMode === 'strong' ? b.neerValue - a.neerValue : a.neerValue - b.neerValue),
     [ranks, sortMode]
@@ -52,25 +64,34 @@ export function CurrencyStrengthPage({
           <div className="glass-card flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs text-white/60 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
               <p>전체 {sortedRanks.length}개 지역 · <span className={`font-semibold ${sortMode === 'strong' ? 'text-teal-100' : 'text-rose-200'}`}>{sortMode === 'strong' ? '강세 순 정렬' : '약세 순 정렬'}</span></p>
-              <div className="relative grid h-8 grid-cols-2 rounded-full border border-white/15 bg-white/10 p-0.5">
-                <span
-                  className="moving-tab-indicator pointer-events-none absolute bottom-0.5 top-0.5"
-                  style={{
-                    left: '2px',
-                    transform: sortMode === 'weak' ? 'translateX(100%)' : 'translateX(0)',
-                    width: 'calc(50% - 2px)'
-                  }}
-                />
+              <div className="relative grid h-8 grid-cols-2 overflow-hidden rounded-full border border-white/15 bg-white/10 p-0.5" ref={sortModeContainerRef}>
+                <MovingTabIndicator compact contained indicator={sortModeIndicator} isMoving={isSortModeIndicatorMoving} />
                 <button
                   className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${sortMode === 'strong' ? 'text-white' : 'text-white/60 hover:text-white'}`}
-                  onClick={() => setSortMode('strong')}
+                  onClick={() => {
+                    if (sortMode !== 'strong') {
+                      startSortModeIndicatorMoving();
+                    }
+                    setSortMode('strong');
+                  }}
+                  ref={(node) => {
+                    sortModeButtonRefs.current.strong = node;
+                  }}
                   type="button"
                 >
                   강세순
                 </button>
                 <button
                   className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${sortMode === 'weak' ? 'text-white' : 'text-white/60 hover:text-white'}`}
-                  onClick={() => setSortMode('weak')}
+                  onClick={() => {
+                    if (sortMode !== 'weak') {
+                      startSortModeIndicatorMoving();
+                    }
+                    setSortMode('weak');
+                  }}
+                  ref={(node) => {
+                    sortModeButtonRefs.current.weak = node;
+                  }}
                   type="button"
                 >
                   약세순
