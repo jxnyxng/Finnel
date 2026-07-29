@@ -68,7 +68,6 @@ class BusinessDayServiceTest {
             null,
             null,
             null,
-            null,
             businessDayService,
             jdbcTemplate
         );

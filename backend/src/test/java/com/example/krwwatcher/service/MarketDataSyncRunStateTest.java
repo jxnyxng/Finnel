@@ -114,7 +114,7 @@ class MarketDataSyncRunStateTest {
                 UNIQUE KEY uk_dollar_indexes_series_date (series_id, base_date)
             )
             """);
-        marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, null, null, null, null, null, null, jdbcTemplate);
+        marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, null, null, null, null, null, jdbcTemplate);
     }
 
     @Test
@@ -343,7 +343,7 @@ class MarketDataSyncRunStateTest {
     @Test
     void dollarIndexSyncRefreshesRecentOverlapEvenAfterTodayFetchAndBackfillsMissingRows() {
         FredClient fredClient = org.mockito.Mockito.mock(FredClient.class);
-        marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, fredClient, null, null, null, null, null, jdbcTemplate);
+        marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, fredClient, null, null, null, null, jdbcTemplate);
         Instant todayFetch = Instant.now();
         insertDollarIndex("DTWEXBGS", LocalDate.of(2026, 7, 20), "130.000000", todayFetch);
         insertDollarIndex("DTWEXAFEGS", LocalDate.of(2026, 7, 20), "120.000000", todayFetch);
@@ -558,7 +558,6 @@ class MarketDataSyncRunStateTest {
                 "BAMLH0A0HYM2"
             ),
             new ExternalApiProperties.TwelveData("", "test-key", "USD/KRW", "1min", 5000),
-            null,
             null,
             null,
             null,

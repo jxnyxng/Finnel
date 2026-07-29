@@ -53,7 +53,7 @@ class ExchangeRateSeparationTest {
             )
             """);
         dashboardService = new DashboardService(null, null, null, null, null, jdbcTemplate);
-        marketDataSyncService = new MarketDataSyncService(null, null, null, null, null, null, null, null, null, null, jdbcTemplate);
+        marketDataSyncService = new MarketDataSyncService(null, null, null, null, null, null, null, null, null, jdbcTemplate);
     }
 
     @Test

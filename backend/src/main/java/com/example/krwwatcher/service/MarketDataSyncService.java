@@ -23,7 +23,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.example.krwwatcher.config.SyncProperties;
 import com.example.krwwatcher.external.BisClient;
-import com.example.krwwatcher.external.BokPortalClient;
 import com.example.krwwatcher.external.EcosClient;
 import com.example.krwwatcher.external.FredClient;
 import com.example.krwwatcher.external.KoreaeximExchangeClient;
@@ -92,7 +91,6 @@ public class MarketDataSyncService {
     private final TwelveDataClient twelveDataClient;
     private final BisClient bisClient;
     private final OpenFiscalClient openFiscalClient;
-    private final BokPortalClient bokPortalClient;
     private final BusinessDayService businessDayService;
     private final JdbcTemplate jdbcTemplate;
     private final ReentrantLock syncLock = new ReentrantLock();
@@ -110,7 +108,6 @@ public class MarketDataSyncService {
         TwelveDataClient twelveDataClient,
         BisClient bisClient,
         OpenFiscalClient openFiscalClient,
-        BokPortalClient bokPortalClient,
         BusinessDayService businessDayService,
         JdbcTemplate jdbcTemplate
     ) {
@@ -122,7 +119,6 @@ public class MarketDataSyncService {
         this.twelveDataClient = twelveDataClient;
         this.bisClient = bisClient;
         this.openFiscalClient = openFiscalClient;
-        this.bokPortalClient = bokPortalClient;
         this.businessDayService = businessDayService;
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -1279,7 +1275,6 @@ public class MarketDataSyncService {
         rows += syncFredRiskIndicators();
         rows += syncOpenFiscalIndicators();
         rows += syncForeignCapitalFlowIndicators(currentMonth, historyStartMonth);
-        rows += syncMpcMinutesIndicator();
         return rows;
     }
 
@@ -1380,24 +1375,6 @@ public class MarketDataSyncService {
             ))
             .sum();
         return rows;
-    }
-
-    private int syncMpcMinutesIndicator() {
-        if (hasRecentDomesticPolicyFetch("MPC_MINUTES", startOfTodayInSeoul())) {
-            return 0;
-        }
-
-        return bokPortalClient.fetchLatestMpcMinutesSignal()
-            .map(payload -> upsertDomesticPolicyIndicator(
-                "MPC_MINUTES",
-                payload.title(),
-                "통화정책 방향",
-                payload.baseDate(),
-                BigDecimal.ONE,
-                "DOCUMENT",
-                "BOK:200789"
-            ))
-            .orElse(0);
     }
 
     private int syncOpenFiscalIndicators() {

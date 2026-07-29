@@ -12,7 +12,6 @@ public record ExternalApiProperties(
     Naver naver,
     OpenFiscal openFiscal,
     PolicyBriefing policyBriefing,
-    Bok bok,
     Kasi kasi
 ) {
 
@@ -71,12 +70,6 @@ public record ExternalApiProperties(
     public record PolicyBriefing(
         String baseUrl,
         String apiKey
-    ) {
-    }
-
-    public record Bok(
-        String baseUrl,
-        String mpcMinutesPath
     ) {
     }
 
