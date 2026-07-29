@@ -137,18 +137,7 @@ function App() {
   const [isFloatingMainTabsVisible, setIsFloatingMainTabsVisible] = React.useState(false);
   const [isMainTabIndicatorMoving, setIsMainTabIndicatorMoving] = React.useState(false);
   const [isMainTabIndicatorEntering, setIsMainTabIndicatorEntering] = React.useState(false);
-  const floatingMainTabKeys = React.useMemo(() => mainTabs.map((tab) => tab.key), []);
-  const floatingMainActiveKey = mainTabs.some((tab) => tab.key === activePage) ? activePage as MainTabKey : null;
-  const {
-    buttonRefs: floatingMainTabButtonRefs,
-    containerRef: floatingMainTabNavRef,
-    indicator: floatingMainTabIndicator,
-    isMoving: isFloatingMainTabIndicatorMoving,
-    startMoving: startFloatingMainTabIndicatorMoving
-  } = useMovingTabIndicator({
-    activeKey: floatingMainActiveKey,
-    keys: floatingMainTabKeys
-  });
+  const floatingMainTabNavRef = React.useRef<HTMLElement | null>(null);
   const suppressFloatingTabsUntilRef = React.useRef(0);
   const goDashboard = React.useCallback(() => {
     setActiveTab('dashboard');
@@ -755,22 +744,13 @@ function App() {
             isFloatingMainTabsVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-5 opacity-0'
           }`}
         >
-          <MovingTabIndicator indicator={floatingMainTabIndicator} isMoving={isFloatingMainTabIndicatorMoving} />
           {mainTabs.map((tab) => (
             <button
               className={`relative inline-flex h-9 shrink-0 items-center justify-center rounded-full px-3.5 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
-                activePage === tab.key ? 'z-10 text-white' : 'z-10 text-white hover:bg-white/12'
+                activePage === tab.key ? 'text-teal-500' : 'text-white/55 hover:bg-teal-300/12 hover:text-teal-50'
               }`}
               key={tab.key}
-              onClick={() => {
-                if (floatingMainActiveKey !== tab.key) {
-                  startFloatingMainTabIndicatorMoving();
-                }
-                navigateMainTab(tab.key);
-              }}
-              ref={(node) => {
-                floatingMainTabButtonRefs.current[tab.key] = node;
-              }}
+              onClick={() => navigateMainTab(tab.key)}
               type="button"
             >
               <span className="whitespace-nowrap">{tab.label}</span>
@@ -1403,16 +1383,16 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
       ) : null}
       {shouldShowPanel ? (
         <section
-          aria-label="환율 계산기"
+          aria-label="환전 계산기"
           className={`transition-opacity duration-200 ease-out ${isClosing || isOpening ? 'opacity-0' : 'opacity-100'}`}
         >
           <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-white">환율 계산기</h2>
+              <h2 className="text-sm font-semibold text-white">환전 계산기</h2>
               <p className="mt-1 text-[11px] leading-4 text-white/55">수수료와 은행별 스프레드는 제외한 기준 환율 계산입니다.</p>
             </div>
             <button
-              aria-label="환율 계산기 닫기"
+              aria-label="환전 계산기 닫기"
               className="grid h-7 w-7 shrink-0 place-items-center rounded border border-white/15 bg-white/10 text-sm font-semibold text-white/60 hover:bg-white/15 hover:text-white"
               onClick={closeCalculator}
               type="button"
@@ -1480,7 +1460,7 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
         </section>
       ) : (
         <button
-          aria-label="환율 계산기 열기"
+          aria-label="환전 계산기 열기"
           aria-pressed={isOpen}
           className="flex h-14 w-full cursor-pointer items-center gap-2.5 bg-white/10 px-[13px] text-left text-teal-100 transition-colors hover:bg-white/15 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-teal-200/40"
           onClick={openCalculator}
@@ -1488,7 +1468,7 @@ function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
         >
           <CalculatorIcon className="h-7 w-7 shrink-0 text-white" />
           <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-24 group-hover:opacity-100">
-            환율계산기
+            환전계산기
           </span>
         </button>
       )}
