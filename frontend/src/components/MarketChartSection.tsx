@@ -157,7 +157,16 @@ export function MarketChartSection<T extends RangeKey>({
           </div>
 
           <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
-            <div className="chart-grid-surface relative h-72 min-w-0 overflow-hidden rounded-2xl sm:h-80 lg:h-full lg:min-h-96" ref={chartSurfaceRef}>
+            <div className="glass-subcard order-1 grid min-w-0 gap-2 rounded-2xl p-3 lg:hidden">
+              <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
+              {statusNode ? (
+                <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2">
+                  {statusNode}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="chart-grid-surface relative order-2 h-72 min-w-0 overflow-hidden rounded-2xl sm:h-80 lg:order-1 lg:h-full lg:min-h-96" ref={chartSurfaceRef}>
               <div className="chart-range-enter absolute inset-0" key={range}>
                 <ChartPlotGrid bottom={chartBottom} left={plotInsetLeft} right={axisWidth} top={chartTopMarginPx} />
                 {series.length === 0 ? (
@@ -253,7 +262,7 @@ export function MarketChartSection<T extends RangeKey>({
               ) : null}
             </div>
 
-            <aside className="glass-subcard flex min-w-0 flex-col justify-between rounded-2xl p-3 lg:min-h-96">
+            <aside className="glass-subcard order-2 hidden min-w-0 flex-col justify-between rounded-2xl p-3 lg:flex lg:min-h-96">
               <div className="grid gap-3">
                 <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
                 {statusNode ? (
@@ -278,6 +287,22 @@ export function MarketChartSection<T extends RangeKey>({
               </dl>
               {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
             </aside>
+
+            <div className="glass-subcard order-3 min-w-0 rounded-2xl p-3 lg:hidden">
+              <div className="flex items-end justify-between gap-3">
+                <p className="min-w-0 break-words text-2xl font-semibold tracking-normal text-white">{metric ? formatMetricValue(metric) : '-'}</p>
+                <span className="shrink-0 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
+              </div>
+              <dl className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs">
+                {panelDetails.map((item) => (
+                  <div key={item.label} className="flex items-start justify-between gap-3">
+                    <dt className="shrink-0 text-white/55">{item.label}</dt>
+                    <dd className="min-w-0 text-right font-medium leading-5 text-white/85">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
+            </div>
           </div>
         </div>
       </article>

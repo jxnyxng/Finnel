@@ -39,7 +39,6 @@ Required or active keys:
 Useful non-secret defaults:
 
 - `OPENFISCAL_BASE_URL=https://www.openfiscaldata.go.kr`
-- `BOK_PORTAL_BASE_URL=https://www.bok.or.kr`
 - `FRED_CREDIT_SPREAD_PROXY_SERIES_ID=BAMLH0A0HYM2`
 
 ## Commands
@@ -78,12 +77,10 @@ cd frontend && npm run build
 - Foreign stock flow is ECOS `901Y055` foreign net buying amount, converted from KRW million to KRW 100M.
 - Foreign bond card is ECOS `282Y006` foreign-held bond balance, not net investment flow.
 - No free official Korea CDS API is confirmed. Use FRED `BAMLH0A0HYM2` only as a clearly labeled global credit-spread proxy.
-- BOK MPC card currently confirms official minutes page availability; it is not document sentiment analysis.
 - BIS rank is an undervaluation rank sorted by low broad NEER first. Rank 1 means the currency is weaker by this metric.
 - Public frontend should not expose manual sync buttons; show automatic refresh/status instead.
 
 ## Next
 
 - Add `US_FED` holidays to the FX calendar and keep actual data-availability fallback as the final guard.
-- Improve MPC document parsing/sentiment only after a stable official feed is confirmed.
 - Keep README and CODEX concise; move long PR notes or investigations out of permanent docs.

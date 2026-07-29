@@ -113,26 +113,26 @@ export function CurrencyStrengthPage({
               return (
                 <article
                   key={rank.areaCode}
-                  className={`glass-list-card rounded-2xl px-3 py-3 shadow-sm ${
+                  className={`glass-list-card rounded-2xl px-3 py-2.5 shadow-sm sm:py-3 ${
                     isKorea ? 'ring-2 ring-teal-300/55' : ''
                   }`}
                 >
-                  <div className="grid grid-cols-[42px_38px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[52px_44px_minmax(0,1fr)_auto] md:grid-cols-[64px_56px_minmax(140px,180px)_minmax(0,1fr)_105px_120px] md:gap-3">
+                  <div className="grid grid-cols-[42px_38px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[52px_44px_minmax(0,1fr)_auto] lg:grid-cols-[64px_56px_minmax(140px,180px)_minmax(0,1fr)_105px_120px] lg:gap-3">
                     <div className="grid grid-cols-[12px_minmax(0,1fr)] items-center gap-1.5">
                       <RankMovementIcon movement={rankMovement} />
-                      <div className="grid h-10 w-full place-items-center rounded-xl border border-white/10 bg-white/8 px-1 text-center sm:h-11 md:h-12 md:rounded-2xl md:px-2">
-                        <p className={`text-sm font-semibold leading-none sm:text-base md:text-lg ${isKorea ? 'text-teal-100' : 'text-white/75'}`}>{index + 1}</p>
+                      <div className="grid h-10 w-full place-items-center rounded-xl border border-white/10 bg-white/8 px-1 text-center sm:h-11 lg:h-12 lg:rounded-2xl lg:px-2">
+                        <p className={`text-sm font-semibold leading-none sm:text-base lg:text-lg ${isKorea ? 'text-teal-100' : 'text-white/75'}`}>{index + 1}</p>
                       </div>
                     </div>
-                    <div className="grid h-10 place-items-center rounded-xl border border-white/10 bg-white/8 text-xl leading-none sm:h-11 sm:text-2xl md:h-12 md:rounded-2xl" aria-hidden="true">
+                    <div className="grid h-10 place-items-center rounded-xl border border-white/10 bg-white/8 text-xl leading-none sm:h-11 sm:text-2xl lg:h-12 lg:rounded-2xl" aria-hidden="true">
                       {display.flag}
                     </div>
-                    <div className="flex h-10 min-w-0 flex-col justify-center sm:h-11 md:h-12">
+                    <div className="flex h-10 min-w-0 flex-col justify-center sm:h-11 lg:h-12">
                       <h3 className="truncate text-sm font-semibold leading-none text-white sm:text-base">{display.name}</h3>
                       <p className="mt-1 truncate text-xs text-white/55">{rank.areaCode} · BIS 원순위 {rank.neerRank}/{rank.totalCount}</p>
                     </div>
 
-                    <div className="col-span-4 min-w-0 md:col-span-1">
+                    <div className="col-span-3 col-start-1 min-w-0 pr-1 lg:col-span-1 lg:col-start-auto lg:pr-0">
                       <div className="relative h-7">
                         <div className="absolute left-0 right-0 top-3 h-1.5 rounded-full bg-white/12" />
                         <div className="absolute left-0 top-3 h-1.5 rounded-full bg-rose-300/45" style={{ width: `${benchmarkPosition}%` }} />
@@ -153,17 +153,17 @@ export function CurrencyStrengthPage({
                       </div>
                     </div>
 
-                    <div className="col-start-4 row-start-1 grid shrink-0 justify-items-end gap-0.5 text-right text-[11px] sm:text-xs md:col-start-auto md:row-start-auto md:justify-items-center md:text-center">
+                    <div className="col-start-4 row-start-1 grid shrink-0 justify-items-end gap-0.5 text-right text-[11px] sm:text-xs lg:col-start-auto lg:row-start-auto lg:justify-items-center lg:text-center">
                       <p className={`font-semibold ${isWeak ? 'text-rose-200' : 'text-teal-100'}`}>
                         NEER {formatValue(rank.neerValue, 2)}
                       </p>
                       <p className="text-white/55">REER {rank.reerValue === null ? '-' : formatValue(rank.reerValue, 2)}</p>
                     </div>
 
-                    <div className="col-span-4 flex h-full items-center justify-between border-t border-white/10 pt-2 text-center md:col-span-1 md:flex-col md:justify-center md:border-l md:border-t-0 md:py-1 md:pl-4">
-                      <p className="text-[11px] font-medium text-white/55">100점 만점</p>
-                      <div className="grid justify-items-end gap-1 md:justify-items-center">
-                        <p className="text-lg font-semibold leading-none text-white md:text-2xl">{strengthScore}점</p>
+                    <div className="col-start-4 row-start-2 flex h-full min-w-[4.5rem] items-center justify-end text-right lg:col-span-1 lg:col-start-auto lg:row-start-auto lg:flex-col lg:justify-center lg:border-l lg:py-1 lg:pl-4 lg:text-center">
+                      <p className="hidden text-[11px] font-medium text-white/55 lg:block">100점 만점</p>
+                      <div className="grid justify-items-end gap-1 lg:justify-items-center">
+                        <p className="text-base font-semibold leading-none text-white lg:text-2xl">{strengthScore}점</p>
                         <ScoreChangeLabel value={scoreChange} />
                       </div>
                     </div>

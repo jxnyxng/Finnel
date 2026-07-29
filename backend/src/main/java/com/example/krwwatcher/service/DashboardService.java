@@ -321,7 +321,6 @@ public class DashboardService {
             "FOREIGN_STOCK_FLOW",
             "FOREIGN_BOND_FLOW",
             "TERMS_OF_TRADE",
-            "MPC_MINUTES",
             "US_10Y_TREASURY",
             "VIX",
             "WTI_OIL",
@@ -419,15 +418,14 @@ public class DashboardService {
     }
 
     private DomesticPolicyIndicatorRow findLatestDomesticPolicyIndicator(String code) {
-        String orderBy = "MPC_MINUTES".equals(code) ? "fetched_at DESC" : "base_date DESC";
         return jdbcTemplate.query(
             """
                 SELECT indicator_code, title, category, base_date, value, unit, source, fetched_at
                 FROM domestic_policy_indicators
                 WHERE indicator_code = ?
-                ORDER BY %s
+                ORDER BY base_date DESC
                 LIMIT 1
-                """.formatted(orderBy),
+                """,
             (rs, rowNum) -> new DomesticPolicyIndicatorRow(
                 rs.getString("indicator_code"),
                 rs.getString("title"),
@@ -484,7 +482,6 @@ public class DashboardService {
             case "FOREIGN_STOCK_FLOW" -> "외국인 주식 순매수는 원화 자산 수요와 환전 흐름을 통해 원화에 영향을 줄 수 있습니다.";
             case "FOREIGN_BOND_FLOW" -> "외국인 채권 보유잔액 증가는 중장기 원화채 수요를 보여주지만, 환헤지 비용과 금리차를 함께 봐야 합니다.";
             case "TERMS_OF_TRADE" -> "교역조건 악화는 같은 수출량으로 확보하는 구매력이 낮아지는 신호라 원화 펀더멘털에 부담이 될 수 있습니다.";
-            case "MPC_MINUTES" -> "금통위 의사록과 의결문은 향후 금리 방향에 대한 기대를 바꿔 원화 심리에 영향을 줄 수 있습니다.";
             case "US_10Y_TREASURY" -> "미국 장기금리 상승은 달러 자산 매력을 높여 원화에는 부담이 될 수 있습니다.";
             case "VIX" -> "VIX 상승은 위험회피 심리 확대로 이어져 신흥국·원화 자산에는 부담이 될 수 있습니다.";
             case "WTI_OIL" -> "유가 상승은 에너지 수입 부담을 키워 무역수지와 원화 수급에 부정적일 수 있습니다.";
@@ -510,7 +507,6 @@ public class DashboardService {
             case "FOREIGN_STOCK_FLOW" -> "ECOS 901Y055, 외국인 순매수 거래대금 월별 값이며 백만원을 억원으로 환산했습니다.";
             case "FOREIGN_BOND_FLOW" -> "ECOS 282Y006, 채권발행-보유관계표의 발행총계 중 국외 보유잔액 분기값이며 십억원을 조원으로 환산했습니다.";
             case "TERMS_OF_TRADE" -> "ECOS 403Y005, 순상품교역조건지수 월별 값입니다.";
-            case "MPC_MINUTES" -> "한국은행 금융통화위원회 의사록 공식 목록 페이지 접근 상태를 저장합니다. 문서 본문 감성 분석은 별도 단계입니다.";
             case "US_10Y_TREASURY" -> "FRED DGS10, 미국 10년 만기 국채 수익률입니다.";
             case "VIX" -> "FRED VIXCLS, CBOE VIX 종가 계열입니다.";
             case "WTI_OIL" -> "FRED DCOILWTICO, WTI 현물 유가 계열입니다.";
@@ -790,7 +786,7 @@ public class DashboardService {
             case "M2", "CURRENT_ACCOUNT", "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
                 "TRADE_BALANCE", "RESERVES_TO_SHORT_TERM_DEBT", "SHORT_TERM_EXTERNAL_DEBT",
                 "FISCAL_BALANCE", "GOVERNMENT_DEBT", "FOREIGN_STOCK_FLOW",
-                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "MPC_MINUTES", "US_10Y_TREASURY", "VIX",
+                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "US_10Y_TREASURY", "VIX",
                 "WTI_OIL", "KOREA_CDS" -> jdbcTemplate.query(
                     """
                         SELECT base_date, value
@@ -958,7 +954,7 @@ public class DashboardService {
             case "M2", "CURRENT_ACCOUNT", "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
                 "TRADE_BALANCE", "RESERVES_TO_SHORT_TERM_DEBT", "SHORT_TERM_EXTERNAL_DEBT",
                 "FISCAL_BALANCE", "GOVERNMENT_DEBT", "FOREIGN_STOCK_FLOW",
-                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "MPC_MINUTES", "US_10Y_TREASURY", "VIX",
+                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "US_10Y_TREASURY", "VIX",
                 "WTI_OIL", "KOREA_CDS" -> queryEarliestDate(
                     """
                         SELECT MIN(base_date)
@@ -1457,7 +1453,7 @@ public class DashboardService {
             new DataSourceInfo(
                 "CAPITAL_FLOW",
                 "자본 흐름·신용위험",
-                "ECOS 901Y055/282Y006, FRED BAMLH0A0HYM2, 한국은행 금통위 의사록 목록",
+                "ECOS 901Y055/282Y006, FRED BAMLH0A0HYM2",
                 "전체 시장 데이터 수집 시 발표된 최신 월별·분기별·일별 값을 저장",
                 "외국인 주식은 순매수 거래대금, 채권은 국외 보유잔액입니다. 한국 CDS는 무료 공식 API가 없어 글로벌 신용스프레드 프록시로 표시합니다."
             )

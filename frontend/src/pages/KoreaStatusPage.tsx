@@ -22,7 +22,7 @@ const sections = [
     label: '정책',
     title: '통화정책 압력',
     description: '기준금리, 금리차, 통화량은 원화 보유 유인과 원화 공급을 바꿉니다.',
-    codes: ['KR_POLICY_RATE', 'US_POLICY_RATE', 'KR_US_RATE_GAP', 'M2', 'MPC_MINUTES']
+    codes: ['KR_POLICY_RATE', 'US_POLICY_RATE', 'KR_US_RATE_GAP', 'M2']
   },
   {
     key: 'policy',
@@ -275,9 +275,7 @@ function PolicyIndicatorCard({
             <div className="text-[10px] font-semibold text-white/45">{indicator.category}</div>
             <h4 className="mt-0.5 truncate text-sm font-semibold text-white">{indicator.title}</h4>
           </div>
-          <span className={`shrink-0 rounded-full px-1.5 py-1 text-[10px] font-semibold sm:px-2 ${collectionStatusClassName(indicator)}`}>
-            {collectionStatusLabel(indicator)}
-          </span>
+          <CollectionStatusDot indicator={indicator} />
         </div>
 
         <div className="mt-3 min-w-0">
@@ -286,11 +284,10 @@ function PolicyIndicatorCard({
             <span>{formatMetricUnit(indicator.unit)}</span>
             <span>기준 {indicator.baseDate ?? '-'}</span>
           </div>
-          <div className="mt-2 text-xs font-semibold text-white/70">상태 {indicator.status}</div>
         </div>
 
         <div className="mt-3 border-t border-white/10 pt-2 text-[10px] leading-4 text-white/45">
-          클릭해서 자세히 보기 · 수집 {formatCollectedAt(indicator)}
+          수집 {formatCollectedAt(indicator)}
         </div>
       </div>
     </article>
@@ -307,13 +304,13 @@ function PolicyIndicatorTable({
   return (
     <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
       <div className="min-w-0 overflow-x-auto">
-      <table className="w-full min-w-full table-fixed border-separate border-spacing-0 text-left sm:min-w-[680px]">
+      <table className="w-full min-w-full table-fixed border-separate border-spacing-0 text-left md:min-w-[620px]">
         <thead>
           <tr className="text-[11px] font-semibold text-white/45">
-            <th className="w-[36%] border-b border-white/10 px-2 py-2">지표</th>
-            <th className="w-[22%] border-b border-white/10 px-2 py-2 text-right">현재 수치</th>
-            <th className="w-[18%] border-b border-white/10 px-2 py-2 text-right">기준일</th>
-            <th className="w-[24%] border-b border-white/10 px-2 py-2 text-right">수집상태</th>
+            <th className="w-[28%] border-b border-white/10 px-2 py-2 md:w-[40%]">지표</th>
+            <th className="w-[34%] border-b border-white/10 px-2 py-2 text-right md:w-[26%] md:text-left">현재 수치</th>
+            <th className="w-[26%] border-b border-white/10 px-2 py-2 text-right md:w-[24%]">기준일</th>
+            <th className="w-[12%] border-b border-white/10 px-2 py-2 text-right md:w-[10%]">수집</th>
           </tr>
         </thead>
         <tbody>
@@ -337,25 +334,23 @@ function PolicyIndicatorTable({
                 <td className="border-b border-white/10 px-2 py-2">
                   <div className="min-w-0 transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
                     <div className="break-words text-xs font-semibold text-white sm:truncate">{indicator.title}</div>
-                    <div className="break-words text-[10px] font-medium text-white/45 sm:truncate">{indicator.category} · {indicator.status} · 클릭해서 자세히 보기</div>
+                    <div className="break-words text-[10px] font-medium text-white/45 sm:truncate">{indicator.category}</div>
                   </div>
                 </td>
-                <td className="border-b border-white/10 px-2 py-2 text-right">
+                <td className="border-b border-white/10 px-2 py-2 text-right md:text-left">
                   <div className="transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
-                    <div className="break-words text-xs font-semibold text-white sm:truncate sm:text-sm">
+                    <div className="whitespace-nowrap text-xs font-semibold text-white sm:truncate sm:text-sm">
                       {formatIndicatorValue(indicator)} <span className="text-[11px] font-medium text-white/45">{formatMetricUnit(indicator.unit)}</span>
                     </div>
                   </div>
                 </td>
                 <td className="border-b border-white/10 px-2 py-2 text-right">
-                  <div className="transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none text-xs text-white/65">
+                  <div className="whitespace-nowrap text-xs text-white/65 transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
                     {indicator.baseDate ?? '-'}
                   </div>
                 </td>
                 <td className="border-b border-white/10 px-2 py-2 text-right">
-                  <span className={`inline-flex min-w-0 break-words rounded-full px-1.5 py-1 text-[10px] font-semibold sm:px-2 sm:text-[11px] ${collectionStatusClassName(indicator)}`}>
-                    {collectionStatusLabel(indicator)}
-                  </span>
+                  <CollectionStatusDot indicator={indicator} />
                 </td>
               </tr>
             );
@@ -447,8 +442,6 @@ function IndicatorInfoPanel({
     return null;
   }
 
-  const delta = getDelta(indicator);
-
   return createPortal(
     <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/35 px-4 py-6" onClick={onClose}>
       <section
@@ -472,7 +465,6 @@ function IndicatorInfoPanel({
           <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
           <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
           <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
-          <InfoPanelRow label="직전 관측치 대비" value={delta.label} />
           <InfoPanelRow label="출처" value={indicator.source} />
           <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
         </dl>
@@ -579,7 +571,7 @@ function HistoryRangeSelector({
 }
 
 function shouldShowHistoryChart(indicator: DomesticIndicator) {
-  return indicator.code !== 'MPC_MINUTES' && indicator.unit !== 'DOCUMENT';
+  return indicator.unit !== 'DOCUMENT';
 }
 
 function DomesticIndicatorHistoryChart({
@@ -734,6 +726,16 @@ function IndicatorSourceSummary({ indicators }: { indicators: DomesticIndicator[
   );
 }
 
+function CollectionStatusDot({ indicator }: { indicator: DomesticIndicator }) {
+  return (
+    <span
+      aria-label={`수집 상태 ${collectionStatusLabel(indicator)}`}
+      className={`inline-flex h-3 w-3 shrink-0 rounded-full ${collectionStatusDotClassName(indicator)}`}
+      title={`수집 상태 ${collectionStatusLabel(indicator)}`}
+    />
+  );
+}
+
 function formatIndicatorValue(indicator: DomesticIndicator) {
   if (indicator.value === null) {
     return '-';
@@ -798,35 +800,15 @@ function collectionStatusLabel(indicator: DomesticIndicator) {
   return '정상';
 }
 
-function collectionStatusClassName(indicator: DomesticIndicator) {
+function collectionStatusDotClassName(indicator: DomesticIndicator) {
   const label = collectionStatusLabel(indicator);
   if (label === '대기') {
-    return 'border border-amber-300/30 bg-amber-400/15 text-amber-100';
+    return 'bg-amber-300 shadow-[0_0_0_3px_rgba(251,191,36,0.15)]';
   }
 
   if (label === '지연') {
-    return 'border border-rose-300/30 bg-rose-400/15 text-rose-100';
+    return 'bg-rose-300 shadow-[0_0_0_3px_rgba(251,113,133,0.15)]';
   }
 
-  return 'border border-teal-300/30 bg-teal-400/15 text-teal-100';
-}
-
-function getDelta(indicator: DomesticIndicator) {
-  if (indicator.value === null || indicator.previousValue === null) {
-    return { label: '비교값 없음', tone: 'text-zinc-400' };
-  }
-
-  const delta = indicator.value - indicator.previousValue;
-  if (Math.abs(delta) < 0.0001) {
-    return { label: '직전 관측치 대비 변동 없음', tone: 'text-zinc-500' };
-  }
-
-  const sign = delta > 0 ? '+' : '';
-  const digits = indicator.unit === 'PERCENT' || indicator.unit === 'PERCENT_POINT' || indicator.unit === 'INDEX'
-    ? 2
-    : indicator.unit === 'KRW_TRILLION' ? 1 : 0;
-  return {
-    label: `직전 관측치 대비 ${sign}${formatValue(delta, digits)}`,
-    tone: delta > 0 ? 'text-red-600' : 'text-blue-600'
-  };
+  return 'bg-teal-300 shadow-[0_0_0_3px_rgba(94,234,212,0.15)]';
 }
