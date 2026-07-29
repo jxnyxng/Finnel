@@ -30,8 +30,8 @@ export function MovingTabIndicator({
   const height = compact ? Math.max(0, indicator.height - compactInset * 2) : indicator.height;
   const left = compact ? indicator.left + compactInset : contained ? indicator.left : indicator.left + 1;
   const top = compact
-    ? Math.max(0, (indicator.containerHeight - height) / 2 - 1)
-    : contained ? indicator.top : indicator.top - 1;
+    ? Math.max(0, (indicator.containerHeight - height) / 2)
+    : indicator.top;
   const width = compact
     ? Math.max(0, indicator.width - compactInset * 2)
     : contained ? indicator.width : Math.max(0, indicator.width - 2);
@@ -40,7 +40,7 @@ export function MovingTabIndicator({
     <span
       className="moving-tab-indicator-frame pointer-events-none absolute left-0 top-0"
       style={{
-      height,
+        height,
         transform: `translate(${left}px, ${top}px)`,
         width
       }}
@@ -85,14 +85,12 @@ export function useMovingTabIndicator<T extends string>({
       return;
     }
 
-    const containerRect = container.getBoundingClientRect();
-    const buttonRect = button.getBoundingClientRect();
     const nextIndicator = {
-      containerHeight: containerRect.height,
-      height: buttonRect.height,
-      left: buttonRect.left - containerRect.left,
-      top: buttonRect.top - containerRect.top,
-      width: buttonRect.width
+      containerHeight: container.clientHeight,
+      height: button.offsetHeight,
+      left: button.offsetLeft,
+      top: button.offsetTop,
+      width: button.offsetWidth
     };
     setIndicator((current) => {
       if (
@@ -122,10 +120,13 @@ export function useMovingTabIndicator<T extends string>({
   React.useLayoutEffect(() => {
     updateIndicator();
     const animationFrame = window.requestAnimationFrame(updateIndicator);
+    const container = containerRef.current;
     window.addEventListener('resize', updateIndicator);
+    container?.addEventListener('scroll', updateIndicator, { passive: true });
     return () => {
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', updateIndicator);
+      container?.removeEventListener('scroll', updateIndicator);
     };
   }, [updateIndicator]);
 

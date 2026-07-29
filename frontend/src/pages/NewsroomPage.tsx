@@ -38,6 +38,7 @@ export function NewsroomPage({
 }: NewsroomPageProps) {
   const [draftFilters, setDraftFilters] = React.useState(filters);
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
+  const categoryScrollerRef = React.useRef<HTMLDivElement | null>(null);
   const categoryTabs = React.useMemo(
     () => [
       { key: 'all', label: '전체' },
@@ -93,6 +94,12 @@ export function NewsroomPage({
   };
   const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
   const hasMore = page < totalPages;
+  const scrollCategories = (direction: -1 | 1) => {
+    categoryScrollerRef.current?.scrollBy({
+      behavior: 'smooth',
+      left: direction * 180
+    });
+  };
 
   return (
     <section className="grid min-w-0 gap-3">
@@ -158,8 +165,12 @@ export function NewsroomPage({
         ) : null}
       </form>
 
-      <nav className="min-w-0" aria-label="뉴스 카테고리">
-        <div className="scrollbar-none relative flex flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/15 bg-white/10 p-1 sm:flex-wrap sm:overflow-visible" ref={categoryContainerRef}>
+      <nav className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 sm:block" aria-label="뉴스 카테고리">
+        <CategoryScrollButton direction="left" onClick={() => scrollCategories(-1)} />
+        <div className="scrollbar-none relative flex flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/15 bg-white/10 p-1 sm:flex-wrap sm:overflow-visible" ref={(node) => {
+          categoryScrollerRef.current = node;
+          categoryContainerRef.current = node;
+        }}>
           <MovingTabIndicator indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
           {categoryTabs.map((category) => (
             <CategoryButton
@@ -178,6 +189,7 @@ export function NewsroomPage({
             />
           ))}
         </div>
+        <CategoryScrollButton direction="right" onClick={() => scrollCategories(1)} />
       </nav>
 
       {!configured ? (
@@ -208,6 +220,19 @@ export function NewsroomPage({
         />
       </section>
     </section>
+  );
+}
+
+function CategoryScrollButton({ direction, onClick }: { direction: 'left' | 'right'; onClick: () => void }) {
+  return (
+    <button
+      aria-label={direction === 'left' ? '이전 카테고리 보기' : '다음 카테고리 보기'}
+      className="grid h-7 w-7 place-items-center rounded-full border border-white/15 bg-white/10 text-sm font-semibold text-white/70 shadow-sm hover:bg-white/15 hover:text-white sm:hidden"
+      onClick={onClick}
+      type="button"
+    >
+      {direction === 'left' ? '‹' : '›'}
+    </button>
   );
 }
 

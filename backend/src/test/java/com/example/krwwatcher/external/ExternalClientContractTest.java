@@ -149,7 +149,6 @@ class ExternalClientContractTest {
             null,
             null,
             null,
-            null,
             null
         );
     }
