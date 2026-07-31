@@ -1227,9 +1227,9 @@ public class MarketDataSyncService {
                         amount_usd_million = VALUES(amount_usd_million),
                         source = VALUES(source),
                         fetched_at = VALUES(fetched_at)
-                    """,
+                """,
                 payload.baseDate(),
-                payload.value(),
+                payload.value().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP),
                 "ECOS:" + properties.ecos().foreignReservesStatCode(),
                 Instant.now()
             ))
@@ -1240,7 +1240,7 @@ public class MarketDataSyncService {
         YearMonth currentMonth = YearMonth.now(SEOUL_ZONE);
         YearMonth historyStartMonth = currentMonth.minusYears(5);
         List<DomesticPolicySpec> specs = List.of(
-            new DomesticPolicySpec("M2", "M2 통화량", "통화 정책", "161Y005", "BBHS00", "KRW_100M", "ECOS:161Y005"),
+            new DomesticPolicySpec("M2", "M2 통화량", "통화 정책", "161Y005", "BBHS00", "KRW_100M", "ECOS:161Y005", new BigDecimal("10")),
             new DomesticPolicySpec("CURRENT_ACCOUNT", "경상수지", "대외 수지", "301Y017", "SA000", "USD_MILLION", "ECOS:301Y017"),
             new DomesticPolicySpec("GOODS_ACCOUNT", "상품수지", "대외 수지", "301Y017", "SA100", "USD_MILLION", "ECOS:301Y017"),
             new DomesticPolicySpec("CPI", "소비자물가지수", "물가 압력", "901Y009", "0", "INDEX", "ECOS:901Y009"),
@@ -1476,7 +1476,7 @@ public class MarketDataSyncService {
                 spec.title(),
                 spec.category(),
                 payload.baseDate(),
-                payload.value(),
+                spec.normalizeValue(payload.value()),
                 spec.unit(),
                 spec.source()
             ))
@@ -2164,7 +2164,14 @@ public class MarketDataSyncService {
         return month.getYear() + "Q" + quarter;
     }
 
-    private record DomesticPolicySpec(String code, String title, String category, String statCode, String itemCode, String unit, String source) {
+    private record DomesticPolicySpec(String code, String title, String category, String statCode, String itemCode, String unit, String source, BigDecimal multiplier) {
+        private DomesticPolicySpec(String code, String title, String category, String statCode, String itemCode, String unit, String source) {
+            this(code, title, category, statCode, itemCode, unit, source, BigDecimal.ONE);
+        }
+
+        private BigDecimal normalizeValue(BigDecimal value) {
+            return value.multiply(multiplier);
+        }
     }
 
     private record LatestExchangeRate(LocalDate baseDate, BigDecimal rate) {
