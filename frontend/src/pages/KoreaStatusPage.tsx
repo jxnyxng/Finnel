@@ -464,21 +464,38 @@ function IndicatorInfoPanel({
         <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-2xl border border-white/10 bg-white/8 p-4 text-xs md:grid-cols-2">
           <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
           <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
+          <InfoPanelRow label="관측 시각" value={formatObservedAt(indicator)} />
           <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
           <InfoPanelRow label="출처" value={indicator.source} />
           <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
+          <InfoPanelRow label="최신성" value={indicator.freshnessReason ?? collectionStatusLabel(indicator)} />
         </dl>
-        {indicator.detailUrl ? (
+        {(indicator.componentFreshnesses ?? []).length > 0 ? (
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/8 p-4">
+            <p className="text-xs font-semibold text-white/70">계산 구성 원천</p>
+            <div className="mt-3 grid gap-2">
+              {(indicator.componentFreshnesses ?? []).map((component) => (
+                <div className="grid gap-x-3 gap-y-1 rounded-lg bg-white/5 p-3 text-[11px] text-white/55 md:grid-cols-[minmax(0,1fr)_96px_96px_64px]" key={component.code}>
+                  <span className="min-w-0 font-semibold text-white/80">{component.title}</span>
+                  <span>기준 {component.baseDate ?? '-'}</span>
+                  <span>수집 {component.fetchedAt ? component.fetchedAt.slice(0, 10) : '-'}</span>
+                  <span>{component.freshnessReason ?? component.freshnessStatus}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {indicator.sourceUrl ? (
           <div className="mt-5 rounded-2xl border border-teal-300/20 bg-teal-400/10 p-4">
-            <p className="text-xs font-semibold text-teal-100">공식 문서</p>
+            <p className="text-xs font-semibold text-teal-100">원천 링크</p>
             <p className="mt-1 text-xs leading-5 text-teal-50/75">{indicator.title}</p>
             <a
               className="mt-3 inline-flex h-8 items-center rounded-md bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-800"
-              href={indicator.detailUrl}
+              href={indicator.sourceUrl}
               rel="noreferrer"
               target="_blank"
             >
-              한국은행에서 보기
+              원천에서 보기
             </a>
           </div>
         ) : null}
@@ -782,6 +799,10 @@ function formatHistoryTick(baseDate: string) {
 
 function formatCollectedAt(indicator: DomesticIndicator) {
   return indicator.fetchedAt ? indicator.fetchedAt.slice(0, 10) : '-';
+}
+
+function formatObservedAt(indicator: DomesticIndicator) {
+  return indicator.observedAt ? indicator.observedAt.replace('T', ' ').slice(0, 16) : '-';
 }
 
 function collectionStatusLabel(indicator: DomesticIndicator) {
