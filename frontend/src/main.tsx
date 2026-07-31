@@ -71,6 +71,8 @@ import type {
   SyncStatus
 } from './types';
 
+axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
+
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
 const dollarIndexTabs = [
   { key: 'advanced', label: '7개국' },

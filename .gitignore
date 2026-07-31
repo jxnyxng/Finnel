@@ -33,6 +33,7 @@ pnpm-debug.log*
 # Java / Spring / Gradle
 backend/.gradle/
 backend/build/
+backend/bin/
 backend/out/
 backend/target/
 backend/*.class
