@@ -122,6 +122,30 @@ class SyncControllerSecurityTest {
         assertThat(auditRows).isEqualTo(2);
     }
 
+    @Test
+    void spoofedForwardedForHeaderDoesNotSatisfyInternalNetworkAllowList() throws Exception {
+        SyncPostAccessService accessService = new SyncPostAccessService(syncProperties("10.0.0.0/8"), jdbcTemplate);
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(new SyncController(marketDataSyncService, accessService))
+            .addPlaceholderValue("app.cors.allowed-origins", "http://localhost:5173")
+            .build();
+
+        mockMvc.perform(post("/api/v1/sync/market-data")
+                .header("X-Forwarded-For", "10.1.2.3")
+                .with(request -> {
+                    request.setRemoteAddr("203.0.113.10");
+                    return request;
+                }))
+            .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(marketDataSyncService);
+        String remoteIp = jdbcTemplate.queryForObject(
+            "SELECT remote_ip FROM sync_post_audit_logs",
+            String.class
+        );
+        assertThat(remoteIp).isEqualTo("203.0.113.10");
+    }
+
     private MarketDataSyncService.SyncResult syncResult(String status, String trigger) {
         return new MarketDataSyncService.SyncResult(
             0,
@@ -142,6 +166,10 @@ class SyncControllerSecurityTest {
     }
 
     private SyncProperties syncProperties() {
+        return syncProperties("");
+    }
+
+    private SyncProperties syncProperties(String allowedInternalCidrs) {
         return new SyncProperties(new SyncProperties.MarketData(
             true,
             Duration.ofMinutes(15),
@@ -153,7 +181,7 @@ class SyncControllerSecurityTest {
             3,
             Duration.ofMinutes(30),
             "",
-            new SyncProperties.SyncPostSecurity("secret-token", "", Duration.ofMinutes(15))
+            new SyncProperties.SyncPostSecurity("secret-token", allowedInternalCidrs, Duration.ofMinutes(15))
         ));
     }
 

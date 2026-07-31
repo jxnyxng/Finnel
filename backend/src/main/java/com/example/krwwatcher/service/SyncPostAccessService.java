@@ -152,11 +152,6 @@ public class SyncPostAccessService {
     }
 
     private String remoteIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
-
         return request.getRemoteAddr();
     }
 
