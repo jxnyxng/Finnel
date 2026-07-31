@@ -82,9 +82,11 @@ export type DomesticIndicator = {
   value: number | null;
   unit: string;
   baseDate: string | null;
+  observedAt: string | null;
   previousValue: number | null;
   previousBaseDate: string | null;
   source: string;
+  sourceUrl: string | null;
   fetchedAt: string | null;
   krwImpact: string;
   note: string;
@@ -92,8 +94,22 @@ export type DomesticIndicator = {
   detailUrl: string | null;
   freshnessStatus: FreshnessStatus;
   staleReason: string | null;
+  freshnessReason: string | null;
   expectedNextUpdateAt: string | null;
   lastSuccessfulFetchedAt: string | null;
+  componentFreshnesses: IndicatorComponentFreshness[];
+};
+
+export type IndicatorComponentFreshness = {
+  code: string;
+  title: string;
+  baseDate: string | null;
+  observedAt: string | null;
+  fetchedAt: string | null;
+  source: string;
+  sourceUrl: string | null;
+  freshnessStatus: FreshnessStatus;
+  freshnessReason: string | null;
 };
 
 export type DomesticIndicatorHistoryResponse = {
