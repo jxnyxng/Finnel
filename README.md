@@ -28,6 +28,11 @@ Secrets belong in `.env`, environment variables, or GitHub Secrets only.
 
 Required or active keys:
 
+- `DB_URL`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `CORS_ALLOWED_ORIGINS`
+- `SYNC_ADMIN_TOKEN`
 - `KOREAEXIM_API_KEY`
 - `ECOS_API_KEY`
 - `FRED_API_KEY`
@@ -38,8 +43,14 @@ Required or active keys:
 
 Useful non-secret defaults:
 
+- `MARKET_DATA_SYNC_ZONE=Asia/Seoul`
 - `OPENFISCAL_BASE_URL=https://www.openfiscaldata.go.kr`
 - `FRED_CREDIT_SPREAD_PROXY_SERIES_ID=BAMLH0A0HYM2`
+
+Frontend:
+
+- `VITE_API_BASE_URL`: leave empty for same-origin API hosting, or set to the backend origin such as `https://api.example.com` for split frontend/backend deployment.
+- Public frontend builds must not include API keys or sync admin tokens.
 
 ## Commands
 
@@ -60,6 +71,21 @@ Verification:
 cd backend && ./gradlew test
 cd frontend && npm run build
 ```
+
+Deployment checks:
+
+```bash
+cd backend && ./gradlew build
+cd frontend && npm audit --audit-level=high && npm run lint && npm run build
+```
+
+Before production deploy:
+
+- Back up the production database before applying new Flyway migrations.
+- Confirm Flyway applied `V18__fix_macro_indicator_unit_conversions.sql` exactly once.
+- Set `SYNC_ADMIN_TOKEN`; leave `SYNC_ALLOWED_INTERNAL_CIDRS` empty unless the runtime network path is trusted.
+- Set `CORS_ALLOWED_ORIGINS` to the production frontend origin.
+- Check `/actuator/health`, `/api/v1/dashboard/daily`, `/api/v1/sync/market-data/status`, and `/api/v1/sync/intraday-exchange/status` after deploy.
 
 ## Work Memory
 
