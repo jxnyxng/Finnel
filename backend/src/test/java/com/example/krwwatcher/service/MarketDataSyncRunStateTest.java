@@ -17,6 +17,7 @@ import javax.sql.DataSource;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.example.krwwatcher.config.SyncProperties;
+import com.example.krwwatcher.external.EcosClient;
 import com.example.krwwatcher.external.FetchResult;
 import com.example.krwwatcher.external.FetchStatus;
 import com.example.krwwatcher.external.FredClient;
@@ -112,6 +113,32 @@ class MarketDataSyncRunStateTest {
                 fetched_at TIMESTAMP NOT NULL,
                 PRIMARY KEY (id),
                 UNIQUE KEY uk_dollar_indexes_series_date (series_id, base_date)
+            )
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE foreign_reserves (
+                id BIGINT NOT NULL AUTO_INCREMENT,
+                base_date DATE NOT NULL,
+                amount_usd_million DECIMAL(19, 4) NOT NULL,
+                source VARCHAR(50) NOT NULL,
+                fetched_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uk_foreign_reserves_base_date (base_date)
+            )
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE domestic_policy_indicators (
+                id BIGINT NOT NULL AUTO_INCREMENT,
+                indicator_code VARCHAR(50) NOT NULL,
+                title VARCHAR(100) NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                base_date DATE NOT NULL,
+                value DECIMAL(19, 4) NOT NULL,
+                unit VARCHAR(30) NOT NULL,
+                source VARCHAR(80) NOT NULL,
+                fetched_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uk_domestic_policy_indicator_date (indicator_code, base_date)
             )
             """);
         marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, null, null, null, null, null, null, jdbcTemplate);
@@ -369,6 +396,57 @@ class MarketDataSyncRunStateTest {
     }
 
     @Test
+    void foreignReservesSyncStoresEcosThousandsOfDollarsAsMillionsOfDollars() {
+        EcosClient ecosClient = org.mockito.Mockito.mock(EcosClient.class);
+        marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, ecosClient, null, null, null, null, null, jdbcTemplate);
+        when(ecosClient.fetchForeignReserves(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            new EcosClient.EcosObservationPayload(LocalDate.of(2026, 6, 30), new BigDecimal("410000000.0000"))
+        ));
+
+        Integer rows = ReflectionTestUtils.invokeMethod(marketDataSyncService, "syncForeignReserves");
+
+        assertThat(rows).isEqualTo(1);
+        BigDecimal storedValue = jdbcTemplate.queryForObject(
+            "SELECT amount_usd_million FROM foreign_reserves WHERE base_date = ?",
+            BigDecimal.class,
+            LocalDate.of(2026, 6, 30)
+        );
+        assertThat(storedValue).isEqualByComparingTo("410000.0000");
+    }
+
+    @Test
+    void m2SyncStoresEcosBillionsOfWonAsHundredMillionsOfWon() throws Exception {
+        Class<?> specClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$DomesticPolicySpec");
+        var constructor = specClass.getDeclaredConstructor(String.class, String.class, String.class, String.class, String.class, String.class, String.class, BigDecimal.class);
+        constructor.setAccessible(true);
+        Object m2Spec = constructor.newInstance(
+            "M2",
+            "M2 통화량",
+            "통화 정책",
+            "161Y005",
+            "BBHS00",
+            "KRW_100M",
+            "ECOS:161Y005",
+            new BigDecimal("10")
+        );
+
+        Integer rows = ReflectionTestUtils.invokeMethod(
+            marketDataSyncService,
+            "upsertDomesticPolicyIndicators",
+            m2Spec,
+            List.of(new EcosClient.EcosObservationPayload(LocalDate.of(2026, 6, 30), new BigDecimal("4200000.0000")))
+        );
+
+        assertThat(rows).isEqualTo(1);
+        BigDecimal storedValue = jdbcTemplate.queryForObject(
+            "SELECT value FROM domestic_policy_indicators WHERE indicator_code = 'M2' AND base_date = ?",
+            BigDecimal.class,
+            LocalDate.of(2026, 6, 30)
+        );
+        assertThat(storedValue).isEqualByComparingTo("42000000.0000");
+    }
+
+    @Test
     void usdKrwBackfillSessionCooldownPreventsImmediateRetry() throws Exception {
         LocalDate sessionStartDate = LocalDate.of(2026, 7, 17);
         Instant attemptedAt = Instant.parse("2026-07-18T00:10:00Z");
@@ -544,7 +622,7 @@ class MarketDataSyncRunStateTest {
     private ExternalApiProperties properties() {
         return new ExternalApiProperties(
             null,
-            null,
+            new ExternalApiProperties.Ecos("", "test-key", "722Y001", "0101000", "732Y001", "99"),
             new ExternalApiProperties.Fred(
                 "",
                 "test-key",
