@@ -37,6 +37,12 @@ public class DashboardService {
     private static final String STALE = "STALE";
     private static final String MISSING = "MISSING";
     private static final Duration MACRO_COLLECTION_STALE_AFTER = Duration.ofDays(2);
+    private static final String TWELVE_DATA_USD_KRW_URL = "https://twelvedata.com/currencies/usd-krw";
+    private static final String FRED_URL = "https://fred.stlouisfed.org/";
+    private static final String ECOS_URL = "https://ecos.bok.or.kr/";
+    private static final String KOREAEXIM_URL = "https://www.koreaexim.go.kr/";
+    private static final String OPENFISCAL_URL = "https://www.openfiscaldata.go.kr/";
+    private static final String BIS_URL = "https://data.bis.org/";
 
     private final ExternalApiProperties properties;
     private final ExchangeRateRepository exchangeRateRepository;
@@ -203,9 +209,11 @@ public class DashboardService {
             latestUsdKrw == null ? null : latestUsdKrw.value(),
             "KRW",
             latestIntraday == null ? latestUsdKrw == null ? null : latestUsdKrw.baseDate() : latestIntraday.observedAt().toLocalDate(),
+            latestIntraday == null ? null : latestIntraday.observedAt().atZone(SEOUL_ZONE).toInstant(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getDealBasRate(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getBaseDate(),
             latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min",
+            sourceUrl(latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min", null),
             latestIntraday == null ? latestUsdKrwDaily == null ? null : latestUsdKrwDaily.getFetchedAt() : latestIntraday.fetchedAt(),
             "환율 상승은 같은 1달러를 사기 위해 더 많은 원화가 필요하다는 뜻이어서 원화 약세 압력으로 봅니다.",
             "Twelve Data 1분봉과 일별 저장 환율을 함께 사용합니다.",
@@ -213,8 +221,10 @@ public class DashboardService {
             null,
             usdKrwFreshness.freshnessStatus(),
             usdKrwFreshness.staleReason(),
+            usdKrwFreshness.staleReason(),
             usdKrwFreshness.expectedNextUpdateAt(),
-            usdKrwFreshness.lastSuccessfulFetchedAt()
+            usdKrwFreshness.lastSuccessfulFetchedAt(),
+            List.of()
         ));
         FreshnessInfo krPolicyFreshness = freshness("KR_POLICY_RATE", latestKrRate == null ? null : latestKrRate.getBaseDate(), latestKrRate == null ? null : latestKrRate.getRateValue(), latestKrRate == null ? null : latestKrRate.getFetchedAt(), Instant.now());
         indicators.add(new DomesticIndicator(
@@ -258,8 +268,15 @@ public class DashboardService {
             usPolicyFreshness.expectedNextUpdateAt(),
             usPolicyFreshness.lastSuccessfulFetchedAt()
         ));
-        Instant rateGapFetchedAt = latestUsRate == null ? null : latestUsRate.getFetchedAt();
-        FreshnessInfo rateGapFreshness = freshness("KR_US_RATE_GAP", rateGapBaseDate, rateGap, rateGapFetchedAt, Instant.now());
+        Instant rateGapFetchedAt = oldestInstant(
+            latestKrRate == null ? null : latestKrRate.getFetchedAt(),
+            latestUsRate == null ? null : latestUsRate.getFetchedAt()
+        );
+        List<IndicatorComponentFreshness> rateGapComponents = List.of(
+            indicatorComponent("KR_POLICY_RATE", "한국 기준금리", latestKrRate == null ? null : latestKrRate.getBaseDate(), null, latestKrRate == null ? null : latestKrRate.getFetchedAt(), latestKrRate == null ? "ECOS" : latestKrRate.getSource(), krPolicyFreshness),
+            indicatorComponent("US_POLICY_RATE", "미국 기준금리", latestUsRate == null ? null : latestUsRate.getBaseDate(), null, latestUsRate == null ? null : latestUsRate.getFetchedAt(), latestUsRate == null ? "FRED" : latestUsRate.getSource(), usPolicyFreshness)
+        );
+        FreshnessInfo rateGapFreshness = aggregateCalculationFreshness(rateGapComponents);
         indicators.add(new DomesticIndicator(
             "KR_US_RATE_GAP",
             "한미 기준금리차",
@@ -267,9 +284,11 @@ public class DashboardService {
             rateGap,
             "PERCENT_POINT",
             rateGapBaseDate,
+            null,
             previousRateGap,
             previousRateGapBaseDate,
             "FRED/ECOS",
+            sourceUrl("FRED/ECOS", null),
             rateGapFetchedAt,
             "값이 플러스면 미국 기준금리가 한국보다 높다는 뜻입니다. 격차 확대는 원화 약세 요인으로 해석될 수 있습니다.",
             "미국 기준금리에서 한국 기준금리를 뺀 값입니다.",
@@ -277,8 +296,10 @@ public class DashboardService {
             null,
             rateGapFreshness.freshnessStatus(),
             rateGapFreshness.staleReason(),
+            rateGapFreshness.staleReason(),
             rateGapFreshness.expectedNextUpdateAt(),
-            rateGapFreshness.lastSuccessfulFetchedAt()
+            rateGapFreshness.lastSuccessfulFetchedAt(),
+            rateGapComponents
         ));
         FreshnessInfo foreignReserveFreshness = freshness("FOREIGN_RESERVES", latestForeignReserve == null ? null : latestForeignReserve.getBaseDate(), latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion(), latestForeignReserve == null ? null : latestForeignReserve.getFetchedAt(), Instant.now());
         indicators.add(new DomesticIndicator(
@@ -725,6 +746,37 @@ public class DashboardService {
         return hasFresh ? new FreshnessInfo(FRESH, null, nextUpdate, latestSuccessfulFetch) : missingFreshness();
     }
 
+    private FreshnessInfo aggregateCalculationFreshness(List<IndicatorComponentFreshness> components) {
+        List<IndicatorComponentFreshness> staleComponents = components.stream()
+            .filter(component -> STALE.equals(component.freshnessStatus()))
+            .toList();
+        if (!staleComponents.isEmpty()) {
+            Instant latestSuccessfulFetch = components.stream()
+                .map(IndicatorComponentFreshness::fetchedAt)
+                .filter(Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+            return new FreshnessInfo(
+                STALE,
+                staleComponents.get(0).title() + " 기준 원천 업데이트가 지연되었습니다.",
+                null,
+                latestSuccessfulFetch
+            );
+        }
+
+        boolean hasMissing = components.stream().anyMatch(component -> MISSING.equals(component.freshnessStatus()));
+        if (hasMissing) {
+            return missingFreshness();
+        }
+
+        Instant oldestSuccessfulFetch = components.stream()
+            .map(IndicatorComponentFreshness::fetchedAt)
+            .filter(Objects::nonNull)
+            .min(Comparator.naturalOrder())
+            .orElse(null);
+        return new FreshnessInfo(FRESH, null, null, oldestSuccessfulFetch);
+    }
+
     private FreshnessInfo missingFreshness() {
         return new FreshnessInfo(MISSING, "저장된 최신 수집값이 없습니다.", null, null);
     }
@@ -735,6 +787,39 @@ public class DashboardService {
 
     private FreshnessInfo staleFreshness(String reason, Instant expectedNextUpdateAt, Instant fetchedAt) {
         return new FreshnessInfo(STALE, reason, expectedNextUpdateAt, fetchedAt);
+    }
+
+    private IndicatorComponentFreshness indicatorComponent(
+        String code,
+        String title,
+        LocalDate baseDate,
+        Instant observedAt,
+        Instant fetchedAt,
+        String source,
+        FreshnessInfo freshness
+    ) {
+        String sourceLabel = sourceLabel(source);
+        return new IndicatorComponentFreshness(
+            code,
+            title,
+            baseDate,
+            observedAt,
+            fetchedAt,
+            sourceLabel,
+            sourceUrl(sourceLabel, detailUrl(source)),
+            freshness.freshnessStatus(),
+            freshness.staleReason()
+        );
+    }
+
+    private Instant oldestInstant(Instant left, Instant right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        return left.isBefore(right) ? left : right;
     }
 
     private String sourceLabel(String source) {
@@ -749,6 +834,34 @@ public class DashboardService {
             return null;
         }
         return source.split("\\|", 2)[1];
+    }
+
+    private static String sourceUrl(String source, String detailUrl) {
+        if (detailUrl != null) {
+            return detailUrl;
+        }
+        if (source == null) {
+            return null;
+        }
+        if (source.startsWith("Twelve Data")) {
+            return TWELVE_DATA_USD_KRW_URL;
+        }
+        if (source.startsWith("FRED")) {
+            return FRED_URL;
+        }
+        if (source.startsWith("ECOS")) {
+            return ECOS_URL;
+        }
+        if (source.startsWith("KOREAEXIM") || source.startsWith("Koreaexim")) {
+            return KOREAEXIM_URL;
+        }
+        if (source.startsWith("OPENFISCAL")) {
+            return OPENFISCAL_URL;
+        }
+        if (source.startsWith("BIS")) {
+            return BIS_URL;
+        }
+        return null;
     }
 
     private List<TimeSeriesPoint> findDomesticIndicatorHistoryPoints(String code, LocalDate startDate, LocalDate endDate) {
@@ -1629,9 +1742,11 @@ public class DashboardService {
         BigDecimal value,
         String unit,
         LocalDate baseDate,
+        Instant observedAt,
         BigDecimal previousValue,
         LocalDate previousBaseDate,
         String source,
+        String sourceUrl,
         Instant fetchedAt,
         String krwImpact,
         String note,
@@ -1639,8 +1754,68 @@ public class DashboardService {
         String detailUrl,
         String freshnessStatus,
         String staleReason,
+        String freshnessReason,
         Instant expectedNextUpdateAt,
-        Instant lastSuccessfulFetchedAt
+        Instant lastSuccessfulFetchedAt,
+        List<IndicatorComponentFreshness> componentFreshnesses
+    ) {
+        public DomesticIndicator(
+            String code,
+            String title,
+            String category,
+            BigDecimal value,
+            String unit,
+            LocalDate baseDate,
+            BigDecimal previousValue,
+            LocalDate previousBaseDate,
+            String source,
+            Instant fetchedAt,
+            String krwImpact,
+            String note,
+            String status,
+            String detailUrl,
+            String freshnessStatus,
+            String staleReason,
+            Instant expectedNextUpdateAt,
+            Instant lastSuccessfulFetchedAt
+        ) {
+            this(
+                code,
+                title,
+                category,
+                value,
+                unit,
+                baseDate,
+                null,
+                previousValue,
+                previousBaseDate,
+                source,
+                DashboardService.sourceUrl(source, detailUrl),
+                fetchedAt,
+                krwImpact,
+                note,
+                status,
+                detailUrl,
+                freshnessStatus,
+                staleReason,
+                staleReason,
+                expectedNextUpdateAt,
+                lastSuccessfulFetchedAt,
+                List.of()
+            );
+        }
+    }
+
+    public record IndicatorComponentFreshness(
+        String code,
+        String title,
+        LocalDate baseDate,
+        Instant observedAt,
+        Instant fetchedAt,
+        String source,
+        String sourceUrl,
+        String freshnessStatus,
+        String freshnessReason
     ) {
     }
 

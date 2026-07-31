@@ -159,9 +159,11 @@ function dashboardFixture(
         value: 1390,
         unit: 'KRW',
         baseDate: '2026-07-21',
+        observedAt: '2026-07-21T00:00:00Z',
         previousValue: 1385,
         previousBaseDate: '2026-07-20',
         source: 'Twelve Data',
+        sourceUrl: 'https://twelvedata.com/currencies/usd-krw',
         fetchedAt: '2026-07-21T00:00:00Z',
         krwImpact: '',
         note: '',
@@ -169,8 +171,10 @@ function dashboardFixture(
         detailUrl: null,
         freshnessStatus: usdKrwFreshnessStatus,
         staleReason: usdKrwFreshnessStatus === 'STALE' ? '지연' : null,
+        freshnessReason: usdKrwFreshnessStatus === 'STALE' ? '지연' : null,
         expectedNextUpdateAt: '2026-07-21T00:10:00Z',
-        lastSuccessfulFetchedAt: '2026-07-21T00:00:00Z'
+        lastSuccessfulFetchedAt: '2026-07-21T00:00:00Z',
+        componentFreshnesses: []
       }
     ],
     dataSources: [],
