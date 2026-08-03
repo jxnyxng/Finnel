@@ -66,6 +66,26 @@ class ExternalClientContractTest {
     }
 
     @Test
+    void policyBriefingNonXmlErrorResponseIsIgnored() {
+        List<PolicyBriefingClient.PolicyBriefingPayload> result = PolicyBriefingClient.parseItems(
+            """
+                {"response":{"header":{"resultCode":"SERVICE_ERROR"}}}
+                """
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void policyBriefingMalformedXmlResponseIsIgnored() {
+        List<PolicyBriefingClient.PolicyBriefingPayload> result = PolicyBriefingClient.parseItems(
+            "<response><body><items><item><Title>broken"
+        );
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     void openFiscalHtmlErrorIsParseError() {
         FetchResult<OpenFiscalClient.OpenFiscalObservationPayload> result = OpenFiscalClient.parseObservations(
             "<html><body>Bad Gateway</body></html>",

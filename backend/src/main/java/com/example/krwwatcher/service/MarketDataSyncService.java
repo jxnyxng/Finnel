@@ -2,6 +2,8 @@ package com.example.krwwatcher.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +33,7 @@ import com.example.krwwatcher.external.TwelveDataClient;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -507,9 +510,10 @@ public class MarketDataSyncService {
             return 0;
         }
 
+        Long sourceRunId = startSourceRun(jobId, jobName, sourceName, startedAt);
         try {
             int rows = supplier.getAsInt();
-            recordSourceRun(jobId, jobName, sourceName, "SUCCESS", rows, null, null, startedAt, Instant.now());
+            finishSourceRun(sourceRunId, "SUCCESS", rows, null, null, Instant.now());
             return rows;
         } catch (RuntimeException exception) {
             counter.failures++;
@@ -517,7 +521,7 @@ public class MarketDataSyncService {
                 counter.coreFailures++;
             }
             counter.message += ", " + sourceName + "Error=" + exception.getClass().getSimpleName();
-            recordSourceRun(jobId, jobName, sourceName, "FAILED", 0, exception.getClass().getSimpleName(), exception.getMessage(), startedAt, Instant.now());
+            finishSourceRun(sourceRunId, "FAILED", 0, exception.getClass().getSimpleName(), exception.getMessage(), Instant.now());
             return 0;
         }
     }
@@ -1606,6 +1610,56 @@ public class MarketDataSyncService {
             truncateErrorMessage(errorMessage),
             startedAt,
             endedAt
+        );
+    }
+
+    private Long startSourceRun(Long jobId, String jobName, String sourceName, Instant startedAt) {
+        GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            java.sql.PreparedStatement statement = connection.prepareStatement(
+                """
+                    INSERT INTO batch_job_source_runs
+                        (batch_job_run_id, job_name, source_name, status, rows_processed, started_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                Statement.RETURN_GENERATED_KEYS
+            );
+            if (jobId == null) {
+                statement.setNull(1, java.sql.Types.BIGINT);
+            } else {
+                statement.setLong(1, jobId);
+            }
+            statement.setString(2, jobName);
+            statement.setString(3, sourceName);
+            statement.setString(4, "RUNNING");
+            statement.setInt(5, 0);
+            statement.setTimestamp(6, Timestamp.from(startedAt));
+            return statement;
+        }, keyHolder);
+        Number key = keyHolder.getKey();
+        if (key == null) {
+            throw new IllegalStateException("Failed to create source run");
+        }
+        return key.longValue();
+    }
+
+    private void finishSourceRun(Long sourceRunId, String status, int rows, String errorCode, String errorMessage, Instant endedAt) {
+        jdbcTemplate.update(
+            """
+                UPDATE batch_job_source_runs
+                SET status = ?,
+                    rows_processed = ?,
+                    error_code = ?,
+                    error_message = ?,
+                    ended_at = ?
+                WHERE id = ?
+                """,
+            status,
+            rows,
+            errorCode,
+            truncateErrorMessage(errorMessage),
+            endedAt,
+            sourceRunId
         );
     }
 

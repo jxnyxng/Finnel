@@ -472,7 +472,7 @@ function IndicatorInfoPanel({
         </dl>
         {(indicator.componentFreshnesses ?? []).length > 0 ? (
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/8 p-4">
-            <p className="text-xs font-semibold text-white/70">계산 구성 원천</p>
+            <p className="text-xs font-semibold text-white/70">계산에 사용한 데이터</p>
             <div className="mt-3 grid gap-2">
               {(indicator.componentFreshnesses ?? []).map((component) => (
                 <div className="grid gap-x-3 gap-y-1 rounded-lg bg-white/5 p-3 text-[11px] text-white/55 md:grid-cols-[minmax(0,1fr)_96px_96px_64px]" key={component.code}>
@@ -487,7 +487,7 @@ function IndicatorInfoPanel({
         ) : null}
         {indicator.sourceUrl ? (
           <div className="mt-5 rounded-2xl border border-teal-300/20 bg-teal-400/10 p-4">
-            <p className="text-xs font-semibold text-teal-100">원천 링크</p>
+            <p className="text-xs font-semibold text-teal-100">출처 링크</p>
             <p className="mt-1 text-xs leading-5 text-teal-50/75">{indicator.title}</p>
             <a
               className="mt-3 inline-flex h-8 items-center rounded-md bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-800"
@@ -495,7 +495,7 @@ function IndicatorInfoPanel({
               rel="noreferrer"
               target="_blank"
             >
-              원천에서 보기
+              출처에서 보기
             </a>
           </div>
         ) : null}
