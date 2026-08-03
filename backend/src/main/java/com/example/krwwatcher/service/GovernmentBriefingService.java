@@ -47,6 +47,7 @@ public class GovernmentBriefingService {
     private final PolicyBriefingClient policyBriefingClient;
     private final JdbcTemplate jdbcTemplate;
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
+    private volatile Instant lastSuccessfulSyncAt;
 
     public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, JdbcTemplate jdbcTemplate) {
         this.policyBriefingClient = policyBriefingClient;
@@ -94,7 +95,9 @@ public class GovernmentBriefingService {
             syncRunning.set(false);
         }
 
-        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows, rows, Instant.now());
+        Instant syncedAt = Instant.now();
+        lastSuccessfulSyncAt = syncedAt;
+        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows, rows, syncedAt);
     }
 
     @Transactional
@@ -132,7 +135,9 @@ public class GovernmentBriefingService {
             syncRunning.set(false);
         }
 
-        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows + ", calls=" + calls, rows, Instant.now());
+        Instant syncedAt = Instant.now();
+        lastSuccessfulSyncAt = syncedAt;
+        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows + ", calls=" + calls, rows, syncedAt);
     }
 
     public GovernmentBriefingResponse latest(String category, LocalDate fromDate, LocalDate toDate, int page, int pageSize, String keyword) {
@@ -175,7 +180,7 @@ public class GovernmentBriefingService {
         );
         int count = totalCount == null ? 0 : totalCount;
         int totalPages = count == 0 ? 0 : (int) Math.ceil((double) count / normalizedPageSize);
-        FreshnessInfo freshness = contentFreshness(findLatestBriefingFetchedAt());
+        FreshnessInfo freshness = contentFreshness(latestSuccessfulFetchOrSyncAt());
         return new GovernmentBriefingResponse(
             policyBriefingClient.isConfigured(),
             briefingCategories(fromDate, toDate, keyword),
@@ -371,6 +376,17 @@ public class GovernmentBriefingService {
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
             relevantCategoryQualityParams()
         ).stream().findFirst().orElse(null);
+    }
+
+    private Instant latestSuccessfulFetchOrSyncAt() {
+        Instant latestFetchedAt = findLatestBriefingFetchedAt();
+        if (latestFetchedAt == null) {
+            return lastSuccessfulSyncAt;
+        }
+        if (lastSuccessfulSyncAt == null) {
+            return latestFetchedAt;
+        }
+        return latestFetchedAt.isAfter(lastSuccessfulSyncAt) ? latestFetchedAt : lastSuccessfulSyncAt;
     }
 
     private Object[] relevantCategoryQueryParams(Object firstParam) {

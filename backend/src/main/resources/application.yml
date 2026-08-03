@@ -41,7 +41,7 @@ app:
       currency-strength-cron: ${MARKET_DATA_SYNC_CURRENCY_STRENGTH_CRON:0 10 6,7 * * SAT}
       zone: ${MARKET_DATA_SYNC_ZONE:Asia/Seoul}
       intraday-cooldown: ${MARKET_DATA_SYNC_INTRADAY_COOLDOWN:5m}
-      intraday-cron: ${MARKET_DATA_SYNC_INTRADAY_CRON:30 */5 * * * *}
+      intraday-cron: ${MARKET_DATA_SYNC_INTRADAY_CRON:30 * * * * *}
       intraday-backfill-session-cooldown: ${MARKET_DATA_SYNC_INTRADAY_BACKFILL_SESSION_COOLDOWN:1h}
       intraday-backfill-no-change-suspend-threshold: ${MARKET_DATA_SYNC_INTRADAY_BACKFILL_NO_CHANGE_SUSPEND_THRESHOLD:3}
       daily-backfill-cooldown: ${MARKET_DATA_SYNC_DAILY_BACKFILL_COOLDOWN:30m}
@@ -89,8 +89,8 @@ app:
       base-url: ${OPENFISCAL_BASE_URL:https://www.openfiscaldata.go.kr}
       api-key: ${OPENFISCAL_API_KEY:}
     policy-briefing:
-      base-url: ${POLICY_BRIEFING_BASE_URL:http://apis.data.go.kr}
+      base-url: ${POLICY_BRIEFING_BASE_URL:https://apis.data.go.kr}
       api-key: ${POLICY_BRIEFING_API_KEY:}
     kasi:
-      base-url: ${KASI_SPECIAL_DAY_BASE_URL:http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService}
+      base-url: ${KASI_SPECIAL_DAY_BASE_URL:https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService}
       api-key: ${KASI_SPECIAL_DAY_API_KEY:}
