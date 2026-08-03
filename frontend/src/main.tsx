@@ -14,17 +14,9 @@ import {
   UsdKrwTooltip
 } from './components/ChartElements';
 import { AppFooter } from './components/AppFooter';
-import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
-import { MarketChartSection } from './components/MarketChartSection';
 import { MovingTabIndicator, useMovingTabIndicator } from './components/MovingTabs';
 import { RelatedNewsBanner, prefetchRelatedNews } from './components/RelatedNewsBanner';
-import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
-import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
-import { GovernmentBriefingsPage as GovernmentBriefingsPageView } from './pages/GovernmentBriefingsPage';
 import { HomePage as HomePageView } from './pages/HomePage';
-import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
-import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
-import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
 import {
   buildVisibleDailySeries,
   buildVisibleUsdKrwSeries,
@@ -73,12 +65,29 @@ import type {
 
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+const CurrencyStrengthPageView = React.lazy(() => import('./pages/CurrencyStrengthPage').then((module) => ({ default: module.CurrencyStrengthPage })));
+const DataSourceGuideView = React.lazy(() => import('./components/DataSourceGuide').then((module) => ({ default: module.DataSourceGuide })));
+const ExchangeRateGuidePageView = React.lazy(() => import('./pages/ExchangeRateGuidePage').then((module) => ({ default: module.ExchangeRateGuidePage })));
+const GovernmentBriefingsPageView = React.lazy(() => import('./pages/GovernmentBriefingsPage').then((module) => ({ default: module.GovernmentBriefingsPage })));
+const KoreaStatusPageView = React.lazy(() => import('./pages/KoreaStatusPage').then((module) => ({ default: module.KoreaStatusPage })));
+const MarketChartSection = React.lazy(() => import('./components/MarketChartSection').then((module) => ({ default: module.MarketChartSection })));
+const NewsroomPageView = React.lazy(() => import('./pages/NewsroomPage').then((module) => ({ default: module.NewsroomPage })));
+const ServiceGuidePageView = React.lazy(() => import('./pages/ServiceGuidePage').then((module) => ({ default: module.ServiceGuidePage })));
+
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
 const dollarIndexTabs = [
   { key: 'advanced', label: '7개국' },
   { key: 'broad', label: '26개국' }
 ] as const;
 type DollarIndexTabKey = (typeof dollarIndexTabs)[number]['key'];
+
+function PageChunkFallback() {
+  return (
+    <div className="glass-card grid min-h-40 place-items-center rounded-2xl text-sm text-white/45 shadow-sm">
+      화면을 불러오는 중입니다.
+    </div>
+  );
+}
 
 function App() {
   const [dashboard, setDashboard] = React.useState<DailyDashboardResponse | null>(null);
@@ -869,45 +878,46 @@ function App() {
 
         {activePage === 'dashboard' ? (
           <section className="page-content-enter grid gap-4">
-            <MarketChartSection
-              emptyText={dashboardEmptyText}
-              helpAriaLabel="USD/KRW 그래프 안내"
-              helpContent={(
-                <>
-                  <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
-                  <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
-                </>
-              )}
-              helpTitle="USD/KRW 그래프"
-              hover={activeUsdKrwHover}
-              lineStroke="#5eead4"
-              metric={usdKrwMetric}
-              onHoverChange={setActiveUsdKrwHover}
-              onRangeChange={setUsdKrwRange}
-              panelDetails={usdKrwPanelDetails}
-              panelFooterText={`기준 ${dashboard?.baseDate ?? '-'}`}
-              plotLeft={28}
-              plotRight={66}
-              range={usdKrwRange}
-              rangeColumns={4}
-              rangeOptions={rangeOptions}
-              referenceStroke="#5eead4"
-              series={visibleUsdKrwSeries}
-              showLatestValueDot={showUsdKrwLatestValueDot}
-              showLoadingOverlay={shouldCoverDashboardCharts}
-              statusClassName="text-teal-100"
-              statusNode={usdKrwStatusNode}
-              statusText={usdKrwRange === '1D' ? intradayStatusLabel : null}
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <MarketChartSection
+                emptyText={dashboardEmptyText}
+                helpAriaLabel="USD/KRW 그래프 안내"
+                helpContent={(
+                  <>
+                    <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
+                    <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
+                  </>
+                )}
+                helpTitle="USD/KRW 그래프"
+                hover={activeUsdKrwHover}
+                lineStroke="#5eead4"
+                metric={usdKrwMetric}
+                onHoverChange={setActiveUsdKrwHover}
+                onRangeChange={setUsdKrwRange}
+                panelDetails={usdKrwPanelDetails}
+                panelFooterText={`기준 ${dashboard?.baseDate ?? '-'}`}
+                plotLeft={28}
+                plotRight={66}
+                range={usdKrwRange}
+                rangeColumns={4}
+                rangeOptions={rangeOptions}
+                referenceStroke="#5eead4"
+                series={visibleUsdKrwSeries}
+                showLatestValueDot={showUsdKrwLatestValueDot}
+                showLoadingOverlay={shouldCoverDashboardCharts}
+                statusClassName="text-teal-100"
+                statusNode={usdKrwStatusNode}
+                statusText={usdKrwRange === '1D' ? intradayStatusLabel : null}
                 subtitle={null}
-              title="실시간 원달러 환율"
-              tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
-              xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
-              xAxisPadding={{ left: 0, right: 0 }}
-              xDomain={usdKrwXDomain}
-              xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
-              xTicks={usdKrwXTicks}
-              yDomain={usdKrwDomain}
-            />
+                title="실시간 원달러 환율"
+                tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
+                xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
+                xAxisPadding={{ left: 0, right: 0 }}
+                xDomain={usdKrwXDomain}
+                xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
+                xTicks={usdKrwXTicks}
+                yDomain={usdKrwDomain}
+              />
 
               <MarketChartSection
                 emptyText={dashboardEmptyText}
@@ -927,7 +937,15 @@ function App() {
                 keepHeaderSingleLineOnMobile
                 metric={activeDollarIndexMetric}
                 onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
-                onRangeChange={showBroadDollarIndex ? setDollarIndexRange : setDxyRange}
+                onRangeChange={(range) => {
+                  if (range !== '1D') {
+                    if (showBroadDollarIndex) {
+                      setDollarIndexRange(range);
+                    } else {
+                      setDxyRange(range);
+                    }
+                  }
+                }}
                 panelDetails={activeDollarIndexPanelDetails}
                 panelFooterText={activeDollarIndexFooterText}
                 plotLeft={18}
@@ -951,6 +969,7 @@ function App() {
                 xTicks={showBroadDollarIndex ? dollarIndexXTicks : dxyIndexXTicks}
                 yDomain={showBroadDollarIndex ? dollarIndexDomain : dxyIndexDomain}
               />
+            </React.Suspense>
           </section>
         ) : null}
 
@@ -967,76 +986,92 @@ function App() {
               <span aria-hidden="true">&lt;</span>
               <span>환율 현황으로 돌아가기</span>
             </button>
-            <ExchangeRateGuidePageView />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <ExchangeRateGuidePageView />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'koreaStatus' ? (
           <div className="page-content-enter">
-            <KoreaStatusPageView
-              indicators={domesticIndicators}
-              errorMessage={hasDashboardError && domesticIndicators.length === 0 ? dashboardErrorMessage : null}
-              isLoading={isInitialDashboardLoading}
-              latestSyncLabel={latestSyncLabel}
-              statusNode={activeStatusNode}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <KoreaStatusPageView
+                indicators={domesticIndicators}
+                errorMessage={hasDashboardError && domesticIndicators.length === 0 ? dashboardErrorMessage : null}
+                isLoading={isInitialDashboardLoading}
+                latestSyncLabel={latestSyncLabel}
+                statusNode={activeStatusNode}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'ranking' ? (
           <div className="page-content-enter">
-            <CurrencyStrengthPageView
-              emptyMessage={dashboardEmptyText}
-              isLoading={isInitialDashboardLoading}
-              ranks={currencyStrengthRanks}
-              statusNode={activeStatusNode}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <CurrencyStrengthPageView
+                emptyMessage={dashboardEmptyText}
+                isLoading={isInitialDashboardLoading}
+                ranks={currencyStrengthRanks}
+                statusNode={activeStatusNode}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'newsroom' ? (
           <div className="page-content-enter">
-            <NewsroomPageView
-              articles={newsArticles}
-              categories={newsCategories}
-              configured={!hasNewsLoaded || isNewsConfigured}
-              filters={newsFilters}
-              isLoading={delayedNewsLoading}
-              isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
-              onFiltersApply={applyNewsFilters}
-              onCategoryChange={changeNewsCategory}
-              onLoadMore={changeNewsPage}
-              page={newsPage}
-              selectedCategory={selectedNewsCategory}
-              statusNode={activeStatusNode}
-              totalCount={newsTotalCount}
-              totalPages={newsTotalPages}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <NewsroomPageView
+                articles={newsArticles}
+                categories={newsCategories}
+                configured={!hasNewsLoaded || isNewsConfigured}
+                filters={newsFilters}
+                isLoading={delayedNewsLoading}
+                isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
+                onFiltersApply={applyNewsFilters}
+                onCategoryChange={changeNewsCategory}
+                onLoadMore={changeNewsPage}
+                page={newsPage}
+                selectedCategory={selectedNewsCategory}
+                statusNode={activeStatusNode}
+                totalCount={newsTotalCount}
+                totalPages={newsTotalPages}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'governmentBriefings' ? (
           <div className="page-content-enter">
-            <GovernmentBriefingsPageView
-              articles={governmentBriefings}
-              categories={governmentBriefingCategories}
-              configured={!hasGovernmentBriefingsLoaded || isGovernmentBriefingsConfigured}
-              filters={governmentBriefingFilters}
-              isLoading={delayedGovernmentBriefingsLoading}
-              isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
-              onCategoryChange={changeGovernmentBriefingCategory}
-              onFiltersApply={applyGovernmentBriefingFilters}
-              onLoadMore={changeGovernmentBriefingsPage}
-              page={governmentBriefingsPage}
-              selectedCategory={selectedGovernmentBriefingCategory}
-              statusNode={activeStatusNode}
-              totalCount={governmentBriefingsTotalCount}
-              totalPages={governmentBriefingsTotalPages}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <GovernmentBriefingsPageView
+                articles={governmentBriefings}
+                categories={governmentBriefingCategories}
+                configured={!hasGovernmentBriefingsLoaded || isGovernmentBriefingsConfigured}
+                filters={governmentBriefingFilters}
+                isLoading={delayedGovernmentBriefingsLoading}
+                isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
+                onCategoryChange={changeGovernmentBriefingCategory}
+                onFiltersApply={applyGovernmentBriefingFilters}
+                onLoadMore={changeGovernmentBriefingsPage}
+                page={governmentBriefingsPage}
+                selectedCategory={selectedGovernmentBriefingCategory}
+                statusNode={activeStatusNode}
+                totalCount={governmentBriefingsTotalCount}
+                totalPages={governmentBriefingsTotalPages}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
-        {activePage === 'serviceGuide' ? <div className="page-content-enter"><ServiceGuidePageView /></div> : null}
+        {activePage === 'serviceGuide' ? (
+          <div className="page-content-enter">
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <ServiceGuidePageView />
+            </React.Suspense>
+          </div>
+        ) : null}
 
         {activePage === 'dataSources' ? (
           <div className="page-content-enter grid gap-3">
@@ -1051,7 +1086,9 @@ function App() {
               <span aria-hidden="true">&lt;</span>
               <span>환율 현황으로 돌아가기</span>
             </button>
-            <DataSourceGuideView dataSources={dataSources} />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <DataSourceGuideView dataSources={dataSources} />
+            </React.Suspense>
           </div>
         ) : null}
 
