@@ -14,17 +14,9 @@ import {
   UsdKrwTooltip
 } from './components/ChartElements';
 import { AppFooter } from './components/AppFooter';
-import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
-import { MarketChartSection } from './components/MarketChartSection';
 import { MovingTabIndicator, useMovingTabIndicator } from './components/MovingTabs';
 import { RelatedNewsBanner, prefetchRelatedNews } from './components/RelatedNewsBanner';
-import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
-import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
-import { GovernmentBriefingsPage as GovernmentBriefingsPageView } from './pages/GovernmentBriefingsPage';
 import { HomePage as HomePageView } from './pages/HomePage';
-import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
-import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
-import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
 import {
   buildVisibleDailySeries,
   buildVisibleUsdKrwSeries,
@@ -73,12 +65,29 @@ import type {
 
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
+const CurrencyStrengthPageView = React.lazy(() => import('./pages/CurrencyStrengthPage').then((module) => ({ default: module.CurrencyStrengthPage })));
+const DataSourceGuideView = React.lazy(() => import('./components/DataSourceGuide').then((module) => ({ default: module.DataSourceGuide })));
+const ExchangeRateGuidePageView = React.lazy(() => import('./pages/ExchangeRateGuidePage').then((module) => ({ default: module.ExchangeRateGuidePage })));
+const GovernmentBriefingsPageView = React.lazy(() => import('./pages/GovernmentBriefingsPage').then((module) => ({ default: module.GovernmentBriefingsPage })));
+const KoreaStatusPageView = React.lazy(() => import('./pages/KoreaStatusPage').then((module) => ({ default: module.KoreaStatusPage })));
+const MarketChartSection = React.lazy(() => import('./components/MarketChartSection').then((module) => ({ default: module.MarketChartSection })));
+const NewsroomPageView = React.lazy(() => import('./pages/NewsroomPage').then((module) => ({ default: module.NewsroomPage })));
+const ServiceGuidePageView = React.lazy(() => import('./pages/ServiceGuidePage').then((module) => ({ default: module.ServiceGuidePage })));
+
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
 const dollarIndexTabs = [
   { key: 'advanced', label: '7개국' },
   { key: 'broad', label: '26개국' }
 ] as const;
 type DollarIndexTabKey = (typeof dollarIndexTabs)[number]['key'];
+
+function PageChunkFallback() {
+  return (
+    <div className="glass-card grid min-h-40 place-items-center rounded-2xl text-sm text-white/45 shadow-sm">
+      화면을 불러오는 중입니다.
+    </div>
+  );
+}
 
 function App() {
   const [dashboard, setDashboard] = React.useState<DailyDashboardResponse | null>(null);
@@ -126,7 +135,6 @@ function App() {
   const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
   const [mainTabIndicator, setMainTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
   const [mainTabButtonWidth, setMainTabButtonWidth] = React.useState(0);
-  const mainTabHighlightTimeoutRef = React.useRef<number | null>(null);
   const mainTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
   const dollarIndexTabNavRef = React.useRef<HTMLDivElement | null>(null);
   const dollarIndexTabButtonRefs = React.useRef<Partial<Record<DollarIndexTabKey, HTMLButtonElement | null>>>({});
@@ -134,8 +142,6 @@ function App() {
   const [dollarIndexTabButtonWidth, setDollarIndexTabButtonWidth] = React.useState(0);
   const dollarIndexTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
   const [isDollarIndexTabIndicatorMoving, setIsDollarIndexTabIndicatorMoving] = React.useState(false);
-  const [isMainTabHighlightActive, setIsMainTabHighlightActive] = React.useState(false);
-  const [mainTabHighlightKey, setMainTabHighlightKey] = React.useState(0);
   const [isFloatingMainTabsVisible, setIsFloatingMainTabsVisible] = React.useState(false);
   const [isMainTabIndicatorMoving, setIsMainTabIndicatorMoving] = React.useState(false);
   const [isMainTabIndicatorEntering, setIsMainTabIndicatorEntering] = React.useState(false);
@@ -163,22 +169,7 @@ function App() {
     suppressFloatingTabsUntilRef.current = window.performance.now() + 900;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activePage]);
-  const highlightMainTabs = React.useCallback(() => {
-    if (mainTabHighlightTimeoutRef.current !== null) {
-      window.clearTimeout(mainTabHighlightTimeoutRef.current);
-    }
-    setIsMainTabHighlightActive(true);
-    setMainTabHighlightKey((current) => current + 1);
-    mainTabHighlightTimeoutRef.current = window.setTimeout(() => {
-      setIsMainTabHighlightActive(false);
-      mainTabHighlightTimeoutRef.current = null;
-    }, 1300);
-  }, []);
-
   React.useEffect(() => () => {
-    if (mainTabHighlightTimeoutRef.current !== null) {
-      window.clearTimeout(mainTabHighlightTimeoutRef.current);
-    }
     if (mainTabIndicatorMotionTimeoutRef.current !== null) {
       window.clearTimeout(mainTabIndicatorMotionTimeoutRef.current);
     }
@@ -761,10 +752,9 @@ function App() {
         </nav>
       ) : null}
       <header className="py-3 sm:pb-0 sm:pt-4">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-2 px-3 sm:px-4 sm:pr-5 lg:min-h-[60px] lg:flex-row lg:justify-between lg:gap-4">
-          <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:justify-start lg:gap-3">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 sm:px-4 sm:pr-5 xl:min-h-[60px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-x-4">
             <button
-              className="flex min-w-0 shrink-0 items-center justify-center gap-2.5 py-1 text-white sm:justify-start lg:gap-3"
+              className="col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-start gap-2.5 py-1 text-white xl:gap-3"
               onClick={() => {
                 setActivePage('home');
               }}
@@ -773,15 +763,9 @@ function App() {
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-500 text-xl font-black text-white shadow-lg shadow-teal-950/25 lg:h-11 lg:w-11 lg:text-2xl">₩</span>
               <span className="truncate text-xl font-extrabold tracking-normal drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)] lg:text-[1.35rem]">코리아원</span>
             </button>
-            {isMainAppPage ? <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} /> : null}
-          </div>
           {isMainAppPage ? (
             <nav
-              className={`scrollbar-none relative mx-auto flex w-fit max-w-full flex-wrap justify-center gap-1 overflow-visible rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md lg:mx-0 lg:justify-end ${
-                activePage === 'home' && isMainTabHighlightActive && mainTabHighlightKey > 0
-                  ? mainTabHighlightKey % 2 === 0 ? 'main-tab-color-pulse-even' : 'main-tab-color-pulse-odd'
-                  : ''
-              }`}
+              className="scrollbar-none col-span-2 col-start-1 row-start-2 relative mx-auto flex w-fit max-w-full flex-wrap justify-center gap-1 overflow-visible rounded-full p-1 xl:col-span-1 xl:col-start-2 xl:row-start-1"
               aria-label="주요 화면"
               ref={mainTabNavRef}
             >
@@ -805,7 +789,7 @@ function App() {
               ) : null}
               {mainTabs.map((tab) => (
                 <button
-                  className={`relative z-10 inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
+                  className={`relative z-10 inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-center text-[13px] font-bold leading-none transition-colors duration-150 ${
                     activePage === tab.key ? 'text-white' : 'text-white/70 hover:text-white'
                   }`}
                   key={tab.key}
@@ -821,6 +805,11 @@ function App() {
               ))}
             </nav>
           ) : null}
+          {isMainAppPage ? (
+            <div className="col-start-2 row-start-1 flex justify-end xl:col-start-3">
+              <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} />
+            </div>
+          ) : null}
         </div>
       </header>
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-5 sm:py-4">
@@ -829,7 +818,6 @@ function App() {
             calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
             rates={foreignExchangeRates}
             onGoDashboard={goDashboard}
-            onReachLastSection={highlightMainTabs}
           />
         ) : null}
 
@@ -869,45 +857,46 @@ function App() {
 
         {activePage === 'dashboard' ? (
           <section className="page-content-enter grid gap-4">
-            <MarketChartSection
-              emptyText={dashboardEmptyText}
-              helpAriaLabel="USD/KRW 그래프 안내"
-              helpContent={(
-                <>
-                  <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
-                  <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
-                </>
-              )}
-              helpTitle="USD/KRW 그래프"
-              hover={activeUsdKrwHover}
-              lineStroke="#5eead4"
-              metric={usdKrwMetric}
-              onHoverChange={setActiveUsdKrwHover}
-              onRangeChange={setUsdKrwRange}
-              panelDetails={usdKrwPanelDetails}
-              panelFooterText={`기준 ${dashboard?.baseDate ?? '-'}`}
-              plotLeft={28}
-              plotRight={66}
-              range={usdKrwRange}
-              rangeColumns={4}
-              rangeOptions={rangeOptions}
-              referenceStroke="#5eead4"
-              series={visibleUsdKrwSeries}
-              showLatestValueDot={showUsdKrwLatestValueDot}
-              showLoadingOverlay={shouldCoverDashboardCharts}
-              statusClassName="text-teal-100"
-              statusNode={usdKrwStatusNode}
-              statusText={usdKrwRange === '1D' ? intradayStatusLabel : null}
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <MarketChartSection
+                emptyText={dashboardEmptyText}
+                helpAriaLabel="USD/KRW 그래프 안내"
+                helpContent={(
+                  <>
+                    <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
+                    <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
+                  </>
+                )}
+                helpTitle="USD/KRW 그래프"
+                hover={activeUsdKrwHover}
+                lineStroke="#5eead4"
+                metric={usdKrwMetric}
+                onHoverChange={setActiveUsdKrwHover}
+                onRangeChange={setUsdKrwRange}
+                panelDetails={usdKrwPanelDetails}
+                panelFooterText={`기준 ${dashboard?.baseDate ?? '-'}`}
+                plotLeft={28}
+                plotRight={66}
+                range={usdKrwRange}
+                rangeColumns={4}
+                rangeOptions={rangeOptions}
+                referenceStroke="#5eead4"
+                series={visibleUsdKrwSeries}
+                showLatestValueDot={showUsdKrwLatestValueDot}
+                showLoadingOverlay={shouldCoverDashboardCharts}
+                statusClassName="text-teal-100"
+                statusNode={usdKrwStatusNode}
+                statusText={usdKrwRange === '1D' ? intradayStatusLabel : null}
                 subtitle={null}
-              title="실시간 원달러 환율"
-              tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
-              xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
-              xAxisPadding={{ left: 0, right: 0 }}
-              xDomain={usdKrwXDomain}
-              xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
-              xTicks={usdKrwXTicks}
-              yDomain={usdKrwDomain}
-            />
+                title="실시간 원달러 환율"
+                tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
+                xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
+                xAxisPadding={{ left: 0, right: 0 }}
+                xDomain={usdKrwXDomain}
+                xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
+                xTicks={usdKrwXTicks}
+                yDomain={usdKrwDomain}
+              />
 
               <MarketChartSection
                 emptyText={dashboardEmptyText}
@@ -927,7 +916,15 @@ function App() {
                 keepHeaderSingleLineOnMobile
                 metric={activeDollarIndexMetric}
                 onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
-                onRangeChange={showBroadDollarIndex ? setDollarIndexRange : setDxyRange}
+                onRangeChange={(range) => {
+                  if (range !== '1D') {
+                    if (showBroadDollarIndex) {
+                      setDollarIndexRange(range);
+                    } else {
+                      setDxyRange(range);
+                    }
+                  }
+                }}
                 panelDetails={activeDollarIndexPanelDetails}
                 panelFooterText={activeDollarIndexFooterText}
                 plotLeft={18}
@@ -951,6 +948,7 @@ function App() {
                 xTicks={showBroadDollarIndex ? dollarIndexXTicks : dxyIndexXTicks}
                 yDomain={showBroadDollarIndex ? dollarIndexDomain : dxyIndexDomain}
               />
+            </React.Suspense>
           </section>
         ) : null}
 
@@ -967,76 +965,92 @@ function App() {
               <span aria-hidden="true">&lt;</span>
               <span>환율 현황으로 돌아가기</span>
             </button>
-            <ExchangeRateGuidePageView />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <ExchangeRateGuidePageView />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'koreaStatus' ? (
           <div className="page-content-enter">
-            <KoreaStatusPageView
-              indicators={domesticIndicators}
-              errorMessage={hasDashboardError && domesticIndicators.length === 0 ? dashboardErrorMessage : null}
-              isLoading={isInitialDashboardLoading}
-              latestSyncLabel={latestSyncLabel}
-              statusNode={activeStatusNode}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <KoreaStatusPageView
+                indicators={domesticIndicators}
+                errorMessage={hasDashboardError && domesticIndicators.length === 0 ? dashboardErrorMessage : null}
+                isLoading={isInitialDashboardLoading}
+                latestSyncLabel={latestSyncLabel}
+                statusNode={activeStatusNode}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'ranking' ? (
           <div className="page-content-enter">
-            <CurrencyStrengthPageView
-              emptyMessage={dashboardEmptyText}
-              isLoading={isInitialDashboardLoading}
-              ranks={currencyStrengthRanks}
-              statusNode={activeStatusNode}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <CurrencyStrengthPageView
+                emptyMessage={dashboardEmptyText}
+                isLoading={isInitialDashboardLoading}
+                ranks={currencyStrengthRanks}
+                statusNode={activeStatusNode}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'newsroom' ? (
           <div className="page-content-enter">
-            <NewsroomPageView
-              articles={newsArticles}
-              categories={newsCategories}
-              configured={!hasNewsLoaded || isNewsConfigured}
-              filters={newsFilters}
-              isLoading={delayedNewsLoading}
-              isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
-              onFiltersApply={applyNewsFilters}
-              onCategoryChange={changeNewsCategory}
-              onLoadMore={changeNewsPage}
-              page={newsPage}
-              selectedCategory={selectedNewsCategory}
-              statusNode={activeStatusNode}
-              totalCount={newsTotalCount}
-              totalPages={newsTotalPages}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <NewsroomPageView
+                articles={newsArticles}
+                categories={newsCategories}
+                configured={!hasNewsLoaded || isNewsConfigured}
+                filters={newsFilters}
+                isLoading={delayedNewsLoading}
+                isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
+                onFiltersApply={applyNewsFilters}
+                onCategoryChange={changeNewsCategory}
+                onLoadMore={changeNewsPage}
+                page={newsPage}
+                selectedCategory={selectedNewsCategory}
+                statusNode={activeStatusNode}
+                totalCount={newsTotalCount}
+                totalPages={newsTotalPages}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
         {activePage === 'governmentBriefings' ? (
           <div className="page-content-enter">
-            <GovernmentBriefingsPageView
-              articles={governmentBriefings}
-              categories={governmentBriefingCategories}
-              configured={!hasGovernmentBriefingsLoaded || isGovernmentBriefingsConfigured}
-              filters={governmentBriefingFilters}
-              isLoading={delayedGovernmentBriefingsLoading}
-              isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
-              onCategoryChange={changeGovernmentBriefingCategory}
-              onFiltersApply={applyGovernmentBriefingFilters}
-              onLoadMore={changeGovernmentBriefingsPage}
-              page={governmentBriefingsPage}
-              selectedCategory={selectedGovernmentBriefingCategory}
-              statusNode={activeStatusNode}
-              totalCount={governmentBriefingsTotalCount}
-              totalPages={governmentBriefingsTotalPages}
-            />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <GovernmentBriefingsPageView
+                articles={governmentBriefings}
+                categories={governmentBriefingCategories}
+                configured={!hasGovernmentBriefingsLoaded || isGovernmentBriefingsConfigured}
+                filters={governmentBriefingFilters}
+                isLoading={delayedGovernmentBriefingsLoading}
+                isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
+                onCategoryChange={changeGovernmentBriefingCategory}
+                onFiltersApply={applyGovernmentBriefingFilters}
+                onLoadMore={changeGovernmentBriefingsPage}
+                page={governmentBriefingsPage}
+                selectedCategory={selectedGovernmentBriefingCategory}
+                statusNode={activeStatusNode}
+                totalCount={governmentBriefingsTotalCount}
+                totalPages={governmentBriefingsTotalPages}
+              />
+            </React.Suspense>
           </div>
         ) : null}
 
-        {activePage === 'serviceGuide' ? <div className="page-content-enter"><ServiceGuidePageView /></div> : null}
+        {activePage === 'serviceGuide' ? (
+          <div className="page-content-enter">
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <ServiceGuidePageView />
+            </React.Suspense>
+          </div>
+        ) : null}
 
         {activePage === 'dataSources' ? (
           <div className="page-content-enter grid gap-3">
@@ -1051,7 +1065,9 @@ function App() {
               <span aria-hidden="true">&lt;</span>
               <span>환율 현황으로 돌아가기</span>
             </button>
-            <DataSourceGuideView dataSources={dataSources} />
+            <React.Suspense fallback={<PageChunkFallback />}>
+              <DataSourceGuideView dataSources={dataSources} />
+            </React.Suspense>
           </div>
         ) : null}
 

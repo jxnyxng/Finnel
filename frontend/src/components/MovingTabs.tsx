@@ -9,7 +9,7 @@ export type MovingTabIndicatorState = {
 };
 
 const emptyIndicator: MovingTabIndicatorState = { containerHeight: 0, height: 0, left: 0, top: 0, width: 0 };
-const movingTabMotionMs = 450;
+const movingTabMotionMs = 360;
 
 export function MovingTabIndicator({
   compact = false,

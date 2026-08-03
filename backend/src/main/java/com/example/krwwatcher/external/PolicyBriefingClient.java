@@ -21,12 +21,15 @@ import org.springframework.web.client.RestClient;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
+import org.xml.sax.SAXParseException;
 
 @Component
 public class PolicyBriefingClient {
 
     private static final String POLICY_NEWS_PATH = "/1371000/policyNewsService2/policyNewsList2";
+    private static final int LATEST_LOOKBACK_DAYS = 7;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendPattern("yyyy-MM-dd")
@@ -54,7 +57,7 @@ public class PolicyBriefingClient {
 
     public List<PolicyBriefingPayload> fetchLatest(int pageNo, int numOfRows) {
         LocalDate endDate = LocalDate.now(SEOUL_ZONE);
-        LocalDate startDate = endDate.minusDays(2);
+        LocalDate startDate = endDate.minusDays(LATEST_LOOKBACK_DAYS);
         return fetchRange(startDate, endDate);
     }
 
@@ -80,13 +83,20 @@ public class PolicyBriefingClient {
             return List.of();
         }
 
+        String xmlBody = normalizeXmlBody(body);
+        if (!xmlBody.startsWith("<")) {
+            return List.of();
+        }
+
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
             factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
             factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            Element root = factory.newDocumentBuilder()
-                .parse(new InputSource(new StringReader(body)))
+            javax.xml.parsers.DocumentBuilder builder = factory.newDocumentBuilder();
+            builder.setErrorHandler(new SilentXmlErrorHandler());
+            Element root = builder
+                .parse(new InputSource(new StringReader(xmlBody)))
                 .getDocumentElement();
             List<PolicyBriefingPayload> payloads = new ArrayList<>();
             NodeList items = root.getElementsByTagName("item");
@@ -203,6 +213,14 @@ public class PolicyBriefingClient {
             .trim();
     }
 
+    private static String normalizeXmlBody(String body) {
+        String normalized = body.stripLeading();
+        if (normalized.startsWith("\uFEFF")) {
+            normalized = normalized.substring(1).stripLeading();
+        }
+        return normalized;
+    }
+
     private String normalizedApiKey() {
         String apiKey = properties.policyBriefing().apiKey().trim();
         if (!apiKey.contains("%")) {
@@ -224,5 +242,22 @@ public class PolicyBriefingClient {
         String originalUrl,
         String koglType
     ) {
+    }
+
+    private static class SilentXmlErrorHandler implements ErrorHandler {
+        @Override
+        public void warning(SAXParseException exception) {
+            // Ignore malformed upstream XML and keep sync resilient.
+        }
+
+        @Override
+        public void error(SAXParseException exception) {
+            // Ignore malformed upstream XML and keep sync resilient.
+        }
+
+        @Override
+        public void fatalError(SAXParseException exception) throws SAXParseException {
+            throw exception;
+        }
     }
 }

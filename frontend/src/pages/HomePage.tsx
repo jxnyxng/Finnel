@@ -55,28 +55,23 @@ const tabHints = [
   }
 ];
 
-const ctaWords = ['상단', '탭에서', '바로', '이어서', '확인하세요.'];
+const finalTitleWords = ['판단의', '재료들을', '확인해보세요.'];
+const finalBodyWords = ['정부정책과', '최신', '뉴스까지', '함께', '확인하며', '환율을', '움직이는', '맥락을', '따라갑니다.'];
 
 type HomePageProps = {
   calculatorMeta?: ExchangeRateCalculatorMeta | null;
   rates?: ForeignExchangeRate[];
   onGoDashboard?: () => void;
-  onReachLastSection?: () => void;
 };
 
-export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLastSection }: HomePageProps) {
+export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePageProps) {
   const [activeSection, setActiveSection] = React.useState(0);
   const [isCalculatorModalOpen, setIsCalculatorModalOpen] = React.useState(false);
   const [ctaHighlightKey, setCtaHighlightKey] = React.useState(0);
   const lastMoveAtRef = React.useRef(0);
-  const onReachLastSectionRef = React.useRef(onReachLastSection);
   const previousSectionRef = React.useRef(0);
   const touchStartYRef = React.useRef<number | null>(null);
   const sectionCount = 4;
-
-  React.useEffect(() => {
-    onReachLastSectionRef.current = onReachLastSection;
-  }, [onReachLastSection]);
 
   const moveSection = React.useCallback((direction: 1 | -1) => {
     const now = window.performance.now();
@@ -133,20 +128,10 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
   }, [isCalculatorModalOpen, moveSection]);
 
   React.useEffect(() => {
-    let tabHighlightTimeout: number | undefined;
     if (activeSection === sectionCount - 1 && previousSectionRef.current !== activeSection) {
       setCtaHighlightKey((current) => current + 1);
-      tabHighlightTimeout = window.setTimeout(() => {
-        onReachLastSectionRef.current?.();
-      }, 1850);
     }
     previousSectionRef.current = activeSection;
-
-    return () => {
-      if (tabHighlightTimeout !== undefined) {
-        window.clearTimeout(tabHighlightTimeout);
-      }
-    };
   }, [activeSection]);
 
   return (
@@ -171,6 +156,9 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
             <h1 className="mx-auto mt-3 max-w-[760px] text-3xl font-extrabold leading-[1.18] tracking-normal sm:text-4xl md:text-5xl md:leading-[1.12] xl:mx-0">
               그때 환전한 돈, 지금은 얼마일까요?
             </h1>
+            <div className="mt-5 hidden items-center gap-4 text-teal-100/80 xl:flex" aria-hidden="true">
+              <span className="h-px w-[31rem] max-w-full bg-gradient-to-r from-teal-200/10 via-teal-100/70 to-teal-100" />
+            </div>
             <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-white/72 sm:text-base sm:leading-8 xl:mx-0">
               과거 환전 시점의 환율과 현재 환율을 비교해
               <br />
@@ -189,8 +177,8 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
           <div className="hidden justify-self-end xl:block xl:w-[450px] xl:translate-y-12">
             <ExchangeProfitCalculator calculatorMeta={calculatorMeta} rates={rates} />
           </div>
-          <p className="inline-flex w-full max-w-md translate-y-4 flex-col items-center justify-center gap-1 justify-self-center px-4 text-center text-xs font-semibold leading-5 text-teal-100/78 xl:col-start-1 xl:row-start-2 xl:w-fit xl:max-w-2xl xl:translate-y-7 xl:justify-self-start xl:px-0">
-            <span>스크롤해서 더 많은 정보를 확인할 수 있습니다.</span>
+          <p className="inline-flex w-full max-w-md translate-y-4 flex-col items-center justify-center gap-1 justify-self-center px-4 text-center text-sm font-semibold leading-6 text-teal-100/78 sm:text-base sm:leading-7 xl:col-start-1 xl:row-start-2 xl:w-fit xl:max-w-2xl xl:translate-y-7 xl:justify-self-start xl:px-0">
+            <span>스크롤해서 더 많은 기능을 알아보세요</span>
             <span className="home-scroll-cue" aria-hidden="true">⌄</span>
           </p>
         </div>
@@ -200,11 +188,11 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
         <div className="grid justify-items-center gap-6 xl:grid-cols-[0.95fr_1fr] xl:items-center xl:justify-items-stretch xl:gap-8">
           <div>
             <p className="mb-3 text-xs font-bold tracking-[0.22em] text-teal-100/75 sm:mb-4">ABOUT KOREAWON</p>
-            <h2 className="mx-auto max-w-[680px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14] xl:mx-0">
-              코리아원은 원화 기준으로 환율을 읽는 도구입니다.
+            <h2 className="mx-auto max-w-[680px] text-xl font-extrabold leading-[1.25] tracking-normal sm:text-2xl md:text-4xl md:leading-[1.18] xl:mx-0">
+              원화 환율은 시장 변화를 읽는 출발점입니다.
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base md:text-lg xl:mx-0">
-              환차익 계산에서 시작해 주요 통화, 달러 흐름, 관련 지표와 뉴스를 한 화면 흐름으로 이어 봅니다.
+              환율이 움직이면 수출입 기업의 실적, 수입 물가, 원자재 비용, 달러 자산의 원화 가치가 함께 달라집니다.
             </p>
           </div>
           <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-3 xl:mx-0 xl:max-w-none xl:grid-cols-1 xl:gap-6">
@@ -223,11 +211,13 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
 
       <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-5xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14">
         <div className="grid max-w-4xl justify-items-center">
-          <h2 className="max-w-[760px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
-            환율과 정책 흐름을 함께 봅니다.
+          <h2 className="max-w-[760px] text-xl font-extrabold leading-[1.25] tracking-normal sm:text-2xl md:text-4xl md:leading-[1.18]">
+            경제 공부는 투자시장의 반응을 이해하기 위한 기초입니다.
           </h2>
-          <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
-            현재 환율과 앞으로 영향을 줄 정부 정책 방향을 따라가며 투자 판단과 경제 공부에 필요한 맥락을 쌓습니다.
+          <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 sm:mt-5 sm:text-base sm:leading-8 md:text-lg">
+            금리와 물가, 무역 흐름, 정부 정책을 함께 보면 기업이 투자를 늘리거나 줄이는 이유와
+            <br />
+            금융시장의 반응을 더 차분하게 따라갈 수 있습니다.
           </p>
         </div>
         <div className="mt-6 grid w-full max-w-md grid-cols-2 gap-3 sm:mt-10 sm:max-w-none sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
@@ -244,17 +234,25 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
       <section className="home-snap-section home-copy mx-auto grid h-[calc(100vh-112px)] max-w-5xl content-center justify-items-center py-8 text-center sm:h-[calc(100vh-86px)] sm:py-14">
         <div className="grid max-w-4xl justify-items-center">
           <h2 className="max-w-[760px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
-            정답 대신, 판단 재료를 모읍니다.
-          </h2>
-          <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
-            오늘 환율만 보고 끝내도 좋습니다. 정부정책과 최신 뉴스까지 팔로우하고 싶다면,
-            <br className="hidden sm:block" />
-            <span className="inline-flex flex-wrap gap-x-1.5">
-              {ctaWords.map((word, index) => (
+            <span className="inline-flex flex-wrap justify-center gap-x-3 gap-y-1">
+              {finalTitleWords.map((word, index) => (
                 <span
                   className="home-cta-shine-word"
-                  key={`${ctaHighlightKey}-${word}`}
-                  style={{ animationDelay: `${520 + index * 150}ms` }}
+                  key={`${ctaHighlightKey}-title-${word}`}
+                  style={{ animationDelay: `${180 + index * 150}ms` }}
+                >
+                  {word}
+                </span>
+              ))}
+            </span>
+          </h2>
+          <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-white/68 sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
+            <span className="inline-flex flex-wrap justify-center gap-x-1.5">
+              {finalBodyWords.map((word, index) => (
+                <span
+                  className="home-cta-shine-word"
+                  key={`${ctaHighlightKey}-body-${word}`}
+                  style={{ animationDelay: `${720 + index * 115}ms` }}
                 >
                   {word}
                 </span>
@@ -274,7 +272,7 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard, onReachLas
       {isCalculatorModalOpen && typeof document !== 'undefined' ? createPortal((
         <div
           aria-modal="true"
-          className="fixed inset-0 z-[1000] isolate grid place-items-center bg-zinc-950/90 px-3 py-3 backdrop-blur-xl lg:hidden"
+          className="fixed inset-0 z-[1000] isolate grid place-items-center bg-zinc-950/90 px-3 py-3 backdrop-blur-xl xl:hidden"
           onClick={() => setIsCalculatorModalOpen(false)}
           onTouchEnd={(event) => event.stopPropagation()}
           onTouchStart={(event) => event.stopPropagation()}
@@ -303,7 +301,7 @@ function ExchangeProfitCalculator({
   rates: ForeignExchangeRate[];
 }) {
   const [currencyCode, setCurrencyCode] = React.useState('');
-  const [exchangeDate, setExchangeDate] = React.useState(() => shiftYear(calculatorMeta?.latestAllowedDate ?? new Date().toISOString().slice(0, 10), -1));
+  const [exchangeDate, setExchangeDate] = React.useState(() => calculatorMeta?.latestAllowedDate ?? new Date().toISOString().slice(0, 10));
   const [amountInputMode, setAmountInputMode] = React.useState<'foreign' | 'krw'>('foreign');
   const amountInputModeKeys = React.useMemo(() => ['foreign', 'krw'] as const, []);
   const {
