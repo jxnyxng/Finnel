@@ -304,13 +304,13 @@ function PolicyIndicatorTable({
   return (
     <div className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
       <div className="min-w-0 overflow-x-auto">
-      <table className="w-full min-w-full table-fixed border-separate border-spacing-0 text-left md:min-w-[620px]">
+      <table className="w-full min-w-[560px] table-fixed border-separate border-spacing-0 text-left md:min-w-[620px]">
         <thead>
           <tr className="text-[11px] font-semibold text-white/45">
-            <th className="w-[28%] border-b border-white/10 px-2 py-2 md:w-[40%]">지표</th>
-            <th className="w-[34%] border-b border-white/10 px-2 py-2 text-right md:w-[26%] md:text-left">현재 수치</th>
-            <th className="w-[26%] border-b border-white/10 px-2 py-2 text-right md:w-[24%]">기준일</th>
-            <th className="w-[12%] border-b border-white/10 px-2 py-2 text-right md:w-[10%]">수집</th>
+            <th className="w-[30%] border-b border-white/10 px-4 py-2.5 md:w-[40%] md:px-5">지표</th>
+            <th className="w-[32%] border-b border-white/10 px-4 py-2.5 text-right md:w-[26%] md:px-5 md:text-left">현재 수치</th>
+            <th className="w-[24%] border-b border-white/10 px-4 py-2.5 text-right md:w-[24%] md:px-5">기준일</th>
+            <th className="w-[14%] border-b border-white/10 px-4 py-2.5 text-right md:w-[10%] md:px-5">수집</th>
           </tr>
         </thead>
         <tbody>
@@ -331,25 +331,25 @@ function PolicyIndicatorTable({
                 role="button"
                 tabIndex={0}
               >
-                <td className="border-b border-white/10 px-2 py-2">
+                <td className="border-b border-white/10 px-4 py-3 md:px-5">
                   <div className="min-w-0 transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
                     <div className="break-words text-xs font-semibold text-white sm:truncate">{indicator.title}</div>
                     <div className="break-words text-[10px] font-medium text-white/45 sm:truncate">{indicator.category}</div>
                   </div>
                 </td>
-                <td className="border-b border-white/10 px-2 py-2 text-right md:text-left">
+                <td className="border-b border-white/10 px-4 py-3 text-right md:px-5 md:text-left">
                   <div className="transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
                     <div className="whitespace-nowrap text-xs font-semibold text-white sm:truncate sm:text-sm">
                       {formatIndicatorValue(indicator)} <span className="text-[11px] font-medium text-white/45">{formatMetricUnit(indicator.unit)}</span>
                     </div>
                   </div>
                 </td>
-                <td className="border-b border-white/10 px-2 py-2 text-right">
+                <td className="border-b border-white/10 px-4 py-3 text-right md:px-5">
                   <div className="whitespace-nowrap text-xs text-white/65 transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
                     {indicator.baseDate ?? '-'}
                   </div>
                 </td>
-                <td className="border-b border-white/10 px-2 py-2 text-right">
+                <td className="border-b border-white/10 px-4 py-3 text-right md:px-5">
                   <CollectionStatusDot indicator={indicator} />
                 </td>
               </tr>
@@ -464,7 +464,6 @@ function IndicatorInfoPanel({
         <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-2xl border border-white/10 bg-white/8 p-4 text-xs md:grid-cols-2">
           <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
           <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
-          <InfoPanelRow label="관측 시각" value={formatObservedAt(indicator)} />
           <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
           <InfoPanelRow label="출처" value={indicator.source} />
           <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
@@ -483,20 +482,6 @@ function IndicatorInfoPanel({
                 </div>
               ))}
             </div>
-          </div>
-        ) : null}
-        {indicator.sourceUrl ? (
-          <div className="mt-5 rounded-2xl border border-teal-300/20 bg-teal-400/10 p-4">
-            <p className="text-xs font-semibold text-teal-100">출처 링크</p>
-            <p className="mt-1 text-xs leading-5 text-teal-50/75">{indicator.title}</p>
-            <a
-              className="mt-3 inline-flex h-8 items-center rounded-md bg-teal-700 px-3 text-xs font-semibold text-white hover:bg-teal-800"
-              href={indicator.sourceUrl}
-              rel="noreferrer"
-              target="_blank"
-            >
-              출처에서 보기
-            </a>
           </div>
         ) : null}
         {hasChart ? (
@@ -527,6 +512,18 @@ function IndicatorInfoPanel({
           <p className="font-semibold text-white/80">수집 기준</p>
           <p className="mt-1">{indicator.note}</p>
         </div>
+        {indicator.sourceUrl ? (
+          <div className="mt-4 flex justify-end">
+            <a
+              className="inline-flex h-8 items-center rounded-md border border-white/15 bg-white/8 px-3 text-[11px] font-semibold text-white/65 hover:border-teal-200/40 hover:bg-teal-300/10 hover:text-teal-50"
+              href={indicator.sourceUrl}
+              rel="noreferrer"
+              target="_blank"
+            >
+              출처에서 보기
+            </a>
+          </div>
+        ) : null}
       </section>
     </div>,
     document.body
@@ -630,6 +627,7 @@ function DomesticIndicatorHistoryChart({
     ...point,
     label: formatHistoryTick(point.baseDate)
   }));
+  const yDomain = getHistoryValueDomain(history.points);
 
   return (
     <div className="mt-4">
@@ -648,7 +646,7 @@ function DomesticIndicatorHistoryChart({
               tickLine={false}
               axisLine={false}
               width={52}
-              domain={['auto', 'auto']}
+              domain={yDomain}
               tickFormatter={(value) => formatHistoryAxisValue(Number(value), history.unit)}
             />
             <Tooltip content={<HistoryTooltip title={history.title} unit={history.unit} />} />
@@ -678,6 +676,22 @@ function DomesticIndicatorHistoryChart({
       </div>
     </div>
   );
+}
+
+function getHistoryValueDomain(points: TimeSeriesPoint[]): [number, number] {
+  const values = points.map((point) => point.value);
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const valueRange = Math.abs(maxValue - minValue);
+  const padding = Math.max(valueRange * 0.12, Math.abs(maxValue) * 0.02, 1);
+  const lowerBound = Math.floor(minValue - padding);
+  const upperBound = Math.ceil(maxValue + padding);
+
+  if (upperBound <= lowerBound) {
+    return [lowerBound, lowerBound + 1];
+  }
+
+  return [lowerBound, upperBound];
 }
 
 function HistoryTooltip({
@@ -799,10 +813,6 @@ function formatHistoryTick(baseDate: string) {
 
 function formatCollectedAt(indicator: DomesticIndicator) {
   return indicator.fetchedAt ? indicator.fetchedAt.slice(0, 10) : '-';
-}
-
-function formatObservedAt(indicator: DomesticIndicator) {
-  return indicator.observedAt ? indicator.observedAt.replace('T', ' ').slice(0, 16) : '-';
 }
 
 function collectionStatusLabel(indicator: DomesticIndicator) {

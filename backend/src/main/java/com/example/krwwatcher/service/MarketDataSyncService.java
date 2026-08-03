@@ -530,27 +530,27 @@ public class MarketDataSyncService {
         LocalDate targetDate = LocalDate.now(SEOUL_ZONE);
         int currentRows = syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE);
         int historicalRows = syncExchangeRatesFromFred();
-        if (currentRows > 0 || historicalRows > 0) {
-            return currentRows + historicalRows;
+        int latestDailyRows = syncLatestExchangeRatesFromKoreaexim(targetDate);
+
+        if (currentRows > 0 || historicalRows > 0 || latestDailyRows > 0 || hasAnyCurrentForeignExchangeRate()) {
+            return currentRows + historicalRows + latestDailyRows;
         }
 
-        if (hasAnyCurrentForeignExchangeRate()) {
+        return 0;
+    }
+
+    private int syncLatestExchangeRatesFromKoreaexim(LocalDate targetDate) {
+        if (koreaeximExchangeClient == null) {
             return 0;
         }
 
         try {
             List<KoreaeximExchangeClient.ExchangeRatePayload> payloads = koreaeximExchangeClient.fetchLatestExchangeRates(targetDate, MAJOR_EXCHANGE_RATE_PREFIXES);
-            if (payloads.isEmpty()) {
-                return syncExchangeRatesFromFred();
-            }
-
-            int rows = payloads.stream()
+            return payloads.stream()
                 .mapToInt(payload -> upsertExchangeRate(payload.baseDate(), payload.currencyCode(), payload.currencyName(), payload.dealBasRate(), "KOREAEXIM"))
                 .sum();
-            boolean hasUsd = payloads.stream().anyMatch(payload -> payload.currencyCode().startsWith("USD"));
-            return hasUsd ? rows : rows + syncExchangeRatesFromFred();
         } catch (RuntimeException exception) {
-            return syncExchangeRatesFromFred();
+            return 0;
         }
     }
 
