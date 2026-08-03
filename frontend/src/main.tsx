@@ -135,7 +135,6 @@ function App() {
   const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
   const [mainTabIndicator, setMainTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
   const [mainTabButtonWidth, setMainTabButtonWidth] = React.useState(0);
-  const mainTabHighlightTimeoutRef = React.useRef<number | null>(null);
   const mainTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
   const dollarIndexTabNavRef = React.useRef<HTMLDivElement | null>(null);
   const dollarIndexTabButtonRefs = React.useRef<Partial<Record<DollarIndexTabKey, HTMLButtonElement | null>>>({});
@@ -143,8 +142,6 @@ function App() {
   const [dollarIndexTabButtonWidth, setDollarIndexTabButtonWidth] = React.useState(0);
   const dollarIndexTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
   const [isDollarIndexTabIndicatorMoving, setIsDollarIndexTabIndicatorMoving] = React.useState(false);
-  const [isMainTabHighlightActive, setIsMainTabHighlightActive] = React.useState(false);
-  const [mainTabHighlightKey, setMainTabHighlightKey] = React.useState(0);
   const [isFloatingMainTabsVisible, setIsFloatingMainTabsVisible] = React.useState(false);
   const [isMainTabIndicatorMoving, setIsMainTabIndicatorMoving] = React.useState(false);
   const [isMainTabIndicatorEntering, setIsMainTabIndicatorEntering] = React.useState(false);
@@ -172,22 +169,7 @@ function App() {
     suppressFloatingTabsUntilRef.current = window.performance.now() + 900;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activePage]);
-  const highlightMainTabs = React.useCallback(() => {
-    if (mainTabHighlightTimeoutRef.current !== null) {
-      window.clearTimeout(mainTabHighlightTimeoutRef.current);
-    }
-    setIsMainTabHighlightActive(true);
-    setMainTabHighlightKey((current) => current + 1);
-    mainTabHighlightTimeoutRef.current = window.setTimeout(() => {
-      setIsMainTabHighlightActive(false);
-      mainTabHighlightTimeoutRef.current = null;
-    }, 1300);
-  }, []);
-
   React.useEffect(() => () => {
-    if (mainTabHighlightTimeoutRef.current !== null) {
-      window.clearTimeout(mainTabHighlightTimeoutRef.current);
-    }
     if (mainTabIndicatorMotionTimeoutRef.current !== null) {
       window.clearTimeout(mainTabIndicatorMotionTimeoutRef.current);
     }
@@ -770,10 +752,9 @@ function App() {
         </nav>
       ) : null}
       <header className="py-3 sm:pb-0 sm:pt-4">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center gap-2 px-3 sm:px-4 sm:pr-5 lg:min-h-[60px] lg:flex-row lg:justify-between lg:gap-4">
-          <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:justify-start lg:gap-3">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 sm:px-4 sm:pr-5 xl:min-h-[60px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-x-4">
             <button
-              className="flex min-w-0 shrink-0 items-center justify-center gap-2.5 py-1 text-white sm:justify-start lg:gap-3"
+              className="col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-start gap-2.5 py-1 text-white xl:gap-3"
               onClick={() => {
                 setActivePage('home');
               }}
@@ -782,15 +763,9 @@ function App() {
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-500 text-xl font-black text-white shadow-lg shadow-teal-950/25 lg:h-11 lg:w-11 lg:text-2xl">₩</span>
               <span className="truncate text-xl font-extrabold tracking-normal drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)] lg:text-[1.35rem]">코리아원</span>
             </button>
-            {isMainAppPage ? <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} /> : null}
-          </div>
           {isMainAppPage ? (
             <nav
-              className={`scrollbar-none relative mx-auto flex w-fit max-w-full flex-wrap justify-center gap-1 overflow-visible rounded-full border border-white/15 bg-white/10 p-1 shadow-lg shadow-zinc-950/20 backdrop-blur-md lg:mx-0 lg:justify-end ${
-                activePage === 'home' && isMainTabHighlightActive && mainTabHighlightKey > 0
-                  ? mainTabHighlightKey % 2 === 0 ? 'main-tab-color-pulse-even' : 'main-tab-color-pulse-odd'
-                  : ''
-              }`}
+              className="scrollbar-none col-span-2 col-start-1 row-start-2 relative mx-auto flex w-fit max-w-full flex-wrap justify-center gap-1 overflow-visible rounded-full p-1 xl:col-span-1 xl:col-start-2 xl:row-start-1"
               aria-label="주요 화면"
               ref={mainTabNavRef}
             >
@@ -814,7 +789,7 @@ function App() {
               ) : null}
               {mainTabs.map((tab) => (
                 <button
-                  className={`relative z-10 inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
+                  className={`relative z-10 inline-flex h-10 shrink-0 items-center justify-center rounded-full px-4 text-center text-[13px] font-bold leading-none transition-colors duration-150 ${
                     activePage === tab.key ? 'text-white' : 'text-white/70 hover:text-white'
                   }`}
                   key={tab.key}
@@ -830,6 +805,11 @@ function App() {
               ))}
             </nav>
           ) : null}
+          {isMainAppPage ? (
+            <div className="col-start-2 row-start-1 flex justify-end xl:col-start-3">
+              <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} />
+            </div>
+          ) : null}
         </div>
       </header>
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-5 sm:py-4">
@@ -838,7 +818,6 @@ function App() {
             calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
             rates={foreignExchangeRates}
             onGoDashboard={goDashboard}
-            onReachLastSection={highlightMainTabs}
           />
         ) : null}
 

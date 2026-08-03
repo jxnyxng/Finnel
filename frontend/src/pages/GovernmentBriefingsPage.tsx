@@ -5,6 +5,8 @@ import type { GovernmentBriefingArticle, GovernmentBriefingCategory, GovernmentB
 import { lockBodyScroll } from '../utils/scrollLock';
 import { getSeoulDateString } from '../utils/time';
 
+type BriefingContentThemeKey = 'paper' | 'memo' | 'dark';
+
 type GovernmentBriefingsPageProps = {
   articles: GovernmentBriefingArticle[];
   categories: GovernmentBriefingCategory[];
@@ -41,6 +43,7 @@ export function GovernmentBriefingsPage({
   const [draftFilters, setDraftFilters] = React.useState(filters);
   const [isFilterOpen, setIsFilterOpen] = React.useState(false);
   const [selectedArticle, setSelectedArticle] = React.useState<GovernmentBriefingArticle | null>(null);
+  const [contentTheme, setContentTheme] = React.useState<BriefingContentThemeKey>('paper');
   const categoryScrollerRef = React.useRef<HTMLDivElement | null>(null);
   const categoryTabs = React.useMemo(
     () => [
@@ -227,7 +230,12 @@ export function GovernmentBriefingsPage({
         />
       </section>
 
-      <GovernmentBriefingModal article={selectedArticle} onClose={() => setSelectedArticle(null)} />
+      <GovernmentBriefingModal
+        article={selectedArticle}
+        contentTheme={contentTheme}
+        onClose={() => setSelectedArticle(null)}
+        onContentThemeChange={setContentTheme}
+      />
     </section>
   );
 }
@@ -417,12 +425,39 @@ function getGovernmentBriefingKeywords(article: GovernmentBriefingArticle, categ
     .slice(0, 3);
 }
 
+const briefingContentThemes: Array<{
+  key: BriefingContentThemeKey;
+  label: string;
+  checkClassName: string;
+  swatchClassName: string;
+}> = [
+  { key: 'paper', label: '흰색 본문', checkClassName: 'text-stone-900', swatchClassName: 'bg-[#f2eee2]' },
+  { key: 'memo', label: '노란색 본문', checkClassName: 'text-stone-900', swatchClassName: 'bg-[#e4d59a]' },
+  { key: 'dark', label: '회색 본문', checkClassName: 'text-zinc-100', swatchClassName: 'bg-zinc-800' }
+];
+
+function getBriefingContentThemeClassName(theme: BriefingContentThemeKey) {
+  if (theme === 'memo') {
+    return 'bg-[#e4d59a] text-stone-900 shadow-amber-950/10';
+  }
+
+  if (theme === 'dark') {
+    return 'bg-zinc-800 text-zinc-300 shadow-zinc-950/20';
+  }
+
+  return 'bg-[#f2eee2] text-stone-800 shadow-stone-950/10';
+}
+
 function GovernmentBriefingModal({
   article,
-  onClose
+  contentTheme,
+  onClose,
+  onContentThemeChange
 }: {
   article: GovernmentBriefingArticle | null;
+  contentTheme: BriefingContentThemeKey;
   onClose: () => void;
+  onContentThemeChange: (theme: BriefingContentThemeKey) => void;
 }) {
   React.useEffect(() => {
     if (!article) {
@@ -452,7 +487,8 @@ function GovernmentBriefingModal({
   }
 
   const imageUrl = article.imageUrl || article.thumbnailUrl;
-  const bodyParagraphs = getBriefingParagraphs(article.body || article.subtitle || '본문 요약 정보가 제공되지 않았습니다. 원문에서 전체 내용을 확인하세요.');
+  const briefingContent = getBriefingContentSections(article.body || article.subtitle || '본문 요약 정보가 제공되지 않았습니다. 원문에서 전체 내용을 확인하세요.');
+  const contentThemeClassName = getBriefingContentThemeClassName(contentTheme);
 
   return createPortal(
     <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/35 px-4 py-6" onClick={onClose}>
@@ -474,21 +510,50 @@ function GovernmentBriefingModal({
                 <h3 className="mt-2 text-lg font-semibold leading-7 text-white md:text-xl md:leading-8">{article.title}</h3>
                 {article.subtitle ? <p className="mt-2 text-sm leading-6 text-white/65">{article.subtitle}</p> : null}
               </div>
-              <button
-                className="h-7 shrink-0 rounded-md border border-white/15 bg-white/10 px-2 text-xs font-semibold text-white/60 hover:text-white"
-                onClick={onClose}
-                type="button"
-              >
-                닫기
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="flex items-center gap-1" aria-label="본문 색상">
+                  {briefingContentThemes.map((theme) => (
+                    <button
+                      aria-label={theme.label}
+                      className={`h-6 w-6 rounded border transition-[border-color,box-shadow,transform] duration-150 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-200/50 ${
+                        theme.swatchClassName
+                      } ${contentTheme === theme.key ? 'border-teal-200 shadow-sm shadow-teal-200/30' : 'border-white/20'}`}
+                      key={theme.key}
+                      onClick={() => onContentThemeChange(theme.key)}
+                      title={theme.label}
+                      type="button"
+                    >
+                      {contentTheme === theme.key ? (
+                        <span className={`grid h-full place-items-center text-[13px] font-extrabold leading-none ${theme.checkClassName}`}>✓</span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="h-7 rounded-md border border-white/15 bg-white/10 px-2 text-xs font-semibold text-white/60 hover:text-white"
+                  onClick={onClose}
+                  type="button"
+                >
+                  닫기
+                </button>
+              </div>
             </div>
-            <div className="mx-auto mt-4 max-w-2xl rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4 text-sm leading-7 text-slate-800 shadow-sm md:px-5 md:py-5">
-              {bodyParagraphs.map((paragraph, index) => (
+            <div className={`mx-auto mt-4 max-w-2xl rounded-2xl px-4 py-4 text-sm font-medium leading-7 shadow-sm md:px-5 md:py-5 ${contentThemeClassName}`}>
+              {briefingContent.bodyParagraphs.map((paragraph, index) => (
                 <p className={index === 0 ? '' : 'mt-4'} key={`${paragraph.slice(0, 24)}-${index}`}>
                   {paragraph}
                 </p>
               ))}
             </div>
+            {briefingContent.noticeParagraphs.length > 0 ? (
+              <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-[11px] leading-5 text-white/45">
+                {briefingContent.noticeParagraphs.map((paragraph, index) => (
+                  <p className={index === 0 ? '' : 'mt-1.5'} key={`${paragraph.slice(0, 24)}-${index}`}>
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            ) : null}
             <div className="mx-auto mt-4 flex max-w-2xl justify-end">
               {article.originalUrl ? (
                 <a
@@ -516,6 +581,21 @@ function getBriefingParagraphs(value: string) {
     .split(/\n+/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
+}
+
+function getBriefingContentSections(value: string) {
+  const paragraphs = getBriefingParagraphs(value);
+  const noticeParagraphs = paragraphs.filter(isBriefingNoticeParagraph);
+  const bodyParagraphs = paragraphs.filter((paragraph) => !isBriefingNoticeParagraph(paragraph));
+
+  return {
+    bodyParagraphs: bodyParagraphs.length > 0 ? bodyParagraphs : ['본문 요약 정보가 제공되지 않았습니다. 원문에서 전체 내용을 확인하세요.'],
+    noticeParagraphs
+  };
+}
+
+function isBriefingNoticeParagraph(paragraph: string) {
+  return /^문의\s*:/.test(paragraph) || paragraph.startsWith('정책브리핑의 자료는');
 }
 
 function InfiniteLoadMarker({

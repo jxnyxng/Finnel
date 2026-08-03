@@ -565,7 +565,7 @@ body,
 }
 
 .page-content-enter {
-  animation: page-content-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: page-content-enter 140ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
 
@@ -646,9 +646,9 @@ body,
   border-radius: 999px;
   transform-origin: center;
   transition:
-    transform 430ms cubic-bezier(0.33, 0.85, 0.32, 1),
-    width 430ms cubic-bezier(0.33, 0.85, 0.32, 1),
-    height 430ms cubic-bezier(0.33, 0.85, 0.32, 1);
+    transform 350ms cubic-bezier(0.33, 0.85, 0.32, 1),
+    width 350ms cubic-bezier(0.33, 0.85, 0.32, 1),
+    height 350ms cubic-bezier(0.33, 0.85, 0.32, 1);
   will-change: transform, width, height;
 }
 
@@ -665,20 +665,20 @@ body,
   overflow: hidden;
   transform-origin: center;
   transition:
-    transform 430ms cubic-bezier(0.33, 0.85, 0.32, 1),
-    width 430ms cubic-bezier(0.33, 0.85, 0.32, 1),
-    height 430ms cubic-bezier(0.33, 0.85, 0.32, 1),
+    transform 350ms cubic-bezier(0.33, 0.85, 0.32, 1),
+    width 350ms cubic-bezier(0.33, 0.85, 0.32, 1),
+    height 350ms cubic-bezier(0.33, 0.85, 0.32, 1),
     filter 220ms ease-out;
   will-change: transform, width, height, opacity, filter;
 }
 
 .moving-tab-indicator-liquid {
-  animation: moving-tab-liquid 430ms cubic-bezier(0.33, 0.85, 0.32, 1) both;
+  animation: moving-tab-liquid 350ms cubic-bezier(0.33, 0.85, 0.32, 1) both;
   filter: saturate(1.1) brightness(1.02);
 }
 
 .moving-tab-indicator-enter {
-  animation: moving-tab-enter 430ms cubic-bezier(0.33, 0.85, 0.32, 1) both;
+  animation: moving-tab-enter 350ms cubic-bezier(0.33, 0.85, 0.32, 1) both;
   filter: saturate(1.1) brightness(1.02);
 }
 
@@ -738,8 +738,6 @@ body,
   .chart-range-enter,
   .moving-tab-indicator-frame,
   .moving-tab-indicator,
-  .main-tab-color-pulse-even,
-  .main-tab-color-pulse-odd,
   .floating-main-tabs,
   .home-cta-shine-word,
   .home-scroll-cue,
@@ -798,58 +796,6 @@ body,
   50% {
     opacity: 1;
     transform: translateY(4px);
-  }
-}
-
-.main-tab-color-pulse-even {
-  animation: main-tab-color-pulse-even 1250ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.main-tab-color-pulse-odd {
-  animation: main-tab-color-pulse-odd 1250ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes main-tab-color-pulse-even {
-  0% {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
-  }
-
-  34% {
-    background-color: rgba(20, 184, 166, 0.2);
-    border-color: rgba(153, 246, 228, 0.48);
-    box-shadow:
-      0 0 0 1px rgba(153, 246, 228, 0.14),
-      0 10px 26px rgba(20, 184, 166, 0.18);
-  }
-
-  100% {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
-  }
-}
-
-@keyframes main-tab-color-pulse-odd {
-  0% {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
-  }
-
-  34% {
-    background-color: rgba(20, 184, 166, 0.2);
-    border-color: rgba(153, 246, 228, 0.48);
-    box-shadow:
-      0 0 0 1px rgba(153, 246, 228, 0.14),
-      0 10px 26px rgba(20, 184, 166, 0.18);
-  }
-
-  100% {
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 10px 24px rgba(9, 14, 24, 0.2);
   }
 }
 

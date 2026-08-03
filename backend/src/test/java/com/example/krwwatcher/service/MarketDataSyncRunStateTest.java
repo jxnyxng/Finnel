@@ -1,6 +1,8 @@
 package com.example.krwwatcher.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,6 +23,8 @@ import com.example.krwwatcher.external.EcosClient;
 import com.example.krwwatcher.external.FetchResult;
 import com.example.krwwatcher.external.FetchStatus;
 import com.example.krwwatcher.external.FredClient;
+import com.example.krwwatcher.external.KoreaeximExchangeClient;
+import com.example.krwwatcher.external.TwelveDataClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -87,6 +91,33 @@ class MarketDataSyncRunStateTest {
                 next_allowed_at TIMESTAMP NULL,
                 message VARCHAR(1000) NULL,
                 PRIMARY KEY (id)
+            )
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE exchange_rates (
+                id BIGINT NOT NULL AUTO_INCREMENT,
+                base_date DATE NOT NULL,
+                currency_code VARCHAR(20) NOT NULL,
+                currency_name VARCHAR(100) NOT NULL,
+                deal_bas_rate DECIMAL(19, 4) NOT NULL,
+                source VARCHAR(50) NOT NULL,
+                fetched_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uk_exchange_rates_currency_date (currency_code, base_date)
+            )
+            """);
+        jdbcTemplate.execute("""
+            CREATE TABLE current_exchange_rates (
+                id BIGINT NOT NULL AUTO_INCREMENT,
+                base_date DATE NOT NULL,
+                currency_code VARCHAR(20) NOT NULL,
+                currency_name VARCHAR(100) NOT NULL,
+                deal_bas_rate DECIMAL(19, 4) NOT NULL,
+                source VARCHAR(80) NOT NULL,
+                observed_at TIMESTAMP NOT NULL,
+                fetched_at TIMESTAMP NOT NULL,
+                PRIMARY KEY (id),
+                UNIQUE KEY uk_current_exchange_rates_currency (currency_code)
             )
             """);
         jdbcTemplate.execute("""
@@ -396,6 +427,31 @@ class MarketDataSyncRunStateTest {
     }
 
     @Test
+    void exchangeRateSyncUpdatesLatestDailyRatesFromKoreaeximEvenWhenFredReturnsRows() {
+        FredClient fredClient = org.mockito.Mockito.mock(FredClient.class);
+        KoreaeximExchangeClient koreaeximExchangeClient = org.mockito.Mockito.mock(KoreaeximExchangeClient.class);
+        TwelveDataClient twelveDataClient = org.mockito.Mockito.mock(TwelveDataClient.class);
+        marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), koreaeximExchangeClient, null, fredClient, twelveDataClient, null, null, null, jdbcTemplate);
+        when(twelveDataClient.fetchCurrentExchangeRate(any())).thenReturn(java.util.Optional.empty());
+        when(fredClient.fetchObservations(any(), any())).thenReturn(List.of());
+        when(fredClient.fetchObservations(eq("DEXKOUS"), any())).thenReturn(List.of(
+            new FredClient.FredObservationPayload(LocalDate.of(2026, 7, 24), new BigDecimal("1460.7600"))
+        ));
+        when(koreaeximExchangeClient.fetchLatestExchangeRates(any(), any())).thenReturn(List.of(
+            new KoreaeximExchangeClient.ExchangeRatePayload(LocalDate.of(2026, 8, 1), "USD", "US Dollar", new BigDecimal("1390.1200")),
+            new KoreaeximExchangeClient.ExchangeRatePayload(LocalDate.of(2026, 8, 1), "EUR", "Euro", new BigDecimal("1605.3400"))
+        ));
+
+        Integer rows = ReflectionTestUtils.invokeMethod(marketDataSyncService, "syncExchangeRates");
+
+        assertThat(rows).isEqualTo(3);
+        assertThat(findExchangeRateDate("USD")).isEqualTo(LocalDate.of(2026, 8, 1));
+        assertThat(findExchangeRateValue("USD", LocalDate.of(2026, 8, 1))).isEqualByComparingTo("1390.1200");
+        assertThat(findExchangeRateDate("EUR")).isEqualTo(LocalDate.of(2026, 8, 1));
+        verify(koreaeximExchangeClient).fetchLatestExchangeRates(any(), any());
+    }
+
+    @Test
     void foreignReservesSyncStoresEcosThousandsOfDollarsAsMillionsOfDollars() {
         EcosClient ecosClient = org.mockito.Mockito.mock(EcosClient.class);
         marketDataSyncService = new MarketDataSyncService(properties(), syncProperties(), null, ecosClient, null, null, null, null, null, jdbcTemplate);
@@ -595,6 +651,28 @@ class MarketDataSyncRunStateTest {
 
     private Integer countDollarIndexRows() {
         return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM dollar_indexes", Integer.class);
+    }
+
+    private LocalDate findExchangeRateDate(String currencyCode) {
+        return jdbcTemplate.queryForObject(
+            "SELECT MAX(base_date) FROM exchange_rates WHERE currency_code = ?",
+            LocalDate.class,
+            currencyCode
+        );
+    }
+
+    private BigDecimal findExchangeRateValue(String currencyCode, LocalDate baseDate) {
+        return jdbcTemplate.queryForObject(
+            """
+                SELECT deal_bas_rate
+                FROM exchange_rates
+                WHERE currency_code = ?
+                  AND base_date = ?
+                """,
+            BigDecimal.class,
+            currencyCode,
+            baseDate
+        );
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
