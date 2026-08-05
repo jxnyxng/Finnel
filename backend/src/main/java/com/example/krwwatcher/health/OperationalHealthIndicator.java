@@ -269,7 +269,7 @@ public class OperationalHealthIndicator implements HealthIndicator {
         if (!hasText(currencyPair)) {
             return null;
         }
-        return jdbcTemplate.query(
+        return jdbcTemplate.queryForObject(
             """
                 SELECT MAX(observed_at)
                 FROM intraday_exchange_rates
@@ -277,14 +277,14 @@ public class OperationalHealthIndicator implements HealthIndicator {
                 """,
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
             currencyPair
-        ).stream().findFirst().orElse(null);
+        );
     }
 
     private Instant latestFetchedAt(String tableName) {
-        return jdbcTemplate.query(
+        return jdbcTemplate.queryForObject(
             "SELECT MAX(fetched_at) FROM " + tableName,
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant()
-        ).stream().findFirst().orElse(null);
+        );
     }
 
     private boolean hasText(String value) {
