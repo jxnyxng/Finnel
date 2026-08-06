@@ -171,6 +171,43 @@ class ExternalClientContractTest {
     }
 
     @Test
+    void policyBriefingJsonNewsItemResponseParses() {
+        List<PolicyBriefingClient.PolicyBriefingPayload> result = PolicyBriefingClient.parseItems(
+            """
+                {
+                  "header": {
+                    "resultCode": "0",
+                    "resultMsg": "NORMAL_SERVICE"
+                  },
+                  "body": {
+                    "NewsItem": [
+                      {
+                        "NewsItemId": "148969565",
+                        "ModifyDate": "08/06/2026 16:14:23",
+                        "ApproveDate": "08/06/2026 16:14:00",
+                        "GroupingCode": "policy",
+                        "Title": "포항 AI센터·영광 에너지저장장치, 지역활성화 투자 펀드 선정",
+                        "SubTitle1": "포항에 6000억 투입 AI 전용 데이터센터 건설",
+                        "DataContents": "<p>기획예산처는 지역활성화 투자 펀드 프로젝트를 선정하고 산업 기반 확충을 지원한다.</p>",
+                        "MinisterCode": "기획예산처",
+                        "OriginalUrl": "https://www.korea.kr/news/policyNewsView.do?newsId=148969565",
+                        "KoglType": "1"
+                      }
+                    ]
+                  }
+                }
+                """
+        );
+
+        assertThat(result).hasSize(1);
+        PolicyBriefingClient.PolicyBriefingPayload payload = result.get(0);
+        assertThat(payload.title()).contains("포항 AI센터");
+        assertThat(payload.category()).isEqualTo("policy");
+        assertThat(payload.body()).contains("지역활성화 투자 펀드");
+        assertThat(payload.publishedAt()).isNotNull();
+    }
+
+    @Test
     void openFiscalHtmlErrorIsParseError() {
         FetchResult<OpenFiscalClient.OpenFiscalObservationPayload> result = OpenFiscalClient.parseObservations(
             "<html><body>Bad Gateway</body></html>",
