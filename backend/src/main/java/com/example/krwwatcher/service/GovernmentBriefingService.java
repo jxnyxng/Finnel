@@ -113,12 +113,15 @@ public class GovernmentBriefingService {
         int normalizedMonths = Math.max(1, Math.min(months, MAX_BACKFILL_MONTHS));
         LocalDate endDate = LocalDate.now(SEOUL_ZONE);
         LocalDate cursor = endDate.minusMonths(normalizedMonths).plusDays(1);
+        int fetched = 0;
         int rows = 0;
         int calls = 0;
         try {
             while (!cursor.isAfter(endDate)) {
                 LocalDate windowEnd = cursor.plusDays(2).isAfter(endDate) ? endDate : cursor.plusDays(2);
-                for (PolicyBriefingClient.PolicyBriefingPayload payload : policyBriefingClient.fetchRange(cursor, windowEnd)) {
+                List<PolicyBriefingClient.PolicyBriefingPayload> payloads = policyBriefingClient.fetchRange(cursor, windowEnd);
+                fetched += payloads.size();
+                for (PolicyBriefingClient.PolicyBriefingPayload payload : payloads) {
                     rows += upsertRelevantBriefing(payload);
                 }
                 calls++;
@@ -127,7 +130,7 @@ public class GovernmentBriefingService {
         } catch (RuntimeException exception) {
             return new GovernmentBriefingSyncResult(
                 "POLICY_BRIEFING_API_ERROR",
-                "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName() + ", calls=" + calls + ", rows=" + rows,
+                "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName() + ", calls=" + calls + ", fetched=" + fetched + ", rows=" + rows,
                 rows,
                 Instant.now()
             );
@@ -137,7 +140,7 @@ public class GovernmentBriefingService {
 
         Instant syncedAt = Instant.now();
         lastSuccessfulSyncAt = syncedAt;
-        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows + ", calls=" + calls, rows, syncedAt);
+        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows + ", fetched=" + fetched + ", calls=" + calls, rows, syncedAt);
     }
 
     public GovernmentBriefingResponse latest(String category, LocalDate fromDate, LocalDate toDate, int page, int pageSize, String keyword) {
