@@ -17,6 +17,8 @@ import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -30,6 +32,7 @@ import org.xml.sax.SAXParseException;
 @Component
 public class PolicyBriefingClient {
 
+    private static final Logger log = LoggerFactory.getLogger(PolicyBriefingClient.class);
     private static final String POLICY_NEWS_PATH = "/1371000/policyNewsService2/policyNewsList2";
     private static final int LATEST_LOOKBACK_DAYS = 2;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
@@ -78,7 +81,18 @@ public class PolicyBriefingClient {
                 .build())
             .retrieve()
             .body(String.class);
-        return parseItems(body);
+        List<PolicyBriefingPayload> payloads = parseItems(body);
+        if (payloads.isEmpty()) {
+            log.warn(
+                "Policy briefing response parsed no items: startDate={}, endDate={}, bodyLength={}, newsItemMarkers={}, preview={}",
+                startDate,
+                endDate,
+                body == null ? 0 : body.length(),
+                body == null ? 0 : countOccurrences(body, "<NewsItem>"),
+                preview(body)
+            );
+        }
+        return payloads;
     }
 
     static List<PolicyBriefingPayload> parseItems(String body) {
@@ -298,6 +312,24 @@ public class PolicyBriefingClient {
             normalized = normalized.substring(1).stripLeading();
         }
         return normalized;
+    }
+
+    private static int countOccurrences(String value, String needle) {
+        int count = 0;
+        int index = 0;
+        while (StringUtils.hasText(value) && (index = value.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
+    }
+
+    private static String preview(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String compacted = value.replaceAll("\\s+", " ");
+        return compacted.substring(0, Math.min(300, compacted.length()));
     }
 
     private String normalizedApiKey() {
