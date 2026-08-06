@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.example.krwwatcher.external.PolicyBriefingClient;
@@ -113,12 +114,15 @@ public class GovernmentBriefingService {
         int normalizedMonths = Math.max(1, Math.min(months, MAX_BACKFILL_MONTHS));
         LocalDate endDate = LocalDate.now(SEOUL_ZONE);
         LocalDate cursor = endDate.minusMonths(normalizedMonths).plusDays(1);
+        int fetched = 0;
         int rows = 0;
         int calls = 0;
         try {
             while (!cursor.isAfter(endDate)) {
                 LocalDate windowEnd = cursor.plusDays(2).isAfter(endDate) ? endDate : cursor.plusDays(2);
-                for (PolicyBriefingClient.PolicyBriefingPayload payload : policyBriefingClient.fetchRange(cursor, windowEnd)) {
+                List<PolicyBriefingClient.PolicyBriefingPayload> payloads = policyBriefingClient.fetchRange(cursor, windowEnd);
+                fetched += payloads.size();
+                for (PolicyBriefingClient.PolicyBriefingPayload payload : payloads) {
                     rows += upsertRelevantBriefing(payload);
                 }
                 calls++;
@@ -127,7 +131,7 @@ public class GovernmentBriefingService {
         } catch (RuntimeException exception) {
             return new GovernmentBriefingSyncResult(
                 "POLICY_BRIEFING_API_ERROR",
-                "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName() + ", calls=" + calls + ", rows=" + rows,
+                "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName() + ", calls=" + calls + ", fetched=" + fetched + ", rows=" + rows,
                 rows,
                 Instant.now()
             );
@@ -137,7 +141,7 @@ public class GovernmentBriefingService {
 
         Instant syncedAt = Instant.now();
         lastSuccessfulSyncAt = syncedAt;
-        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows + ", calls=" + calls, rows, syncedAt);
+        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows + ", fetched=" + fetched + ", calls=" + calls, rows, syncedAt);
     }
 
     public GovernmentBriefingResponse latest(String category, LocalDate fromDate, LocalDate toDate, int page, int pageSize, String keyword) {
@@ -223,8 +227,6 @@ public class GovernmentBriefingService {
         conditions.add("body IS NOT NULL");
         conditions.add("CHAR_LENGTH(body) >= ?");
         params.add(MIN_BODY_LENGTH);
-        conditions.add("body NOT LIKE ?");
-        params.add("%정책뉴스로 자세히 보기%");
 
         if (conditions.isEmpty()) {
             return "";
@@ -345,8 +347,7 @@ public class GovernmentBriefingService {
     private boolean isLowQualityBriefing(PolicyBriefingClient.PolicyBriefingPayload payload) {
         String body = payload.body();
         return !StringUtils.hasText(body)
-            || body.length() < MIN_BODY_LENGTH
-            || body.contains("정책뉴스로 자세히 보기");
+            || body.length() < MIN_BODY_LENGTH;
     }
 
     private boolean hasBriefingsFetchedToday() {
@@ -371,11 +372,13 @@ public class GovernmentBriefingService {
                 WHERE category IN (%s)
                   AND body IS NOT NULL
                   AND CHAR_LENGTH(body) >= ?
-                  AND body NOT LIKE ?
                 """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
             relevantCategoryQualityParams()
-        ).stream().findFirst().orElse(null);
+        ).stream()
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
     }
 
     private Instant latestSuccessfulFetchOrSyncAt() {
@@ -399,7 +402,6 @@ public class GovernmentBriefingService {
     private Object[] relevantCategoryQualityParams() {
         List<Object> params = new ArrayList<>(RELEVANT_CATEGORY_CODES);
         params.add(MIN_BODY_LENGTH);
-        params.add("%정책뉴스로 자세히 보기%");
         return params.toArray();
     }
 

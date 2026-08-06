@@ -11,10 +11,16 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
@@ -28,8 +34,10 @@ import org.xml.sax.SAXParseException;
 @Component
 public class PolicyBriefingClient {
 
+    private static final Logger log = LoggerFactory.getLogger(PolicyBriefingClient.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String POLICY_NEWS_PATH = "/1371000/policyNewsService2/policyNewsList2";
-    private static final int LATEST_LOOKBACK_DAYS = 7;
+    private static final int LATEST_LOOKBACK_DAYS = 2;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendPattern("yyyy-MM-dd")
@@ -41,6 +49,7 @@ public class PolicyBriefingClient {
         .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
         .toFormatter();
     private static final DateTimeFormatter US_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss");
+    private static final Pattern LENIENT_ITEM_PATTERN = Pattern.compile("(?is)<(?:NewsItem|item)\\b[^>]*>(.*?)</(?:NewsItem|item)>");
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
@@ -75,7 +84,18 @@ public class PolicyBriefingClient {
                 .build())
             .retrieve()
             .body(String.class);
-        return parseItems(body);
+        List<PolicyBriefingPayload> payloads = parseItems(body);
+        if (payloads.isEmpty()) {
+            log.warn(
+                "Policy briefing response parsed no items: startDate={}, endDate={}, bodyLength={}, newsItemMarkers={}, preview={}",
+                startDate,
+                endDate,
+                body == null ? 0 : body.length(),
+                body == null ? 0 : countOccurrences(body, "<NewsItem>"),
+                preview(body)
+            );
+        }
+        return payloads;
     }
 
     static List<PolicyBriefingPayload> parseItems(String body) {
@@ -84,6 +104,9 @@ public class PolicyBriefingClient {
         }
 
         String xmlBody = normalizeXmlBody(body);
+        if (xmlBody.startsWith("{")) {
+            return parseJsonItems(xmlBody);
+        }
         if (!xmlBody.startsWith("<")) {
             return List.of();
         }
@@ -98,6 +121,7 @@ public class PolicyBriefingClient {
             Element root = builder
                 .parse(new InputSource(new StringReader(xmlBody)))
                 .getDocumentElement();
+            validateSuccessResponse(root);
             List<PolicyBriefingPayload> payloads = new ArrayList<>();
             NodeList items = root.getElementsByTagName("item");
             if (items.getLength() == 0) {
@@ -112,10 +136,22 @@ public class PolicyBriefingClient {
                     }
                 }
             }
-            return payloads;
+            return payloads.isEmpty() ? parseItemsLeniently(xmlBody) : payloads;
+        } catch (IllegalStateException exception) {
+            throw exception;
         } catch (Exception ignored) {
-            return List.of();
+            return parseItemsLeniently(xmlBody);
         }
+    }
+
+    private static void validateSuccessResponse(Element root) {
+        String resultCode = firstText(root, "resultCode");
+        if (!StringUtils.hasText(resultCode) || "0".equals(resultCode.trim())) {
+            return;
+        }
+        String resultMessage = firstText(root, "resultMsg");
+        throw new IllegalStateException("Policy briefing API error: " + resultCode.trim()
+            + (StringUtils.hasText(resultMessage) ? " " + resultMessage.trim() : ""));
     }
 
     private static PolicyBriefingPayload parseItem(Element item) {
@@ -148,6 +184,100 @@ public class PolicyBriefingClient {
         );
     }
 
+    private static List<PolicyBriefingPayload> parseItemsLeniently(String xmlBody) {
+        List<PolicyBriefingPayload> payloads = new ArrayList<>();
+        Matcher matcher = LENIENT_ITEM_PATTERN.matcher(xmlBody);
+        while (matcher.find()) {
+            PolicyBriefingPayload payload = parseItemBlock(matcher.group(1));
+            if (StringUtils.hasText(payload.title())) {
+                payloads.add(payload);
+            }
+        }
+        return payloads;
+    }
+
+    private static PolicyBriefingPayload parseItemBlock(String item) {
+        String title = firstText(item, "Title", "title");
+        String subtitle = joinTexts(
+            firstText(item, "SubTitle1", "subtitle1"),
+            firstText(item, "SubTitle2", "subtitle2"),
+            firstText(item, "SubTitle3", "subtitle3")
+        );
+        String body = firstText(item, "DataContents", "Contents", "Content", "content", "Body");
+        String ministry = firstText(item, "MinisterCode", "MinisterName", "DeptName", "Department", "ministry");
+        String category = firstText(item, "GroupingCode", "Category", "category");
+        Instant publishedAt = parsePublishedAt(firstText(item, "ApproveDate", "ModifyDate", "RegDate", "Date", "date"));
+        String thumbnailUrl = firstText(item, "ThumbnailUrl", "ThumbnailURL", "thumbnailUrl");
+        String imageUrl = firstText(item, "OriginalimgUrl", "OriginalImgUrl", "ImageUrl", "imageUrl");
+        String originalUrl = firstText(item, "OriginalUrl", "OriginalURL", "Link", "link");
+        String koglType = firstText(item, "KoglType", "koglType");
+
+        return new PolicyBriefingPayload(
+            clean(title),
+            clean(subtitle),
+            clean(body),
+            clean(ministry),
+            clean(category),
+            publishedAt,
+            clean(thumbnailUrl),
+            clean(imageUrl),
+            clean(originalUrl),
+            clean(koglType)
+        );
+    }
+
+    private static List<PolicyBriefingPayload> parseJsonItems(String body) {
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(body);
+            validateJsonSuccessResponse(root);
+            JsonNode items = root.path("body").path("NewsItem");
+            if (items.isMissingNode() || items.isNull()) {
+                return List.of();
+            }
+            if (items.isObject()) {
+                return parseJsonItem(items);
+            }
+            if (!items.isArray()) {
+                return List.of();
+            }
+            List<PolicyBriefingPayload> payloads = new ArrayList<>();
+            for (JsonNode item : items) {
+                payloads.addAll(parseJsonItem(item));
+            }
+            return payloads;
+        } catch (IllegalStateException exception) {
+            throw exception;
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private static void validateJsonSuccessResponse(JsonNode root) {
+        String resultCode = text(root.path("header"), "resultCode");
+        if (!StringUtils.hasText(resultCode) || "0".equals(resultCode.trim())) {
+            return;
+        }
+        String resultMessage = text(root.path("header"), "resultMsg");
+        throw new IllegalStateException("Policy briefing API error: " + resultCode.trim()
+            + (StringUtils.hasText(resultMessage) ? " " + resultMessage.trim() : ""));
+    }
+
+    private static List<PolicyBriefingPayload> parseJsonItem(JsonNode item) {
+        PolicyBriefingPayload payload = new PolicyBriefingPayload(
+            clean(text(item, "Title", "title")),
+            clean(joinTexts(text(item, "SubTitle1", "subtitle1"), text(item, "SubTitle2", "subtitle2"), text(item, "SubTitle3", "subtitle3"))),
+            clean(text(item, "DataContents", "Contents", "Content", "content", "Body")),
+            clean(text(item, "MinisterCode", "MinisterName", "DeptName", "Department", "ministry")),
+            clean(text(item, "GroupingCode", "Category", "category")),
+            parsePublishedAt(text(item, "ApproveDate", "ModifyDate", "RegDate", "Date", "date")),
+            clean(text(item, "ThumbnailUrl", "ThumbnailURL", "thumbnailUrl")),
+            clean(text(item, "OriginalimgUrl", "OriginalImgUrl", "ImageUrl", "imageUrl")),
+            clean(text(item, "OriginalUrl", "OriginalURL", "Link", "link")),
+            clean(text(item, "KoglType", "koglType"))
+        );
+        return StringUtils.hasText(payload.title()) ? List.of(payload) : List.of();
+    }
+
     private static String firstText(Element element, String... names) {
         for (String name : names) {
             NodeList nodes = element.getElementsByTagName(name);
@@ -159,6 +289,37 @@ public class PolicyBriefingClient {
             }
         }
         return null;
+    }
+
+    private static String firstText(String item, String... names) {
+        for (String name : names) {
+            Matcher matcher = Pattern.compile("(?is)<" + Pattern.quote(name) + "\\b[^>]*>(.*?)</" + Pattern.quote(name) + ">").matcher(item);
+            if (matcher.find()) {
+                String value = unwrapCdata(matcher.group(1));
+                if (StringUtils.hasText(value)) {
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String text(JsonNode item, String... names) {
+        for (String name : names) {
+            JsonNode value = item.path(name);
+            if (!value.isMissingNode() && !value.isNull() && StringUtils.hasText(value.asText())) {
+                return value.asText();
+            }
+        }
+        return null;
+    }
+
+    private static String unwrapCdata(String value) {
+        String trimmed = value.trim();
+        if (trimmed.startsWith("<![CDATA[") && trimmed.endsWith("]]>")) {
+            return trimmed.substring("<![CDATA[".length(), trimmed.length() - "]]>".length());
+        }
+        return value;
     }
 
     private static String joinTexts(String... values) {
@@ -219,6 +380,24 @@ public class PolicyBriefingClient {
             normalized = normalized.substring(1).stripLeading();
         }
         return normalized;
+    }
+
+    private static int countOccurrences(String value, String needle) {
+        int count = 0;
+        int index = 0;
+        while (StringUtils.hasText(value) && (index = value.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
+    }
+
+    private static String preview(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String compacted = value.replaceAll("\\s+", " ");
+        return compacted.substring(0, Math.min(300, compacted.length()));
     }
 
     private String normalizedApiKey() {
