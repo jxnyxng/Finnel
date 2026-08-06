@@ -11,6 +11,8 @@ import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -41,6 +43,7 @@ public class PolicyBriefingClient {
         .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
         .toFormatter();
     private static final DateTimeFormatter US_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss");
+    private static final Pattern LENIENT_ITEM_PATTERN = Pattern.compile("(?is)<(?:NewsItem|item)\\b[^>]*>(.*?)</(?:NewsItem|item)>");
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
@@ -117,7 +120,7 @@ public class PolicyBriefingClient {
         } catch (IllegalStateException exception) {
             throw exception;
         } catch (Exception ignored) {
-            return List.of();
+            return parseItemsLeniently(xmlBody);
         }
     }
 
@@ -161,6 +164,48 @@ public class PolicyBriefingClient {
         );
     }
 
+    private static List<PolicyBriefingPayload> parseItemsLeniently(String xmlBody) {
+        List<PolicyBriefingPayload> payloads = new ArrayList<>();
+        Matcher matcher = LENIENT_ITEM_PATTERN.matcher(xmlBody);
+        while (matcher.find()) {
+            PolicyBriefingPayload payload = parseItemBlock(matcher.group(1));
+            if (StringUtils.hasText(payload.title())) {
+                payloads.add(payload);
+            }
+        }
+        return payloads;
+    }
+
+    private static PolicyBriefingPayload parseItemBlock(String item) {
+        String title = firstText(item, "Title", "title");
+        String subtitle = joinTexts(
+            firstText(item, "SubTitle1", "subtitle1"),
+            firstText(item, "SubTitle2", "subtitle2"),
+            firstText(item, "SubTitle3", "subtitle3")
+        );
+        String body = firstText(item, "DataContents", "Contents", "Content", "content", "Body");
+        String ministry = firstText(item, "MinisterCode", "MinisterName", "DeptName", "Department", "ministry");
+        String category = firstText(item, "GroupingCode", "Category", "category");
+        Instant publishedAt = parsePublishedAt(firstText(item, "ApproveDate", "ModifyDate", "RegDate", "Date", "date"));
+        String thumbnailUrl = firstText(item, "ThumbnailUrl", "ThumbnailURL", "thumbnailUrl");
+        String imageUrl = firstText(item, "OriginalimgUrl", "OriginalImgUrl", "ImageUrl", "imageUrl");
+        String originalUrl = firstText(item, "OriginalUrl", "OriginalURL", "Link", "link");
+        String koglType = firstText(item, "KoglType", "koglType");
+
+        return new PolicyBriefingPayload(
+            clean(title),
+            clean(subtitle),
+            clean(body),
+            clean(ministry),
+            clean(category),
+            publishedAt,
+            clean(thumbnailUrl),
+            clean(imageUrl),
+            clean(originalUrl),
+            clean(koglType)
+        );
+    }
+
     private static String firstText(Element element, String... names) {
         for (String name : names) {
             NodeList nodes = element.getElementsByTagName(name);
@@ -172,6 +217,27 @@ public class PolicyBriefingClient {
             }
         }
         return null;
+    }
+
+    private static String firstText(String item, String... names) {
+        for (String name : names) {
+            Matcher matcher = Pattern.compile("(?is)<" + Pattern.quote(name) + "\\b[^>]*>(.*?)</" + Pattern.quote(name) + ">").matcher(item);
+            if (matcher.find()) {
+                String value = unwrapCdata(matcher.group(1));
+                if (StringUtils.hasText(value)) {
+                    return value;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String unwrapCdata(String value) {
+        String trimmed = value.trim();
+        if (trimmed.startsWith("<![CDATA[") && trimmed.endsWith("]]>")) {
+            return trimmed.substring("<![CDATA[".length(), trimmed.length() - "]]>".length());
+        }
+        return value;
     }
 
     private static String joinTexts(String... values) {
