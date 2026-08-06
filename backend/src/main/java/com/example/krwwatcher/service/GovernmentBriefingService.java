@@ -37,7 +37,8 @@ public class GovernmentBriefingService {
         new BriefingCategoryRule("fiscal", "재정정책", List.of("재정", "국가채무", "국채", "예산", "세수", "기획재정부", "관리재정수지", "재정수지", "정책금융", "경제정책", "경제", "성장")),
         new BriefingCategoryRule("fx", "외환·금융시장", List.of("환율", "외환", "원화", "달러", "자본시장", "금융시장", "외국인", "채권", "주식시장", "금융", "시장")),
         new BriefingCategoryRule("trade", "무역·수급", List.of("수출", "수입", "무역수지", "경상수지", "관세", "통상", "공급망", "원자재", "산업", "기업", "중소기업", "소상공인", "공정거래")),
-        new BriefingCategoryRule("inflation", "물가·민생", List.of("물가", "소비자물가", "생산자물가", "유가", "에너지", "인플레이션", "민생", "내수", "고용", "노동", "일자리"))
+        new BriefingCategoryRule("inflation", "물가·민생", List.of("물가", "소비자물가", "생산자물가", "유가", "에너지", "인플레이션", "민생", "내수", "고용", "노동", "일자리")),
+        new BriefingCategoryRule("policy", "정책일반", List.of("정책", "정부", "대통령", "업무보고", "지원", "개선", "대응", "추진"))
     );
     private static final List<String> RELEVANT_CATEGORY_CODES = CATEGORY_RULES.stream()
         .map(BriefingCategoryRule::code)

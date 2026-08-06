@@ -142,6 +142,35 @@ class ExternalClientContractTest {
     }
 
     @Test
+    void policyBriefingNewsItemResponseFallsBackWhenWholeXmlIsMalformed() {
+        List<PolicyBriefingClient.PolicyBriefingPayload> result = PolicyBriefingClient.parseItems(
+            """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <body>
+                    <NewsItem>
+                      <ApproveDate>08/04/2026 20:49:00</ApproveDate>
+                      <GroupingCode>visual</GroupingCode>
+                      <Title><![CDATA[공정거래위원회가 하반기 민생분야 불공정행위를 근절한다]]></Title>
+                      <DataContents><![CDATA[
+                        <p>정부는 중소기업과 소상공인 지원, 공정거래 질서 확립, 민생 안정 대책을 추진한다.</p>
+                      ]]></DataContents>
+                      <MinisterCode>공정거래위원회</MinisterCode>
+                      <OriginalUrl>https://www.korea.kr/news/policyNewsView.do?newsId=148969391&call_from=openData</OriginalUrl>
+                    </NewsItem>
+                  </body>
+                </response>
+                """
+        );
+
+        assertThat(result).hasSize(1);
+        PolicyBriefingClient.PolicyBriefingPayload payload = result.get(0);
+        assertThat(payload.title()).contains("공정거래위원회");
+        assertThat(payload.body()).contains("소상공인 지원");
+        assertThat(payload.originalUrl()).contains("newsId=148969391");
+    }
+
+    @Test
     void openFiscalHtmlErrorIsParseError() {
         FetchResult<OpenFiscalClient.OpenFiscalObservationPayload> result = OpenFiscalClient.parseObservations(
             "<html><body>Bad Gateway</body></html>",
