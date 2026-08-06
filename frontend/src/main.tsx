@@ -235,13 +235,11 @@ function App() {
         return;
       }
 
-      const navRect = nav.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
       const nextIndicator = {
-        height: buttonRect.height,
-        left: buttonRect.left - navRect.left,
-        top: buttonRect.top - navRect.top,
-        width: buttonRect.width
+        height: button.offsetHeight,
+        left: button.offsetLeft,
+        top: button.offsetTop,
+        width: button.offsetWidth
       };
       setMainTabIndicator((current) => {
         if (
@@ -260,6 +258,25 @@ function App() {
     window.addEventListener('resize', updateIndicator);
     return () => window.removeEventListener('resize', updateIndicator);
   }, [activePage, isMainAppPage, mainTabButtonWidth]);
+
+  React.useEffect(() => {
+    if (!isMainAppPage) {
+      return;
+    }
+
+    const activeKey = activePage as MainTabKey;
+    const nav = mainTabNavRef.current;
+    const button = mainTabButtonRefs.current[activeKey];
+    if (!nav || !button || nav.scrollWidth <= nav.clientWidth) {
+      return;
+    }
+
+    const nextScrollLeft = button.offsetLeft - ((nav.clientWidth - button.offsetWidth) / 2);
+    nav.scrollTo({
+      behavior: 'smooth',
+      left: Math.max(0, nextScrollLeft)
+    });
+  }, [activePage, isMainAppPage]);
 
   React.useLayoutEffect(() => {
     const activeKey: DollarIndexTabKey = showBroadDollarIndex ? 'broad' : 'advanced';
@@ -765,7 +782,7 @@ function App() {
             </button>
           {isMainAppPage ? (
             <nav
-              className="scrollbar-none col-span-2 col-start-1 row-start-2 relative mx-auto flex w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-full p-1 xl:col-span-1 xl:col-start-2 xl:row-start-1 xl:w-fit xl:justify-center xl:overflow-visible"
+              className="scrollbar-none col-span-2 col-start-1 row-start-2 relative mx-auto flex w-fit max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-full p-1 xl:col-span-1 xl:col-start-2 xl:row-start-1 xl:justify-center xl:overflow-visible"
               aria-label="주요 화면"
               ref={mainTabNavRef}
             >
