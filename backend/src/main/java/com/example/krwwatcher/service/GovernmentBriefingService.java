@@ -30,7 +30,6 @@ public class GovernmentBriefingService {
 
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final int MAX_PAGE_SIZE = 30;
-    private static final int MIN_RELEVANCE_SCORE = 2;
     private static final int MAX_BACKFILL_MONTHS = 36;
     private static final List<BriefingCategoryRule> CATEGORY_RULES = List.of(
         new BriefingCategoryRule("monetary", "통화정책", List.of("기준금리", "금리", "통화정책", "한국은행", "금융통화위원회", "금통위", "유동성", "통화량", "M2")),
@@ -43,7 +42,6 @@ public class GovernmentBriefingService {
     private static final List<String> RELEVANT_CATEGORY_CODES = CATEGORY_RULES.stream()
         .map(BriefingCategoryRule::code)
         .toList();
-    private static final int MIN_BODY_LENGTH = 300;
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private final PolicyBriefingClient policyBriefingClient;
@@ -222,10 +220,6 @@ public class GovernmentBriefingService {
             params.add(pattern);
             params.add(pattern);
         }
-        conditions.add("body IS NOT NULL");
-        conditions.add("CHAR_LENGTH(body) >= ?");
-        params.add(MIN_BODY_LENGTH);
-
         if (conditions.isEmpty()) {
             return "";
         }
@@ -271,10 +265,6 @@ public class GovernmentBriefingService {
         }
 
         RelevanceResult relevance = relevance(payload);
-        if (relevance.score() < MIN_RELEVANCE_SCORE) {
-            return 0;
-        }
-
         return upsertBriefing(payload, relevance.categoryCode());
     }
 
@@ -343,9 +333,7 @@ public class GovernmentBriefingService {
     }
 
     private boolean isLowQualityBriefing(PolicyBriefingClient.PolicyBriefingPayload payload) {
-        String body = payload.body();
-        return !StringUtils.hasText(body)
-            || body.length() < MIN_BODY_LENGTH;
+        return !StringUtils.hasText(payload.title());
     }
 
     private boolean hasBriefingsFetchedToday() {
@@ -368,8 +356,6 @@ public class GovernmentBriefingService {
                 SELECT MAX(fetched_at)
                 FROM government_briefings
                 WHERE category IN (%s)
-                  AND body IS NOT NULL
-                  AND CHAR_LENGTH(body) >= ?
                 """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
             relevantCategoryQualityParams()
@@ -398,9 +384,7 @@ public class GovernmentBriefingService {
     }
 
     private Object[] relevantCategoryQualityParams() {
-        List<Object> params = new ArrayList<>(RELEVANT_CATEGORY_CODES);
-        params.add(MIN_BODY_LENGTH);
-        return params.toArray();
+        return RELEVANT_CATEGORY_CODES.toArray();
     }
 
     private String sha256(String value) {
