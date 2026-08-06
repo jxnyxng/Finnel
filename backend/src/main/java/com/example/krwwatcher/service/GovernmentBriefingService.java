@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.example.krwwatcher.external.PolicyBriefingClient;
@@ -371,7 +372,10 @@ public class GovernmentBriefingService {
                 """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
             relevantCategoryQualityParams()
-        ).stream().findFirst().orElse(null);
+        ).stream()
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
     }
 
     private Instant latestSuccessfulFetchOrSyncAt() {
