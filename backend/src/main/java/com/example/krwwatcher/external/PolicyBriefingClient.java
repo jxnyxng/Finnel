@@ -17,6 +17,8 @@ import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -33,6 +35,7 @@ import org.xml.sax.SAXParseException;
 public class PolicyBriefingClient {
 
     private static final Logger log = LoggerFactory.getLogger(PolicyBriefingClient.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String POLICY_NEWS_PATH = "/1371000/policyNewsService2/policyNewsList2";
     private static final int LATEST_LOOKBACK_DAYS = 2;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
@@ -101,6 +104,9 @@ public class PolicyBriefingClient {
         }
 
         String xmlBody = normalizeXmlBody(body);
+        if (xmlBody.startsWith("{")) {
+            return parseJsonItems(xmlBody);
+        }
         if (!xmlBody.startsWith("<")) {
             return List.of();
         }
@@ -220,6 +226,58 @@ public class PolicyBriefingClient {
         );
     }
 
+    private static List<PolicyBriefingPayload> parseJsonItems(String body) {
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(body);
+            validateJsonSuccessResponse(root);
+            JsonNode items = root.path("body").path("NewsItem");
+            if (items.isMissingNode() || items.isNull()) {
+                return List.of();
+            }
+            if (items.isObject()) {
+                return parseJsonItem(items);
+            }
+            if (!items.isArray()) {
+                return List.of();
+            }
+            List<PolicyBriefingPayload> payloads = new ArrayList<>();
+            for (JsonNode item : items) {
+                payloads.addAll(parseJsonItem(item));
+            }
+            return payloads;
+        } catch (IllegalStateException exception) {
+            throw exception;
+        } catch (Exception ignored) {
+            return List.of();
+        }
+    }
+
+    private static void validateJsonSuccessResponse(JsonNode root) {
+        String resultCode = text(root.path("header"), "resultCode");
+        if (!StringUtils.hasText(resultCode) || "0".equals(resultCode.trim())) {
+            return;
+        }
+        String resultMessage = text(root.path("header"), "resultMsg");
+        throw new IllegalStateException("Policy briefing API error: " + resultCode.trim()
+            + (StringUtils.hasText(resultMessage) ? " " + resultMessage.trim() : ""));
+    }
+
+    private static List<PolicyBriefingPayload> parseJsonItem(JsonNode item) {
+        PolicyBriefingPayload payload = new PolicyBriefingPayload(
+            clean(text(item, "Title", "title")),
+            clean(joinTexts(text(item, "SubTitle1", "subtitle1"), text(item, "SubTitle2", "subtitle2"), text(item, "SubTitle3", "subtitle3"))),
+            clean(text(item, "DataContents", "Contents", "Content", "content", "Body")),
+            clean(text(item, "MinisterCode", "MinisterName", "DeptName", "Department", "ministry")),
+            clean(text(item, "GroupingCode", "Category", "category")),
+            parsePublishedAt(text(item, "ApproveDate", "ModifyDate", "RegDate", "Date", "date")),
+            clean(text(item, "ThumbnailUrl", "ThumbnailURL", "thumbnailUrl")),
+            clean(text(item, "OriginalimgUrl", "OriginalImgUrl", "ImageUrl", "imageUrl")),
+            clean(text(item, "OriginalUrl", "OriginalURL", "Link", "link")),
+            clean(text(item, "KoglType", "koglType"))
+        );
+        return StringUtils.hasText(payload.title()) ? List.of(payload) : List.of();
+    }
+
     private static String firstText(Element element, String... names) {
         for (String name : names) {
             NodeList nodes = element.getElementsByTagName(name);
@@ -241,6 +299,16 @@ public class PolicyBriefingClient {
                 if (StringUtils.hasText(value)) {
                     return value;
                 }
+            }
+        }
+        return null;
+    }
+
+    private static String text(JsonNode item, String... names) {
+        for (String name : names) {
+            JsonNode value = item.path(name);
+            if (!value.isMissingNode() && !value.isNull() && StringUtils.hasText(value.asText())) {
+                return value.asText();
             }
         }
         return null;
