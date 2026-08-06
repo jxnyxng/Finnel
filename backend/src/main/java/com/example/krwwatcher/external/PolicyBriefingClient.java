@@ -29,7 +29,7 @@ import org.xml.sax.SAXParseException;
 public class PolicyBriefingClient {
 
     private static final String POLICY_NEWS_PATH = "/1371000/policyNewsService2/policyNewsList2";
-    private static final int LATEST_LOOKBACK_DAYS = 7;
+    private static final int LATEST_LOOKBACK_DAYS = 2;
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendPattern("yyyy-MM-dd")
@@ -98,6 +98,7 @@ public class PolicyBriefingClient {
             Element root = builder
                 .parse(new InputSource(new StringReader(xmlBody)))
                 .getDocumentElement();
+            validateSuccessResponse(root);
             List<PolicyBriefingPayload> payloads = new ArrayList<>();
             NodeList items = root.getElementsByTagName("item");
             if (items.getLength() == 0) {
@@ -113,9 +114,21 @@ public class PolicyBriefingClient {
                 }
             }
             return payloads;
+        } catch (IllegalStateException exception) {
+            throw exception;
         } catch (Exception ignored) {
             return List.of();
         }
+    }
+
+    private static void validateSuccessResponse(Element root) {
+        String resultCode = firstText(root, "resultCode");
+        if (!StringUtils.hasText(resultCode) || "0".equals(resultCode.trim())) {
+            return;
+        }
+        String resultMessage = firstText(root, "resultMsg");
+        throw new IllegalStateException("Policy briefing API error: " + resultCode.trim()
+            + (StringUtils.hasText(resultMessage) ? " " + resultMessage.trim() : ""));
     }
 
     private static PolicyBriefingPayload parseItem(Element item) {

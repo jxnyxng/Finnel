@@ -223,8 +223,6 @@ public class GovernmentBriefingService {
         conditions.add("body IS NOT NULL");
         conditions.add("CHAR_LENGTH(body) >= ?");
         params.add(MIN_BODY_LENGTH);
-        conditions.add("body NOT LIKE ?");
-        params.add("%정책뉴스로 자세히 보기%");
 
         if (conditions.isEmpty()) {
             return "";
@@ -345,8 +343,7 @@ public class GovernmentBriefingService {
     private boolean isLowQualityBriefing(PolicyBriefingClient.PolicyBriefingPayload payload) {
         String body = payload.body();
         return !StringUtils.hasText(body)
-            || body.length() < MIN_BODY_LENGTH
-            || body.contains("정책뉴스로 자세히 보기");
+            || body.length() < MIN_BODY_LENGTH;
     }
 
     private boolean hasBriefingsFetchedToday() {
@@ -371,7 +368,6 @@ public class GovernmentBriefingService {
                 WHERE category IN (%s)
                   AND body IS NOT NULL
                   AND CHAR_LENGTH(body) >= ?
-                  AND body NOT LIKE ?
                 """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
             relevantCategoryQualityParams()
@@ -399,7 +395,6 @@ public class GovernmentBriefingService {
     private Object[] relevantCategoryQualityParams() {
         List<Object> params = new ArrayList<>(RELEVANT_CATEGORY_CODES);
         params.add(MIN_BODY_LENGTH);
-        params.add("%정책뉴스로 자세히 보기%");
         return params.toArray();
     }
 
