@@ -116,7 +116,7 @@ public class PolicyBriefingClient {
                     }
                 }
             }
-            return payloads;
+            return payloads.isEmpty() ? parseItemsLeniently(xmlBody) : payloads;
         } catch (IllegalStateException exception) {
             throw exception;
         } catch (Exception ignored) {
