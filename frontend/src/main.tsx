@@ -765,7 +765,7 @@ function App() {
             </button>
           {isMainAppPage ? (
             <nav
-              className="scrollbar-none col-span-2 col-start-1 row-start-2 relative mx-auto flex w-fit max-w-full flex-wrap justify-center gap-1 overflow-visible rounded-full p-1 xl:col-span-1 xl:col-start-2 xl:row-start-1"
+              className="scrollbar-none col-span-2 col-start-1 row-start-2 relative mx-auto flex w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-full p-1 xl:col-span-1 xl:col-start-2 xl:row-start-1 xl:w-fit xl:justify-center xl:overflow-visible"
               aria-label="주요 화면"
               ref={mainTabNavRef}
             >
