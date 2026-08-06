@@ -1,6 +1,7 @@
 package com.example.krwwatcher.external;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -83,6 +84,61 @@ class ExternalClientContractTest {
         );
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void policyBriefingApiErrorResponseThrows() {
+        assertThatThrownBy(() -> PolicyBriefingClient.parseItems(
+            """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <header>
+                    <resultCode>98</resultCode>
+                    <resultMsg>THREE_DAYS_OVER_ERROR</resultMsg>
+                  </header>
+                  <body></body>
+                </response>
+                """
+        ))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("THREE_DAYS_OVER_ERROR");
+    }
+
+    @Test
+    void policyBriefingNewsItemResponseParsesKoreanContentAndUsDate() {
+        List<PolicyBriefingClient.PolicyBriefingPayload> result = PolicyBriefingClient.parseItems(
+            """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <response>
+                  <header>
+                    <resultCode>0</resultCode>
+                    <resultMsg>NORMAL_SERVICE</resultMsg>
+                  </header>
+                  <body>
+                    <NewsItem>
+                      <ModifyDate>08/05/2026 08:49:29</ModifyDate>
+                      <ApproveDate>08/04/2026 20:49:00</ApproveDate>
+                      <GroupingCode>visual</GroupingCode>
+                      <Title><![CDATA["중소기업부터 골목상권까지 성장의 온기가 전달되도록"]]></Title>
+                      <SubTitle1><![CDATA[이재명 대통령 주재 국민과 함께하는 두 번째 업무보고(2026.8.4.)]]></SubTitle1>
+                      <DataContents><![CDATA[
+                        <p>정부는 중소기업과 소상공인 지원, 공정거래 질서 확립, 수출 회복과 물가 안정을 위한 정책 대응을 이어간다.</p>
+                      ]]></DataContents>
+                      <MinisterCode>문화체육관광부</MinisterCode>
+                      <OriginalUrl><![CDATA[https://www.korea.kr/multi/visualNewsView.do?newsId=148969392&call_from=openData]]></OriginalUrl>
+                      <KoglType><![CDATA[4]]></KoglType>
+                    </NewsItem>
+                  </body>
+                </response>
+                """
+        );
+
+        assertThat(result).hasSize(1);
+        PolicyBriefingClient.PolicyBriefingPayload payload = result.get(0);
+        assertThat(payload.title()).isEqualTo("\"중소기업부터 골목상권까지 성장의 온기가 전달되도록\"");
+        assertThat(payload.body()).contains("중소기업과 소상공인 지원");
+        assertThat(payload.category()).isEqualTo("visual");
+        assertThat(payload.publishedAt()).isNotNull();
     }
 
     @Test
