@@ -44,6 +44,7 @@ Required or active keys:
 Useful non-secret defaults:
 
 - `MARKET_DATA_SYNC_ZONE=Asia/Seoul`
+- `JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul`
 - `OPENFISCAL_BASE_URL=https://www.openfiscaldata.go.kr`
 - `FRED_CREDIT_SPREAD_PROXY_SERIES_ID=BAMLH0A0HYM2`
 
@@ -83,6 +84,7 @@ Before production deploy:
 
 - Back up the production database before applying new Flyway migrations.
 - Confirm Flyway applied `V18__fix_macro_indicator_unit_conversions.sql` exactly once.
+- Run the backend JVM with `-Duser.timezone=Asia/Seoul`; for systemd, set `Environment="JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul"`.
 - Set `SYNC_ADMIN_TOKEN`; leave `SYNC_ALLOWED_INTERNAL_CIDRS` empty unless the runtime network path is trusted.
 - Set `CORS_ALLOWED_ORIGINS` to the production frontend origin.
 - Check `/actuator/health`, `/api/v1/dashboard/daily`, `/api/v1/sync/market-data/status`, and `/api/v1/sync/intraday-exchange/status` after deploy.
@@ -92,6 +94,7 @@ Before production deploy:
 - Backend loads both `.env` and `backend/.env`.
 - External APIs are called by scheduler/manual sync jobs, not directly from frontend page loads.
 - Dashboard APIs read latest stored MySQL data.
+- Intraday USD/KRW `observed_at` is stored as Korea local wall-clock time. Dashboard API `usdKrwIntradaySeries[].observedAt` returns the equivalent instant in ISO-8601 UTC form, and the frontend renders it in `Asia/Seoul`.
 - API keys must never be committed or printed.
 - USD/KRW 1-day chart must use real Twelve Data intraday rows only. Do not fabricate flat projected rows.
 - On weekends/non-business days, show the latest displayable weekday intraday session. Avoid stale flat weekend sessions.

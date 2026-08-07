@@ -208,8 +208,8 @@ public class DashboardService {
             "환율 현재 압력",
             latestUsdKrw == null ? null : latestUsdKrw.value(),
             "KRW",
-            latestIntraday == null ? latestUsdKrw == null ? null : latestUsdKrw.baseDate() : latestIntraday.observedAt().toLocalDate(),
-            latestIntraday == null ? null : latestIntraday.observedAt().atZone(SEOUL_ZONE).toInstant(),
+            latestIntraday == null ? latestUsdKrw == null ? null : latestUsdKrw.baseDate() : toSeoulDateTime(latestIntraday.observedAt()).toLocalDate(),
+            latestIntraday == null ? null : latestIntraday.observedAt(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getDealBasRate(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getBaseDate(),
             latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min",
@@ -542,7 +542,7 @@ public class DashboardService {
         }
 
         IntradayTimeSeriesPoint latestIntraday = intradaySeries.get(intradaySeries.size() - 1);
-        LocalDate intradayDate = latestIntraday.observedAt().toLocalDate();
+        LocalDate intradayDate = toSeoulDateTime(latestIntraday.observedAt()).toLocalDate();
         TimeSeriesPoint intradayPoint = new TimeSeriesPoint(intradayDate, latestIntraday.value());
         if (dailySeries.isEmpty()) {
             return List.of(intradayPoint);
@@ -588,7 +588,7 @@ public class DashboardService {
                 ORDER BY observed_at ASC
                 """,
             (rs, rowNum) -> new IntradayTimeSeriesPoint(
-                rs.getTimestamp("observed_at").toLocalDateTime(),
+                toSeoulInstant(rs.getObject("observed_at", LocalDateTime.class)),
                 rs.getBigDecimal("close_rate"),
                 rs.getTimestamp("fetched_at").toInstant()
             ),
@@ -605,7 +605,7 @@ public class DashboardService {
                 FROM intraday_exchange_rates
                 WHERE currency_pair = ?
                 """,
-            (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toLocalDateTime(),
+            (rs, rowNum) -> rs.getObject(1, LocalDateTime.class),
             properties.twelveData().usdKrwSymbol()
         ).stream().filter(Objects::nonNull).findFirst().orElse(null);
         if (latestObservedAt == null) {
@@ -636,7 +636,7 @@ public class DashboardService {
 
         LocalDateTime seoulNow = LocalDateTime.ofInstant(now, SEOUL_ZONE);
         if (latestIntraday != null && UsdKrwIntradaySession.activeSessionStartDate(seoulNow) != null) {
-            Instant lastObservedAt = latestIntraday.observedAt().atZone(SEOUL_ZONE).toInstant();
+            Instant lastObservedAt = latestIntraday.observedAt();
             Instant expectedNextUpdateAt = lastObservedAt.plus(Duration.ofMinutes(10));
             return now.isAfter(expectedNextUpdateAt)
                 ? staleFreshness("USD/KRW 1분봉이 장중 허용 지연 10분을 넘었습니다.", expectedNextUpdateAt, latestIntraday.fetchedAt())
@@ -658,6 +658,14 @@ public class DashboardService {
             case "RESERVES_TO_SHORT_TERM_DEBT" -> freshnessByMonths(code, baseDate, value, fetchedAt, now, 4);
             default -> freshnessByMonths(code, baseDate, value, fetchedAt, now, 2);
         };
+    }
+
+    private Instant toSeoulInstant(LocalDateTime localDateTime) {
+        return localDateTime.atZone(SEOUL_ZONE).toInstant();
+    }
+
+    private LocalDateTime toSeoulDateTime(Instant instant) {
+        return LocalDateTime.ofInstant(instant, SEOUL_ZONE);
     }
 
     private FreshnessInfo freshnessByBusinessDays(String label, LocalDate baseDate, BigDecimal value, Instant fetchedAt, Instant now, int allowedBusinessDays) {
@@ -1631,7 +1639,7 @@ public class DashboardService {
     }
 
     public record IntradayTimeSeriesPoint(
-        LocalDateTime observedAt,
+        Instant observedAt,
         BigDecimal value,
         Instant fetchedAt
     ) {
