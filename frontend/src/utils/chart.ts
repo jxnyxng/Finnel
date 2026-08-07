@@ -10,6 +10,7 @@ import type { ChartPoint, IntradayTimeSeriesPoint, RangeKey, TimeSeriesPoint } f
 const daylightSavingSessionStartMinutes = 6 * 60;
 const standardSessionStartMinutes = 7 * 60;
 const intradaySessionDurationMinutes = 24 * 60;
+const explicitTimeZonePattern = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 
 export function getRangeLabel(range: RangeKey | Exclude<RangeKey, '1D'>) {
   return rangeOptions.find((option) => option.key === range)?.label
@@ -53,12 +54,15 @@ export function buildVisibleUsdKrwSeries(
   if (range === '1D') {
     const sessionStartDate = getIntradaySessionStartDate(intradaySeries[0].observedAt);
     const [sessionStartMinute, sessionEndMinute] = getIntradaySessionDomain(sessionStartDate);
-    const points = intradaySeries.map((point) => ({
-      label: normalizeDateTime(point.observedAt).slice(11, 16),
-      dateValue: normalizeDateTime(point.observedAt),
-      x: getSessionMinute(point.observedAt, sessionStartDate),
-      value: point.value,
-    })).filter((point) => point.x >= sessionStartMinute && point.x <= sessionEndMinute);
+    const points = intradaySeries.map((point) => {
+      const displayDateTime = normalizeDateTime(point.observedAt);
+      return {
+        label: displayDateTime.slice(11, 16),
+        dateValue: displayDateTime,
+        x: getSessionMinute(displayDateTime, sessionStartDate),
+        value: point.value,
+      };
+    }).filter((point) => point.x >= sessionStartMinute && point.x <= sessionEndMinute);
 
     if (points.length === 0) {
       return [];
@@ -213,7 +217,7 @@ export function getLatestIntradayDate(series: IntradayTimeSeriesPoint[]) {
     return null;
   }
 
-  return series[series.length - 1].observedAt.slice(0, 10);
+  return normalizeDateTime(series[series.length - 1].observedAt).slice(0, 10);
 }
 
 export function isCurrentIntradaySession(series: IntradayTimeSeriesPoint[], seoulDate: string, seoulTime: string) {
@@ -272,8 +276,9 @@ function filterDailySeriesByRange(series: TimeSeriesPoint[], range: RangeKey) {
 }
 
 function getSessionMinute(dateTime: string, sessionStartDate: string) {
-  const date = dateTime.slice(0, 10);
-  const time = dateTime.slice(11, 16);
+  const displayDateTime = normalizeDateTime(dateTime);
+  const date = displayDateTime.slice(0, 10);
+  const time = displayDateTime.slice(11, 16);
   const [hour, minute] = time.split(':').map(Number);
 
   if (date === sessionStartDate) {
@@ -284,8 +289,9 @@ function getSessionMinute(dateTime: string, sessionStartDate: string) {
 }
 
 export function getIntradaySessionStartDate(dateTime: string) {
-  const date = dateTime.slice(0, 10);
-  const [hour, minute] = dateTime.slice(11, 16).split(':').map(Number);
+  const displayDateTime = normalizeDateTime(dateTime);
+  const date = displayDateTime.slice(0, 10);
+  const [hour, minute] = displayDateTime.slice(11, 16).split(':').map(Number);
   const candidate = hour * 60 + minute >= getUsdKrwSessionStartMinutes(date)
     ? date
     : getPreviousUsdKrwSessionStartDate(date);
@@ -327,7 +333,32 @@ function shiftDate(date: string, days: number) {
 }
 
 function normalizeDateTime(dateTime: string) {
-  return dateTime.includes('T') ? dateTime : dateTime.replace(' ', 'T');
+  const normalized = dateTime.includes('T') ? dateTime : dateTime.replace(' ', 'T');
+  if (!explicitTimeZonePattern.test(normalized)) {
+    return normalized;
+  }
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return normalized;
+  }
+
+  return formatDateTimeInSeoul(date);
+}
+
+function formatDateTimeInSeoul(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '00';
+  return `${value('year')}-${value('month')}-${value('day')}T${value('hour')}:${value('minute')}:${value('second')}`;
 }
 
 function formatIntradaySessionLabel(series: ChartPoint[]) {
