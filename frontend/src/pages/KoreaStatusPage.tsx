@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ChartEmptyState } from '../components/ChartElements';
+import { ChartEmptyState, ChartHelpTooltip } from '../components/ChartElements';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
 import { formatMetricUnit, formatValue } from '../utils/format';
@@ -69,7 +69,7 @@ const sectionTabs = [
   { key: 'risk', label: '자본·리스크' }
 ];
 
-const sectionTabMinButtonWidth = 96;
+const sectionTabMinButtonWidth = 82;
 
 const historyRangeOptions: Array<{ key: HistoryRangeKey; label: string }> = [
   { key: '1Y', label: '1년' },
@@ -88,6 +88,7 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
     containerRef: sectionTabNavRef,
     indicator: sectionTabIndicator,
     isMoving: isSectionTabIndicatorMoving,
+    labelActiveKey: activeSectionLabelKey,
     startMoving: startSectionTabIndicatorMoving
   } = useMovingTabIndicator({
     activeKey: activeSectionKey,
@@ -98,32 +99,39 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
   const indicatorMap = new Map(indicators.map((indicator) => [indicator.code, indicator]));
   const collectedIndicators = indicators.filter((indicator) => indicator.value !== null);
   const visibleSections = activeSectionKey === 'all' ? sections : sections.filter((section) => section.key === activeSectionKey);
+  const cleanLatestSyncLabel = latestSyncLabel
+    .replace(/\s·\s(?:SUCCESS|RUNNING|FAILED|PARTIAL_SUCCESS|UNKNOWN)(?=\s·|$)/g, '')
+    .replace(/\s·\sSKIPPED[^·]*(?=\s·|$)/g, '');
 
   return (
     <section className="grid min-w-0 gap-4">
-      <header className="glass-card min-w-0 rounded-2xl px-4 py-3 shadow-sm">
-        <div className="grid gap-2">
-          <div className="min-w-0 leading-tight">
-            <p className="text-[11px] font-semibold text-teal-100">관련 지표</p>
-            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold text-white">원화 관련 정책·거시 지표</h2>
-              <SummaryBox label="수집 지표" value={`${collectedIndicators.length}개`} />
-            </div>
-            <p className="mt-1 truncate text-[11px] text-white/60">{latestSyncLabel}</p>
-          </div>
-          <div className="flex min-w-0 justify-start md:justify-end">
+      <header className="page-tab-header page-tab-header-after-news">
+        <div className="min-w-0">
+          <p className="page-tab-eyebrow">관련 지표</p>
+          <h2 className="page-tab-title">원화 관련 정책·거시 지표</h2>
+          <p className="page-tab-description">금리, 물가, 무역수지, 외환보유액처럼 원화 흐름을 해석할 때 함께 보는 지표를 정리합니다.</p>
+        </div>
+        <div className="flex w-full min-w-0 items-center justify-end gap-3">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <ChartHelpTooltip ariaLabel="관련 지표 수집 정보" title="관련 지표 수집 정보" widthClassName="w-80">
+              <p className="mt-1">수집 지표 {collectedIndicators.length}개</p>
+              <p className="mt-1">{cleanLatestSyncLabel}</p>
+            </ChartHelpTooltip>
             {statusNode}
+          </div>
+          <div className="shrink-0">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
           </div>
         </div>
       </header>
 
-      <nav className="glass-card flex min-w-0 flex-col items-stretch gap-2 rounded-2xl p-1 shadow-sm lg:flex-row lg:items-center lg:justify-between lg:rounded-full" aria-label="국내 현황 범주">
+      <nav className="glass-card flex min-w-0 items-stretch rounded-full p-0.5 shadow-sm lg:items-center lg:justify-between" aria-label="국내 현황 범주">
         <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden lg:overflow-visible" ref={sectionTabNavRef}>
           <MovingTabIndicator contained indicator={sectionTabIndicator} isMoving={isSectionTabIndicatorMoving} />
           {sectionTabs.map((tab) => (
             <button
-              className={`relative z-10 h-10 rounded-full px-3 text-xs font-semibold transition-colors duration-150 sm:px-4 ${
-                activeSectionKey === tab.key ? 'text-white' : 'text-white/60 hover:text-white'
+              className={`relative z-10 h-8 rounded-full px-2.5 text-[11px] font-semibold transition-colors duration-150 sm:px-3 ${
+                activeSectionLabelKey === tab.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
               }`}
               key={tab.key}
               onClick={() => {
@@ -142,7 +150,6 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
             </button>
           ))}
         </div>
-        <ViewModeToggle value={viewMode} onChange={setViewMode} />
       </nav>
 
       {isLoading ? (
@@ -195,16 +202,16 @@ function ViewModeToggle({
   value: 'card' | 'list';
 }) {
   const viewModeKeys = React.useMemo(() => ['card', 'list'] as const, []);
-  const { buttonRefs, containerRef, indicator, isMoving, startMoving } = useMovingTabIndicator({
+  const { buttonRefs, containerRef, indicator, isMoving, labelActiveKey, startMoving } = useMovingTabIndicator({
     activeKey: value,
     keys: viewModeKeys
   });
 
   return (
-    <div className="relative grid h-8 shrink-0 grid-cols-2 overflow-hidden rounded-full border border-white/15 bg-white/10 p-0.5" ref={containerRef}>
+    <div className="relative grid h-7 shrink-0 grid-cols-2 overflow-hidden rounded-full border border-zinc-200 bg-white p-0.5" ref={containerRef}>
       <MovingTabIndicator compact contained indicator={indicator} isMoving={isMoving} />
       <button
-        className={`relative z-10 h-7 min-w-12 rounded-full px-2 text-[11px] font-semibold transition-colors duration-150 ${value === 'card' ? 'text-white' : 'text-white/60 hover:text-white'}`}
+        className={`relative z-10 h-6 min-w-10 rounded-full px-1.5 text-[10px] font-semibold transition-colors duration-150 ${labelActiveKey === 'card' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
         onClick={() => {
           if (value !== 'card') {
             startMoving();
@@ -219,7 +226,7 @@ function ViewModeToggle({
         카드
       </button>
       <button
-        className={`relative z-10 h-7 min-w-12 rounded-full px-2 text-[11px] font-semibold transition-colors duration-150 ${value === 'list' ? 'text-white' : 'text-white/60 hover:text-white'}`}
+        className={`relative z-10 h-6 min-w-10 rounded-full px-1.5 text-[10px] font-semibold transition-colors duration-150 ${labelActiveKey === 'list' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
         onClick={() => {
           if (value !== 'list') {
             startMoving();
@@ -234,15 +241,6 @@ function ViewModeToggle({
         리스트
       </button>
     </div>
-  );
-}
-
-function SummaryBox({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-white/55">
-      <span>{label}</span>
-      <span className="font-semibold text-white">{value}</span>
-    </span>
   );
 }
 
@@ -443,9 +441,9 @@ function IndicatorInfoPanel({
   }
 
   return createPortal(
-    <div className="modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/35 px-4 py-6" onClick={onClose}>
+    <div className="modal-overlay responsive-modal-overlay fixed inset-0 z-[100] flex bg-zinc-950/35" onClick={onClose}>
       <section
-        className="modal-panel modal-scroll-area glass-modal max-h-[min(760px,calc(100vh-3rem))] w-full max-w-3xl overflow-y-auto rounded-2xl p-6 text-sm shadow-xl"
+        className="modal-panel modal-scroll-area glass-modal responsive-modal-panel responsive-modal-scroll rounded-2xl p-4 text-sm shadow-xl sm:p-5 md:p-6"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
@@ -454,14 +452,14 @@ function IndicatorInfoPanel({
             <h3 className="mt-1 text-base font-semibold text-white">{indicator.title}</h3>
           </div>
           <button
-            className="h-7 rounded-md border border-white/15 bg-white/10 px-2 text-xs font-semibold text-white/60 hover:text-white"
+            className="h-7 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
             onClick={onClose}
             type="button"
           >
             닫기
           </button>
         </div>
-        <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-2xl border border-white/10 bg-white/8 p-4 text-xs md:grid-cols-2">
+        <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-2xl border border-zinc-200 bg-white p-4 text-xs shadow-sm md:grid-cols-2">
           <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
           <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
           <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
@@ -470,12 +468,12 @@ function IndicatorInfoPanel({
           <InfoPanelRow label="최신성" value={indicator.freshnessReason ?? collectionStatusLabel(indicator)} />
         </dl>
         {(indicator.componentFreshnesses ?? []).length > 0 ? (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/8 p-4">
-            <p className="text-xs font-semibold text-white/70">계산에 사용한 데이터</p>
+          <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold text-zinc-700">계산에 사용한 데이터</p>
             <div className="mt-3 grid gap-2">
               {(indicator.componentFreshnesses ?? []).map((component) => (
-                <div className="grid gap-x-3 gap-y-1 rounded-lg bg-white/5 p-3 text-[11px] text-white/55 md:grid-cols-[minmax(0,1fr)_96px_96px_64px]" key={component.code}>
-                  <span className="min-w-0 font-semibold text-white/80">{component.title}</span>
+                <div className="grid gap-x-3 gap-y-1 rounded-lg bg-zinc-50 p-3 text-[11px] text-zinc-500 md:grid-cols-[minmax(0,1fr)_96px_96px_64px]" key={component.code}>
+                  <span className="min-w-0 font-semibold text-zinc-800">{component.title}</span>
                   <span>기준 {component.baseDate ?? '-'}</span>
                   <span>수집 {component.fetchedAt ? component.fetchedAt.slice(0, 10) : '-'}</span>
                   <span>{component.freshnessReason ?? component.freshnessStatus}</span>
@@ -485,11 +483,11 @@ function IndicatorInfoPanel({
           </div>
         ) : null}
         {hasChart ? (
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/8 p-4">
+          <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold text-white">과거 흐름</p>
-                <p className="mt-0.5 text-[11px] text-white/55">
+                <p className="text-xs font-semibold text-zinc-800">과거 흐름</p>
+                <p className="mt-0.5 text-[11px] text-zinc-500">
                   {history ? `${history.startDate} - ${history.endDate} · ${history.points.length}개 관측치` : '기간별 저장 데이터를 조회합니다.'}
                 </p>
               </div>
@@ -505,17 +503,17 @@ function IndicatorInfoPanel({
             </div>
           </div>
         ) : null}
-        <div className="mt-5 rounded-2xl bg-white/8 p-4 text-xs leading-5 text-white/75">
+        <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-700 shadow-sm">
           {indicator.krwImpact}
         </div>
-        <div className="mt-3 rounded-2xl bg-white/8 p-4 text-xs leading-5 text-white/65">
-          <p className="font-semibold text-white/80">수집 기준</p>
+        <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-600 shadow-sm">
+          <p className="font-semibold text-zinc-800">수집 기준</p>
           <p className="mt-1">{indicator.note}</p>
         </div>
         {indicator.sourceUrl ? (
           <div className="mt-4 flex justify-end">
             <a
-              className="inline-flex h-8 items-center rounded-md border border-white/15 bg-white/8 px-3 text-[11px] font-semibold text-white/65 hover:border-teal-200/40 hover:bg-teal-300/10 hover:text-teal-50"
+              className="inline-flex h-8 items-center text-[11px] font-semibold text-zinc-950 underline-offset-4 hover:underline"
               href={indicator.sourceUrl}
               rel="noreferrer"
               target="_blank"
@@ -544,7 +542,7 @@ function HistoryRangeSelector({
     [history]
   );
   const optionKeys = React.useMemo(() => options.map((option) => option.key), [options]);
-  const { buttonRefs, containerRef, indicator, isMoving, startMoving } = useMovingTabIndicator({
+  const { buttonRefs, containerRef, indicator, isMoving, labelActiveKey, startMoving } = useMovingTabIndicator({
     activeKey: value,
     keys: optionKeys
   });
@@ -558,12 +556,12 @@ function HistoryRangeSelector({
   }
 
   return (
-    <div className="relative inline-flex h-10 shrink-0 rounded-full border border-white/15 bg-white/10 p-0.5" ref={containerRef}>
+    <div className="relative inline-flex h-10 shrink-0 rounded-full border border-zinc-200 bg-white p-0.5 shadow-sm" ref={containerRef}>
       <MovingTabIndicator indicator={indicator} isMoving={isMoving} />
       {options.map((option) => (
         <button
           className={`relative z-10 inline-flex h-full min-w-14 items-center justify-center rounded-full px-3 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
-            value === option.key ? 'text-white' : 'text-white/60 hover:text-white'
+            labelActiveKey === option.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
           }`}
           key={option.key}
           onClick={() => {
@@ -636,13 +634,13 @@ function DomesticIndicatorHistoryChart({
           <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 4 }}>
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.62)' }}
+              tick={{ fontSize: 10, fill: 'rgba(75,85,99,0.82)' }}
               tickLine={false}
               axisLine={false}
               minTickGap={28}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.62)' }}
+              tick={{ fontSize: 10, fill: 'rgba(75,85,99,0.82)' }}
               tickLine={false}
               axisLine={false}
               width={52}
@@ -661,16 +659,16 @@ function DomesticIndicatorHistoryChart({
             <Line
               type="monotone"
               dataKey="value"
-              stroke="#5eead4"
+              stroke="#0f766e"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: '#5eead4', stroke: '#ffffff', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: '#0f766e', stroke: '#ffffff', strokeWidth: 2 }}
               isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/55">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-500">
         <span>현재 {formatIndicatorValue(indicator)} {formatMetricUnit(indicator.unit)}</span>
         {history.averageValue !== null ? <span>기간 평균 {formatHistoryValue(history.averageValue, history.unit)}</span> : null}
       </div>
@@ -711,8 +709,8 @@ function HistoryTooltip({
   }
 
   return (
-    <div className="chart-hover-tooltip w-48 rounded-md border border-white/15 bg-zinc-950/85 px-3 py-2 text-xs text-white shadow-sm backdrop-blur-md">
-      <p className="font-semibold text-white">{title}</p>
+    <div className="chart-hover-tooltip w-48 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 shadow-lg shadow-zinc-950/10">
+      <p className="font-semibold text-zinc-950">{title}</p>
       <dl className="mt-2 grid gap-1.5">
         <TooltipRow label="날짜" value={point.baseDate} />
         <TooltipRow label="값" value={formatHistoryValue(point.value, unit)} />
@@ -724,8 +722,8 @@ function HistoryTooltip({
 function TooltipRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="text-white/45">{label}</dt>
-      <dd className="font-semibold text-white/85">{value}</dd>
+      <dt className="text-zinc-400">{label}</dt>
+      <dd className="font-semibold text-zinc-800">{value}</dd>
     </div>
   );
 }
@@ -733,8 +731,8 @@ function TooltipRow({ label, value }: { label: string; value: string }) {
 function InfoPanelRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-3">
-      <dt className="text-white/45">{label}</dt>
-      <dd className="min-w-0 break-words font-medium text-white/85">{value}</dd>
+      <dt className="text-zinc-500">{label}</dt>
+      <dd className="min-w-0 break-words font-medium text-zinc-800">{value}</dd>
     </div>
   );
 }
