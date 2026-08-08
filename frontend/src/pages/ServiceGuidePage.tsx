@@ -40,30 +40,30 @@ export function ServiceGuidePage() {
     <section className="relative left-1/2 -my-4 w-screen -translate-x-1/2">
       {slides.map((slide, index) => (
         <section
-          className="relative min-h-[calc(100vh-2.75rem)] overflow-hidden bg-zinc-950"
+          className="relative min-h-[calc(100vh-2.75rem)] overflow-hidden bg-zinc-50"
           key={slide.title}
         >
           <div
-            className="absolute inset-0 scale-105 bg-cover blur-[2px]"
+            className="absolute inset-0 scale-105 bg-cover opacity-20 blur-[2px] saturate-75"
             style={{
               backgroundImage: `url(${serviceIntroHero})`,
               backgroundPosition: slide.imagePosition
             }}
           />
-          <div className="absolute inset-0 bg-zinc-950/45" />
-          <div className={`absolute inset-0 ${index % 2 === 0 ? 'bg-gradient-to-r' : 'bg-gradient-to-l'} from-zinc-950/95 via-zinc-950/50 to-transparent`} />
+          <div className="absolute inset-0 bg-white/78" />
+          <div className={`absolute inset-0 ${index % 2 === 0 ? 'bg-gradient-to-r' : 'bg-gradient-to-l'} from-white via-white/86 to-transparent`} />
           <div className="relative z-10 flex min-h-[calc(100vh-2.75rem)] items-center justify-center px-6 py-16 md:px-14 md:py-20">
             <div className={`flex w-full max-w-[88vw] flex-col md:max-w-[60vw] ${slide.placement}`}>
-              <p className="text-sm font-semibold text-teal-200 drop-shadow">{slide.eyebrow}</p>
-              <h2 className="mt-5 text-4xl font-semibold leading-[1.08] tracking-normal text-white drop-shadow-2xl md:text-5xl">
+              <p className="text-sm font-semibold text-teal-700">{slide.eyebrow}</p>
+              <h2 className="mt-5 text-4xl font-semibold leading-[1.08] tracking-normal text-zinc-950 md:text-5xl">
                 {slide.title}
               </h2>
-              <div className="mt-6 grid max-w-3xl gap-1 text-base leading-7 text-zinc-100 drop-shadow md:text-lg md:leading-8">
+              <div className="mt-6 grid max-w-3xl gap-1 text-base leading-7 text-zinc-600 md:text-lg md:leading-8">
                 {slide.body.map((sentence) => (
                   <p key={sentence}>{sentence}</p>
                 ))}
               </div>
-              <div className="mt-8 grid max-w-3xl gap-1 text-sm font-semibold leading-6 text-teal-100 drop-shadow md:text-base">
+              <div className="mt-8 grid max-w-3xl gap-1 text-sm font-semibold leading-6 text-teal-700 md:text-base">
                 {slide.action.map((sentence) => (
                   <p key={sentence}>{sentence}</p>
                 ))}

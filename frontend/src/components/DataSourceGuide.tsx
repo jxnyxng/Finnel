@@ -14,12 +14,15 @@ const sourceIcons: Record<string, string> = {
 export function DataSourceGuide({ dataSources }: { dataSources: DataSourceInfo[] }) {
   return (
     <section className="grid min-w-0 gap-4">
-      <header className="glass-card min-w-0 rounded-2xl p-5 shadow-sm">
-        <p className="text-xs font-semibold text-teal-100">DATA SOURCES</p>
-        <h2 className="mt-2 text-xl font-semibold text-white">데이터 출처</h2>
-        <p className="mt-3 text-sm leading-6 text-white/70">
-          코리아원은 화면에서 외부 서비스를 직접 호출하지 않습니다. 백엔드 수집 작업이 아래 공개 API와 데이터 파일에서 값을 가져와 DB에 저장하고, 화면은 저장된 최신 값을 조회합니다.
-        </p>
+      <header className="page-tab-header">
+        <div className="min-w-0">
+          <p className="page-tab-eyebrow">DATA SOURCES</p>
+          <h2 className="page-tab-title">데이터 출처</h2>
+          <p className="page-tab-description">
+            코리아원은 화면에서 외부 서비스를 직접 호출하지 않습니다. 백엔드 수집 작업이 아래 공개 API와 데이터 파일에서 값을 가져와 DB에 저장하고, 화면은 저장된 최신 값을 조회합니다.
+          </p>
+        </div>
+        <div className="page-tab-meta" />
       </header>
 
       <div className="grid min-w-0 gap-3 md:grid-cols-2">

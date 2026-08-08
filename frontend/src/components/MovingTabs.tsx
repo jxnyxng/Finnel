@@ -9,7 +9,7 @@ export type MovingTabIndicatorState = {
 };
 
 const emptyIndicator: MovingTabIndicatorState = { containerHeight: 0, height: 0, left: 0, top: 0, width: 0 };
-const movingTabMotionMs = 360;
+const movingTabMotionMs = 180;
 
 export function MovingTabIndicator({
   compact = false,
@@ -26,7 +26,7 @@ export function MovingTabIndicator({
     return null;
   }
 
-  const compactInset = compact ? 2 : 0;
+  const compactInset = 0;
   const height = compact ? Math.max(0, indicator.height - compactInset * 2) : indicator.height;
   const left = compact ? indicator.left + compactInset : contained ? indicator.left : indicator.left + 1;
   const top = compact
@@ -38,7 +38,7 @@ export function MovingTabIndicator({
 
   return (
     <span
-      className="moving-tab-indicator-frame pointer-events-none absolute left-0 top-0"
+      className={`moving-tab-indicator-frame pointer-events-none absolute left-0 top-0 ${isMoving ? 'moving-tab-indicator-frame-moving' : ''}`}
       style={{
         height,
         transform: `translate(${left}px, ${top}px)`,
@@ -64,9 +64,11 @@ export function useMovingTabIndicator<T extends string>({
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const buttonRefs = React.useRef<Partial<Record<T, HTMLButtonElement | null>>>({});
   const motionTimeoutRef = React.useRef<number | null>(null);
+  const activeKeyRef = React.useRef<T | null>(activeKey);
   const [buttonWidth, setButtonWidth] = React.useState(minButtonWidth);
   const [indicator, setIndicator] = React.useState<MovingTabIndicatorState>(emptyIndicator);
   const [isMoving, setIsMoving] = React.useState(false);
+  const [labelActiveKey, setLabelActiveKey] = React.useState<T | null>(activeKey);
 
   const updateIndicator = React.useCallback(() => {
     const container = containerRef.current;
@@ -117,6 +119,11 @@ export function useMovingTabIndicator<T extends string>({
     }, movingTabMotionMs);
   }, []);
 
+  React.useEffect(() => {
+    activeKeyRef.current = activeKey;
+    setLabelActiveKey(activeKey);
+  }, [activeKey]);
+
   React.useLayoutEffect(() => {
     updateIndicator();
     const animationFrame = window.requestAnimationFrame(updateIndicator);
@@ -142,6 +149,7 @@ export function useMovingTabIndicator<T extends string>({
     containerRef,
     indicator,
     isMoving,
+    labelActiveKey,
     startMoving
   };
 }

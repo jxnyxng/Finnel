@@ -30,5 +30,8 @@ export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
   { key: 'koreaStatus', label: '관련 지표' },
   { key: 'governmentBriefings', label: '정부 정책' },
   { key: 'newsroom', label: '뉴스 검색' },
-  { key: 'ranking', label: '화폐 랭킹' }
+  { key: 'ranking', label: '화폐 랭킹' },
+  { key: 'calculator', label: '환전 계산' },
+  { key: 'dataSources', label: '데이터 출처' },
+  { key: 'exchangeGuide', label: '환율이란' }
 ];
