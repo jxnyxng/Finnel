@@ -2,16 +2,16 @@ import React from 'react';
 
 const conceptCards = [
   {
-    title: '환율은 돈의 교환 가격입니다',
-    body: 'USD/KRW 1,300은 1달러를 사기 위해 원화 1,300원이 필요하다는 뜻입니다. 상품 가격이 원으로 표시되듯, 외국 돈의 가격도 원화로 표시할 수 있습니다.'
+    title: '환율은 두 통화의 교환비율입니다',
+    body: '한국은행은 환율을 자국 통화와 외국 통화 사이의 교환비율로 설명합니다. 쉽게 말하면 외국 돈 1단위를 얻기 위해 원화를 얼마나 내야 하는지를 보여주는 숫자입니다.'
   },
   {
     title: '원/달러 환율은 원화 기준 달러 가격입니다',
-    body: '우리 서비스의 USD/KRW 차트는 달러 1단위를 원화로 얼마에 교환하는지 보여줍니다. 숫자가 커질수록 달러가 비싸지고 원화는 약해진 것으로 봅니다.'
+    body: 'USD/KRW 1,300은 1달러를 사는 데 1,300원이 필요하다는 뜻입니다. 숫자가 커질수록 달러가 비싸지고, 같은 원화로 살 수 있는 달러가 줄어 원화 약세로 봅니다.'
   },
   {
-    title: '환율은 매일 움직입니다',
-    body: '금리, 물가, 무역수지, 투자자 심리, 지정학 리스크, 달러 자체 강세 등 여러 요인이 동시에 반영되기 때문에 환율은 고정된 값이 아닙니다.'
+    title: '환율은 수요와 공급으로 움직입니다',
+    body: '외환시장에서 달러를 사려는 수요와 팔려는 공급이 바뀌면 환율도 변합니다. 금리, 물가, 무역수지, 자본 흐름, 투자 심리, 달러 자체 강세가 함께 반영됩니다.'
   }
 ];
 
@@ -20,14 +20,14 @@ const directionCards = [
     title: '환율 상승',
     label: '원화 약세',
     value: '1달러 = 1,300원에서 1,350원',
-    body: '같은 1달러를 사는 데 더 많은 원화가 필요합니다. 원화 가치가 달러 대비 낮아진 상태로 이해하면 됩니다.',
+    body: '같은 1달러를 사는 데 더 많은 원화가 필요합니다. 달러 가격이 오른 것이고, 원화의 달러 대비 구매력이 낮아진 상태입니다.',
     points: ['해외여행·해외직구 부담 증가', '수입 원자재와 에너지 비용 상승 가능', '달러 매출이 있는 수출기업에는 환산 이익이 될 수 있음']
   },
   {
     title: '환율 하락',
     label: '원화 강세',
     value: '1달러 = 1,350원에서 1,300원',
-    body: '같은 1달러를 사는 데 필요한 원화가 줄어듭니다. 원화 가치가 달러 대비 높아진 상태로 이해하면 됩니다.',
+    body: '같은 1달러를 사는 데 필요한 원화가 줄어듭니다. 달러 가격이 내려간 것이고, 원화의 달러 대비 구매력이 높아진 상태입니다.',
     points: ['해외여행·해외직구 부담 감소', '수입 물가와 원자재 비용 부담 완화 가능', '수출기업의 가격 경쟁력에는 부담이 될 수 있음']
   }
 ];
@@ -142,45 +142,41 @@ export function ExchangeRateGuidePage() {
 
   return (
     <section className="grid min-w-0 gap-4">
-      <header className="glass-card min-w-0 overflow-hidden rounded-2xl shadow-sm">
-        <div className="grid min-w-0 gap-0 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <div className="flex min-h-64 flex-col justify-between bg-teal-700 p-5 text-white">
-            <div>
-              <p className="text-xs font-semibold text-teal-100">EXCHANGE BASICS</p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-normal">환율이란</h2>
-              <p className="mt-3 text-sm leading-6 text-teal-50">
-                환율은 외국 돈의 가격입니다. 숫자 하나가 여행 경비, 수입물가, 기업 실적, 투자 심리까지 연결됩니다.
-              </p>
-            </div>
-            <div className="mt-6 rounded-md bg-white/15 p-3">
-              <p className="text-xs font-semibold text-teal-100">예시</p>
-              <p className="mt-1 text-lg font-semibold">USD/KRW 1,300</p>
-              <p className="mt-1 text-xs leading-5 text-teal-50">1달러를 사는 데 1,300원이 필요하다는 뜻</p>
-            </div>
-          </div>
-          <div className="grid min-w-0 gap-3 p-5 md:grid-cols-3">
-            {conceptCards.map((card) => (
-              <article className="glass-subcard min-w-0 rounded-2xl p-4" key={card.title}>
-                <h3 className="text-sm font-semibold text-white">{card.title}</h3>
-                <p className="mt-3 text-xs leading-5 text-white/65">{card.body}</p>
-              </article>
-            ))}
-          </div>
+      <header className="page-tab-header">
+        <div className="min-w-0">
+          <p className="page-tab-eyebrow">EXCHANGE BASICS</p>
+          <h2 className="page-tab-title">환율이란</h2>
+          <p className="page-tab-description">
+            환율은 외국 돈의 가격입니다. 숫자 하나가 여행 경비, 수입물가, 기업 실적, 투자 심리까지 연결됩니다.
+          </p>
+        </div>
+        <div className="page-tab-meta">
+          <span>예시 USD/KRW 1,300</span>
+          <span>1달러 = 1,300원</span>
         </div>
       </header>
+
+      <div className="grid min-w-0 gap-3 md:grid-cols-3">
+        {conceptCards.map((card) => (
+          <article className="glass-subcard min-w-0 rounded-2xl p-4" key={card.title}>
+            <h3 className="text-sm font-semibold text-zinc-950">{card.title}</h3>
+            <p className="mt-3 text-xs leading-5 text-zinc-600">{card.body}</p>
+          </article>
+        ))}
+      </div>
 
       <section className="grid min-w-0 gap-4 lg:grid-cols-2">
         {directionCards.map((card) => (
           <article className="glass-card min-w-0 rounded-2xl p-4 shadow-sm" key={card.title}>
-            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 border-b border-zinc-200 pb-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-teal-100">{card.label}</p>
-                <h3 className="mt-1 text-base font-semibold text-white">{card.title}</h3>
+                <p className="text-xs font-semibold text-teal-700">{card.label}</p>
+                <h3 className="mt-1 text-base font-semibold text-zinc-950">{card.title}</h3>
               </div>
-              <span className="min-w-0 break-words rounded-md bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/75">{card.value}</span>
+              <span className="min-w-0 break-words rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-700">{card.value}</span>
             </div>
-            <p className="mt-3 text-sm leading-6 text-white/75">{card.body}</p>
-            <ul className="mt-3 grid gap-2 text-xs leading-5 text-white/60">
+            <p className="mt-3 text-sm leading-6 text-zinc-700">{card.body}</p>
+            <ul className="mt-3 grid gap-2 text-xs leading-5 text-zinc-600">
               {card.points.map((point) => (
                 <li className="flex gap-2" key={point}>
                   <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-teal-600" />
@@ -193,64 +189,64 @@ export function ExchangeRateGuidePage() {
       </section>
 
       <section className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
-        <div className="border-b border-white/10 pb-3">
-          <h3 className="text-sm font-semibold text-white">왜 환율이 중요한가요?</h3>
-          <p className="mt-1 text-xs text-white/60">환율은 개인 소비, 기업 비용, 물가, 금융시장 심리를 동시에 연결합니다.</p>
+        <div className="border-b border-zinc-200 pb-3">
+          <h3 className="text-sm font-semibold text-zinc-950">왜 환율이 중요한가요?</h3>
+          <p className="mt-1 text-xs text-zinc-500">환율은 개인 소비, 기업 비용, 물가, 금융시장 심리를 동시에 연결합니다.</p>
         </div>
         <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 lg:grid-cols-4">
           {importanceCards.map((card, index) => (
             <article className="glass-subcard min-w-0 rounded-2xl p-3" key={card.title}>
               <span className="grid h-7 w-7 place-items-center rounded bg-teal-700 text-xs font-semibold text-white">{index + 1}</span>
-              <h4 className="mt-3 text-sm font-semibold text-white">{card.title}</h4>
-              <p className="mt-2 text-xs leading-5 text-white/60">{card.body}</p>
+              <h4 className="mt-3 text-sm font-semibold text-zinc-950">{card.title}</h4>
+              <p className="mt-2 text-xs leading-5 text-zinc-600">{card.body}</p>
             </article>
           ))}
         </div>
       </section>
 
       <section className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
-        <div className="border-b border-white/10 pb-3">
-          <h3 className="text-sm font-semibold text-white">원화가치 하락을 왜 경계해야 하나요?</h3>
-          <p className="mt-1 text-xs text-white/60">환율 상승이 길어지면 단순히 달러가 비싸지는 문제를 넘어 경제 전반의 비용이 올라갈 수 있습니다.</p>
+        <div className="border-b border-zinc-200 pb-3">
+          <h3 className="text-sm font-semibold text-zinc-950">원화가치 하락을 왜 경계해야 하나요?</h3>
+          <p className="mt-1 text-xs text-zinc-500">환율 상승이 길어지면 단순히 달러가 비싸지는 문제를 넘어 경제 전반의 비용이 올라갈 수 있습니다.</p>
         </div>
         <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2">
           {wonRiskCards.map((card) => (
-            <article className="min-w-0 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4" key={card.title}>
-              <h4 className="text-sm font-semibold text-rose-100">{card.title}</h4>
-              <p className="mt-2 text-xs leading-5 text-rose-50/75">{card.body}</p>
+            <article className="min-w-0 rounded-2xl border border-rose-200 bg-rose-50 p-4" key={card.title}>
+              <h4 className="text-sm font-semibold text-rose-800">{card.title}</h4>
+              <p className="mt-2 text-xs leading-5 text-rose-700">{card.body}</p>
             </article>
           ))}
         </div>
       </section>
 
       <section className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
-        <div className="border-b border-white/10 pb-3">
-          <h3 className="text-sm font-semibold text-white">달러도 약한데 원화도 약하면 더 조심해야 합니다</h3>
-          <p className="mt-1 text-xs text-white/60">USD/KRW만 보지 말고 달러 지수와 함께 보면 원화 약세의 성격을 구분할 수 있습니다.</p>
+        <div className="border-b border-zinc-200 pb-3">
+          <h3 className="text-sm font-semibold text-zinc-950">달러도 약한데 원화도 약하면 더 조심해야 합니다</h3>
+          <p className="mt-1 text-xs text-zinc-500">USD/KRW만 보지 말고 달러 지수와 함께 보면 원화 약세의 성격을 구분할 수 있습니다.</p>
         </div>
         <div className="mt-4 min-w-0 overflow-x-auto">
           <table className="w-full min-w-full table-fixed border-separate border-spacing-0 text-left sm:min-w-[640px]">
             <thead>
-              <tr className="text-[11px] font-semibold text-white/45">
-                <th className="w-[26%] border-b border-white/10 px-2 py-2">상황</th>
-                <th className="w-[34%] border-b border-white/10 px-2 py-2">해석</th>
-                <th className="w-[40%] border-b border-white/10 px-2 py-2">확인할 점</th>
+              <tr className="text-[11px] font-semibold text-zinc-500">
+                <th className="w-[26%] border-b border-zinc-200 px-2 py-2">상황</th>
+                <th className="w-[34%] border-b border-zinc-200 px-2 py-2">해석</th>
+                <th className="w-[40%] border-b border-zinc-200 px-2 py-2">확인할 점</th>
               </tr>
             </thead>
             <tbody>
               {divergenceRows.map((row) => (
                 <tr key={row.condition}>
-                  <td className="break-words border-b border-white/10 px-2 py-3 text-xs font-semibold text-white">{row.condition}</td>
-                  <td className="break-words border-b border-white/10 px-2 py-3 text-xs leading-5 text-white/75">{row.reading}</td>
-                  <td className="break-words border-b border-white/10 px-2 py-3 text-xs leading-5 text-white/60">{row.caution}</td>
+                  <td className="break-words border-b border-zinc-200 px-2 py-3 text-xs font-semibold text-zinc-950">{row.condition}</td>
+                  <td className="break-words border-b border-zinc-200 px-2 py-3 text-xs leading-5 text-zinc-700">{row.reading}</td>
+                  <td className="break-words border-b border-zinc-200 px-2 py-3 text-xs leading-5 text-zinc-600">{row.caution}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-3">
-          <p className="text-xs font-semibold text-amber-100">핵심</p>
-          <p className="mt-1 text-xs leading-5 text-amber-50/75">
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs font-semibold text-amber-800">핵심</p>
+          <p className="mt-1 text-xs leading-5 text-amber-700">
             달러 지수가 내려가는데 USD/KRW가 오른다면, 원화가 글로벌 달러 흐름보다 더 약하다는 뜻일 수 있습니다. 이때는 외국인 주식·채권 자금 흐름, 경상수지, 외환보유액, 금리차, 대외 리스크 지표를 함께 확인해야 합니다.
           </p>
         </div>
@@ -258,25 +254,25 @@ export function ExchangeRateGuidePage() {
 
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
         <article className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="text-sm font-semibold text-white">매매기준율과 실제 환전 환율</h3>
-            <p className="mt-1 text-xs text-white/60">차트 환율과 실제 환전 금액이 다른 이유를 이해하는 핵심입니다.</p>
+          <div className="border-b border-zinc-200 pb-3">
+            <h3 className="text-sm font-semibold text-zinc-950">매매기준율과 실제 환전 환율</h3>
+            <p className="mt-1 text-xs text-zinc-500">차트 환율과 실제 환전 금액이 다른 이유를 이해하는 핵심입니다.</p>
           </div>
           <div className="mt-4 min-w-0 overflow-x-auto">
             <table className="w-full min-w-full table-fixed border-separate border-spacing-0 text-left sm:min-w-[560px]">
               <thead>
-                <tr className="text-[11px] font-semibold text-white/45">
-                  <th className="w-[22%] border-b border-white/10 px-2 py-2">구분</th>
-                  <th className="w-[34%] border-b border-white/10 px-2 py-2">뜻</th>
-                  <th className="w-[44%] border-b border-white/10 px-2 py-2">읽는 법</th>
+                <tr className="text-[11px] font-semibold text-zinc-500">
+                  <th className="w-[22%] border-b border-zinc-200 px-2 py-2">구분</th>
+                  <th className="w-[34%] border-b border-zinc-200 px-2 py-2">뜻</th>
+                  <th className="w-[44%] border-b border-zinc-200 px-2 py-2">읽는 법</th>
                 </tr>
               </thead>
               <tbody>
                 {rateRows.map((row) => (
                   <tr key={row.label}>
-                    <td className="break-words border-b border-white/10 px-2 py-3 text-xs font-semibold text-white">{row.label}</td>
-                    <td className="break-words border-b border-white/10 px-2 py-3 text-xs leading-5 text-white/75">{row.meaning}</td>
-                    <td className="break-words border-b border-white/10 px-2 py-3 text-xs leading-5 text-white/60">{row.point}</td>
+                    <td className="break-words border-b border-zinc-200 px-2 py-3 text-xs font-semibold text-zinc-950">{row.label}</td>
+                    <td className="break-words border-b border-zinc-200 px-2 py-3 text-xs leading-5 text-zinc-700">{row.meaning}</td>
+                    <td className="break-words border-b border-zinc-200 px-2 py-3 text-xs leading-5 text-zinc-600">{row.point}</td>
                   </tr>
                 ))}
               </tbody>
@@ -285,18 +281,18 @@ export function ExchangeRateGuidePage() {
         </article>
 
         <article className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
-          <div className="border-b border-white/10 pb-3">
-            <h3 className="text-sm font-semibold text-white">자주 보는 주요 통화</h3>
-            <p className="mt-1 text-xs text-white/60">원화 흐름을 이해할 때 함께 보면 좋은 통화입니다.</p>
+          <div className="border-b border-zinc-200 pb-3">
+            <h3 className="text-sm font-semibold text-zinc-950">자주 보는 주요 통화</h3>
+            <p className="mt-1 text-xs text-zinc-500">원화 흐름을 이해할 때 함께 보면 좋은 통화입니다.</p>
           </div>
           <div className="mt-4 grid min-w-0 gap-2">
             {currencyCards.map((currency) => (
               <div className="glass-subcard min-w-0 rounded-2xl p-3" key={currency.code}>
                 <div className="flex min-w-0 items-start gap-3">
-                  <span className="grid h-9 w-12 shrink-0 place-items-center rounded bg-white/10 text-xs font-semibold text-teal-100 shadow-sm">{currency.code}</span>
+                  <span className="grid h-9 w-12 shrink-0 place-items-center rounded bg-teal-50 text-xs font-semibold text-teal-700 shadow-sm">{currency.code}</span>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-white">{currency.name}</p>
-                    <p className="mt-1 text-xs leading-5 text-white/60">{currency.body}</p>
+                    <p className="text-xs font-semibold text-zinc-950">{currency.name}</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-600">{currency.body}</p>
                   </div>
                 </div>
               </div>
@@ -306,9 +302,9 @@ export function ExchangeRateGuidePage() {
       </section>
 
       <section className="glass-card min-w-0 rounded-2xl p-4 shadow-sm">
-        <div className="border-b border-white/10 pb-3">
-          <h3 className="text-sm font-semibold text-white">헷갈리기 쉬운 질문</h3>
-          <p className="mt-1 text-xs text-white/60">환율을 처음 볼 때 자주 생기는 오해를 정리했습니다.</p>
+        <div className="border-b border-zinc-200 pb-3">
+          <h3 className="text-sm font-semibold text-zinc-950">헷갈리기 쉬운 질문</h3>
+          <p className="mt-1 text-xs text-zinc-500">환율을 처음 볼 때 자주 생기는 오해를 정리했습니다.</p>
         </div>
         <div className="mt-3 divide-y divide-white/10">
           {accordionItems.map((item, index) => {
@@ -321,12 +317,12 @@ export function ExchangeRateGuidePage() {
                   onClick={() => setOpenIndex(isOpen ? -1 : index)}
                   type="button"
                 >
-                  <span className="min-w-0 break-words text-sm font-semibold text-white">{item.title}</span>
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded border border-white/15 bg-white/10 text-xs font-semibold text-white/60">
+                  <span className="min-w-0 break-words text-sm font-semibold text-zinc-950">{item.title}</span>
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded border border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-600">
                     {isOpen ? '-' : '+'}
                   </span>
                 </button>
-                {isOpen ? <p className="pb-4 text-sm leading-6 text-white/65">{item.body}</p> : null}
+                {isOpen ? <p className="pb-4 text-sm leading-6 text-zinc-600">{item.body}</p> : null}
               </div>
             );
           })}
