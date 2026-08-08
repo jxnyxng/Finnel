@@ -21,6 +21,7 @@ type RechartsMouseState = {
   activePayload?: Array<{ payload?: ChartPoint }>;
   activeIndex?: number | string;
   activeTooltipIndex?: number | string;
+  chartX?: number;
   chartY?: number;
   yAxisMap?: Record<string, {
     scale?: {
@@ -43,7 +44,7 @@ export function getActiveChartHover(
   const numericIndex = Number(activeIndex);
   const pointFromIndex = Number.isFinite(numericIndex) ? series[numericIndex] : null;
   const point = typedState?.activePayload?.[0]?.payload ?? pointFromIndex;
-  const x = typedState?.activeCoordinate?.x;
+  const x = typedState?.chartX ?? typedState?.activeCoordinate?.x;
   const y = typedState?.chartY ?? typedState?.activeCoordinate?.y;
 
   if (!point || typeof x !== 'number' || typeof y !== 'number') {
@@ -83,8 +84,8 @@ export function UsdKrwTooltip({ active, payload, range }: ChartTooltipProps & { 
   }
 
   return (
-    <div className="chart-hover-tooltip w-44 rounded-xl border border-white/15 bg-zinc-950/85 px-3 py-2 text-xs text-white shadow-lg shadow-zinc-950/30 backdrop-blur-md">
-      <p className="font-semibold text-white">원/달러 환율</p>
+    <div className="chart-hover-tooltip w-44 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 shadow-lg shadow-zinc-950/10">
+      <p className="font-semibold text-zinc-950">원/달러 환율</p>
       <dl className="mt-2 grid gap-1.5">
         <TooltipRow label="시점" value={formatTooltipDate(point.dateValue, range)} />
         <TooltipRow label="환율" value={`${formatValue(point.value)}원`} />
@@ -112,8 +113,8 @@ export function DollarIndexTooltip({
   }
 
   return (
-    <div className="chart-hover-tooltip w-44 rounded-xl border border-white/15 bg-zinc-950/85 px-3 py-2 text-xs text-white shadow-lg shadow-zinc-950/30 backdrop-blur-md">
-      <p className="font-semibold text-white">{title} 지수</p>
+    <div className="chart-hover-tooltip w-44 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 shadow-lg shadow-zinc-950/10">
+      <p className="font-semibold text-zinc-950">{title} 지수</p>
       <dl className="mt-2 grid gap-1.5">
         <TooltipRow label="날짜" value={point.dateValue.slice(0, 10)} />
         <TooltipRow label="지수" value={formatValue(point.value)} />
@@ -151,7 +152,7 @@ export function ChartHelpTooltip({
     <div className="group relative">
       <button
         aria-label={ariaLabel}
-        className="flex h-5 w-5 items-center justify-center rounded-full border border-white/35 text-[11px] font-semibold text-white/70 hover:border-teal-200 hover:text-white"
+        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
         type="button"
       >
         i
@@ -181,21 +182,21 @@ export function RangeSelector<T extends string>({
   value: T;
 }) {
   const keys = React.useMemo(() => options.map((option) => option.key), [options]);
-  const { buttonRefs, containerRef, indicator, isMoving, startMoving } = useMovingTabIndicator({
+  const { buttonRefs, containerRef, indicator, isMoving, labelActiveKey, startMoving } = useMovingTabIndicator({
     activeKey: value,
     keys
   });
 
   return (
     <div
-      className={`relative grid h-11 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-white/15 bg-white/10 p-1`}
+      className={`relative grid h-11 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-zinc-200 bg-white p-1`}
       ref={containerRef}
     >
       <MovingTabIndicator indicator={indicator} isMoving={isMoving} />
       {options.map((option) => (
         <button
           className={`relative z-10 inline-flex h-full min-w-0 items-center justify-center rounded-full px-2 text-center text-xs font-semibold leading-none transition-colors ${
-            value === option.key ? 'text-white' : 'text-white/60 hover:text-white'
+            labelActiveKey === option.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
           }`}
           key={option.key}
           onClick={() => {
@@ -285,20 +286,20 @@ export function ChartCrosshairOverlay({
   top: number;
   yDomain: [number, number] | ['auto', 'auto'];
 }) {
-  if (!hover) {
-    return null;
-  }
-
-  const displayValue = hover.value ?? getHoverAxisValue(hover.y, top, bottom, chartHeight, yDomain, hover.point.value);
+  const displayValue = hover
+    ? hover.value ?? getHoverAxisValue(hover.y, top, bottom, chartHeight, yDomain, hover.point.value)
+    : null;
+  const fallbackX = hover?.x ?? left;
+  const fallbackY = hover?.y ?? top;
 
   return (
-    <>
+    <div className="chart-crosshair-layer">
       <div
         className="chart-crosshair-x"
         style={{
           bottom,
-          left: hover.x,
-          top
+          top,
+          transform: `translate3d(var(--chart-crosshair-x, ${fallbackX}px), 0, 0) translateX(-50%)`
         }}
       />
       <div
@@ -306,16 +307,16 @@ export function ChartCrosshairOverlay({
         style={{
           left,
           right,
-          top: hover.y
+          transform: `translate3d(0, var(--chart-crosshair-y, ${fallbackY}px), 0) translateY(-50%)`
         }}
       />
-      <div className="chart-axis-value-label" style={{ top: getAxisValueLabelTopForChart(hover.y, chartHeight) }}>
-        <span>{formatValue(displayValue)}</span>
+      <div className="chart-axis-value-label" style={{ transform: `translate3d(0, var(--chart-axis-label-y, ${getAxisValueLabelTopForChart(fallbackY, chartHeight)}px), 0) translateY(-50%)` }}>
+        <span>{displayValue === null ? '' : formatValue(displayValue)}</span>
       </div>
-      <div className="chart-axis-time-label" style={{ left: getAxisTimeLabelLeft(hover.x) }}>
-        {formatCrosshairDate(hover.point.dateValue, range)}
+      <div className="chart-axis-time-label" style={{ transform: `translate3d(var(--chart-axis-time-x, ${fallbackX}px), 0, 0) translateX(-50%)` }}>
+        {hover ? formatCrosshairDate(hover.point.dateValue, range) : ''}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -350,8 +351,8 @@ function getHoverAxisValue(
 function TooltipRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
-      <dt className="text-white/45">{label}</dt>
-      <dd className="min-w-0 font-medium leading-5 text-white/85">{value}</dd>
+      <dt className="text-zinc-400">{label}</dt>
+      <dd className="min-w-0 font-medium leading-5 text-zinc-800">{value}</dd>
     </div>
   );
 }
