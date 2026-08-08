@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChartHelpTooltip } from '../components/ChartElements';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import { koreanRegionNames, specialAreaDisplays } from '../constants';
 import type { CurrencyStrengthRank } from '../types';
@@ -7,13 +8,11 @@ import { formatValue } from '../utils/format';
 export function CurrencyStrengthPage({
   emptyMessage = '표시할 통화 랭킹 데이터가 없습니다.',
   isLoading = false,
-  ranks,
-  statusNode
+  ranks
 }: {
   emptyMessage?: string;
   isLoading?: boolean;
   ranks: CurrencyStrengthRank[];
-  statusNode?: React.ReactNode;
 }) {
   const [sortMode, setSortMode] = React.useState<'strong' | 'weak'>('strong');
   const sortModeKeys = React.useMemo(() => ['strong', 'weak'] as const, []);
@@ -22,6 +21,7 @@ export function CurrencyStrengthPage({
     containerRef: sortModeContainerRef,
     indicator: sortModeIndicator,
     isMoving: isSortModeIndicatorMoving,
+    labelActiveKey: activeSortModeLabelKey,
     startMoving: startSortModeIndicatorMoving
   } = useMovingTabIndicator({
     activeKey: sortMode,
@@ -37,22 +37,22 @@ export function CurrencyStrengthPage({
   const minNeer = neerValues.length > 0 ? Math.min(...neerValues) : 0;
   const maxNeer = neerValues.length > 0 ? Math.max(...neerValues) : 0;
   const benchmarkPosition = getScalePosition(100, minNeer, maxNeer);
+  const rankingHelpContent = (
+    <>
+      <p className="mt-2">BIS broad NEER 기준입니다. NEER가 높을수록 교역상대국 대비 통화가 강하고, 낮을수록 약한 상태로 해석합니다.</p>
+      <p className="mt-2">2020=100 기준선보다 낮으면 상대적 약세로 해석합니다. 순위와 점수 변동은 직전 NEER 기준일 대비이며, 앱은 금요일 USD/KRW 세션 종료 후 토요일 오전에 자동 확인합니다.</p>
+      <p className="mt-2 font-medium text-zinc-700">매주 토요일 아침 갱신됩니다</p>
+      <p className="mt-2 font-semibold text-zinc-800">NEER {latestDate ?? '-'} · REER {latestReerDate ?? '-'}</p>
+      <p className="mt-2 text-zinc-700">NEER가 높을수록 교역상대국 대비 통화가 강한 상태입니다. 범위 {formatValue(minNeer, 2)} ~ {formatValue(maxNeer, 2)} · 기준선 100</p>
+    </>
+  );
 
   return (
     <section className="grid gap-4">
-      <header className="glass-card rounded-2xl p-4 shadow-sm">
-        <div className="grid gap-2">
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold text-white">화폐 랭킹</h2>
-            <p className="mt-1 text-xs text-white/60">BIS broad NEER 기준입니다. NEER가 높을수록 교역상대국 대비 통화가 강하고, 낮을수록 약한 상태로 해석합니다.</p>
-            <p className="mt-1 text-xs text-white/60">2020=100 기준선보다 낮으면 상대적 약세로 해석합니다. 순위와 점수 변동은 직전 NEER 기준일 대비이며, 앱은 금요일 USD/KRW 세션 종료 후 토요일 오전에 자동 확인합니다.</p>
-          </div>
-          <div className="flex min-w-0 flex-col items-start gap-1.5 md:flex-row md:items-center md:justify-between">
-            <p className="text-xs font-medium text-white/55">
-              NEER {latestDate ?? '-'} · REER {latestReerDate ?? '-'}
-            </p>
-            {statusNode}
-          </div>
+      <header className="page-tab-header">
+        <div className="min-w-0">
+          <h2 className="page-tab-title mt-0">화폐 랭킹</h2>
+          <p className="page-tab-description">주요 통화의 상대 강도를 BIS broad NEER 기준으로 비교합니다.</p>
         </div>
       </header>
       {sortedRanks.length === 0 ? (
@@ -61,44 +61,52 @@ export function CurrencyStrengthPage({
         </div>
       ) : (
         <>
-          <div className="glass-card flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-xs text-white/60 shadow-sm">
-            <div className="flex flex-wrap items-center gap-3">
-              <p>전체 {sortedRanks.length}개 지역 · <span className={`font-semibold ${sortMode === 'strong' ? 'text-teal-100' : 'text-rose-200'}`}>{sortMode === 'strong' ? '강세 순 정렬' : '약세 순 정렬'}</span></p>
-              <div className="relative grid h-8 grid-cols-2 overflow-hidden rounded-full border border-white/15 bg-white/10 p-0.5" ref={sortModeContainerRef}>
-                <MovingTabIndicator compact contained indicator={sortModeIndicator} isMoving={isSortModeIndicatorMoving} />
-                <button
-                  className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${sortMode === 'strong' ? 'text-white' : 'text-white/60 hover:text-white'}`}
-                  onClick={() => {
-                    if (sortMode !== 'strong') {
-                      startSortModeIndicatorMoving();
-                    }
-                    setSortMode('strong');
-                  }}
-                  ref={(node) => {
-                    sortModeButtonRefs.current.strong = node;
-                  }}
-                  type="button"
-                >
-                  강세순
-                </button>
-                <button
-                  className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${sortMode === 'weak' ? 'text-white' : 'text-white/60 hover:text-white'}`}
-                  onClick={() => {
-                    if (sortMode !== 'weak') {
-                      startSortModeIndicatorMoving();
-                    }
-                    setSortMode('weak');
-                  }}
-                  ref={(node) => {
-                    sortModeButtonRefs.current.weak = node;
-                  }}
-                  type="button"
-                >
-                  약세순
-                </button>
+          <div className="pt-1.5">
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="min-w-0 text-xs font-medium text-zinc-500">
+                    전체 {sortedRanks.length}개 지역 · {sortMode === 'strong' ? '강세 순 정렬' : '약세 순 정렬'}
+                  </p>
+                  <ChartHelpTooltip ariaLabel="화폐 랭킹 안내" title="화폐 랭킹 기준" widthClassName="w-80">
+                    {rankingHelpContent}
+                  </ChartHelpTooltip>
+                </div>
+                <div className="relative grid h-8 grid-cols-2 overflow-hidden rounded-full border border-zinc-200 bg-white p-0.5" ref={sortModeContainerRef}>
+                  <MovingTabIndicator compact contained indicator={sortModeIndicator} isMoving={isSortModeIndicatorMoving} />
+                  <button
+                    className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${activeSortModeLabelKey === 'strong' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
+                    onClick={() => {
+                      if (sortMode !== 'strong') {
+                        startSortModeIndicatorMoving();
+                      }
+                      setSortMode('strong');
+                    }}
+                    ref={(node) => {
+                      sortModeButtonRefs.current.strong = node;
+                    }}
+                    type="button"
+                  >
+                    강세순
+                  </button>
+                  <button
+                    className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${activeSortModeLabelKey === 'weak' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
+                    onClick={() => {
+                      if (sortMode !== 'weak') {
+                        startSortModeIndicatorMoving();
+                      }
+                      setSortMode('weak');
+                    }}
+                    ref={(node) => {
+                      sortModeButtonRefs.current.weak = node;
+                    }}
+                    type="button"
+                  >
+                    약세순
+                  </button>
+                </div>
               </div>
             </div>
-            <p>범위 {formatValue(minNeer, 2)} ~ {formatValue(maxNeer, 2)} · 기준선 100</p>
           </div>
           <div className="grid gap-2">
             {sortedRanks.map((rank, index) => {

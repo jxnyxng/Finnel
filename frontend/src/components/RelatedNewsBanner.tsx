@@ -13,8 +13,8 @@ type RelatedNewsResponse = {
 };
 
 const topicLabels = {
-  exchange: '환율 관련 뉴스',
-  indicators: '지표 관련 뉴스'
+  exchange: '환율 관련 소식',
+  indicators: '지표 관련 소식'
 };
 
 const autoAdvanceMs = 7000;
@@ -183,9 +183,9 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
   };
 
   return (
-    <section className="related-news-banner" aria-label={topicLabels[topic]}>
+    <section className="related-news-banner mx-auto w-full" aria-label={topicLabels[topic]}>
       <div className="relative">
-        <div className="relative overflow-hidden rounded-2xl bg-zinc-200 shadow-lg shadow-zinc-950/20">
+        <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200">
           {isAnimating && previousGroup !== null ? (
             <div className={`related-news-slide related-news-slide-exit related-news-slide-exit-${slideDirection}`}>
               <RelatedNewsGroup articles={previousArticles} />
@@ -196,41 +196,39 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
           </div>
         </div>
       </div>
-      {(actionSlot || groupCount > 1) ? (
-        <div className="mt-3 flex min-h-8 items-center justify-between gap-3">
-          <div className="min-w-0">{actionSlot}</div>
-          {groupCount > 1 ? (
-            <div className="related-news-controls inline-flex rounded-full border border-white/15 bg-zinc-950/35 p-0.5 text-white shadow-lg backdrop-blur-md">
-              <button
-                aria-label="이전 뉴스"
-                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-                disabled={isAnimating}
-                onClick={() => moveGroup(-1, 'manual')}
-                type="button"
-              >
-                ‹
-              </button>
-              <button
-                aria-label={isAutoPaused ? '뉴스 자동 넘김 재개' : '뉴스 자동 넘김 일시정지'}
-                className="grid h-7 min-w-7 place-items-center rounded-full px-1.5 text-[11px] font-bold text-white/85 hover:bg-white/15 hover:text-white"
-                onClick={() => setIsAutoPaused((current) => !current)}
-                type="button"
-              >
-                {isAutoPaused ? '▶' : 'Ⅱ'}
-              </button>
-              <button
-                aria-label="다음 뉴스"
-                className="grid h-7 w-7 place-items-center rounded-full text-base font-semibold text-white/85 hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-                disabled={isAnimating}
-                onClick={() => moveGroup(1, 'manual')}
-                type="button"
-              >
-                ›
-              </button>
-            </div>
-          ) : <div />}
-        </div>
-      ) : null}
+      <div className="mt-2 flex min-h-6 items-center justify-between gap-3">
+        <div className="min-w-0">{actionSlot}</div>
+        {groupCount > 1 ? (
+          <div className="related-news-controls inline-flex rounded-full border border-zinc-200 bg-white p-px text-zinc-700 shadow-sm">
+            <button
+              aria-label="이전 뉴스"
+              className="grid h-6 w-6 place-items-center rounded-full text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={isAnimating}
+              onClick={() => moveGroup(-1, 'manual')}
+              type="button"
+            >
+              ‹
+            </button>
+            <button
+              aria-label={isAutoPaused ? '뉴스 자동 넘김 재개' : '뉴스 자동 넘김 일시정지'}
+              className="grid h-6 min-w-6 place-items-center rounded-full px-1 text-[10px] font-bold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+              onClick={() => setIsAutoPaused((current) => !current)}
+              type="button"
+            >
+              {isAutoPaused ? '▶' : 'Ⅱ'}
+            </button>
+            <button
+              aria-label="다음 뉴스"
+              className="grid h-6 w-6 place-items-center rounded-full text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={isAnimating}
+              onClick={() => moveGroup(1, 'manual')}
+              type="button"
+            >
+              ›
+            </button>
+          </div>
+        ) : <div />}
+      </div>
     </section>
   );
 }
@@ -258,7 +256,7 @@ function RelatedNewsCard({ article }: { article: NewsArticle }) {
 
   return (
     <a
-      className="group relative block h-36 overflow-hidden bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:ring-offset-2"
+      className="group relative block h-36 overflow-hidden bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-teal-200 focus:ring-offset-2"
       href={articleUrl}
       rel="noreferrer"
       target="_blank"
@@ -289,16 +287,16 @@ function RelatedNewsCard({ article }: { article: NewsArticle }) {
 
 function DefaultNewsImage() {
   return (
-    <div className="absolute inset-0 overflow-hidden bg-[linear-gradient(135deg,#0f766e,#27272a)]">
+    <div className="absolute inset-0 overflow-hidden bg-teal-50">
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(255,255,255,0.16),transparent_28%),linear-gradient(135deg,rgba(15,118,110,0.92),rgba(39,39,42,0.98))]" />
-        <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full border border-white/10" />
-        <div className="absolute -bottom-10 left-10 h-28 w-28 rounded-full border border-white/10" />
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(240,253,250,0.96),rgba(255,255,255,0.96))]" />
+        <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full border border-teal-100" />
+        <div className="absolute -bottom-10 left-10 h-28 w-28 rounded-full border border-teal-100" />
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="grid place-items-center text-center text-white">
-            <span className="grid h-12 w-12 place-items-center rounded-md bg-white text-2xl font-bold text-teal-700 shadow-lg">₩</span>
+          <div className="grid place-items-center text-center text-teal-800">
+            <span className="grid h-12 w-12 place-items-center rounded-md bg-white text-2xl font-bold text-teal-700 shadow-sm ring-1 ring-teal-100">₩</span>
             <span className="mt-2 text-sm font-semibold tracking-normal">코리아원</span>
-            <span className="mt-0.5 text-[10px] font-medium text-white/65">환율 모니터링 서비스</span>
+            <span className="mt-0.5 text-[10px] font-medium text-teal-700/70">환율 모니터링 서비스</span>
           </div>
         </div>
       </div>
