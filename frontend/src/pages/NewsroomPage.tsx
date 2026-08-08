@@ -53,6 +53,7 @@ export function NewsroomPage({
     containerRef: categoryContainerRef,
     indicator: categoryIndicator,
     isMoving: isCategoryIndicatorMoving,
+    labelActiveKey: activeCategoryLabelKey,
     startMoving: startCategoryIndicatorMoving
   } = useMovingTabIndicator({
     activeKey: activeCategoryTabKey,
@@ -103,20 +104,19 @@ export function NewsroomPage({
 
   return (
     <section className="grid min-w-0 gap-3">
-      <header className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-teal-100">네이버 뉴스 기반</p>
-            <h2 className="text-base font-semibold text-white">뉴스 검색</h2>
-            <p className="mt-1 hidden text-xs leading-5 text-white/60 sm:block">
-              네이버 뉴스 검색 API에서 환율·원화 관련 기사를 수집해 최신 시장 이슈를 확인합니다.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <p className="hidden text-[11px] text-white/55 sm:block">총 {totalCount}건 · {articles.length}건 표시</p>
-          </div>
+      <header className="page-tab-header">
+        <div className="min-w-0">
+          <p className="page-tab-eyebrow">네이버 뉴스 기반</p>
+          <h2 className="page-tab-title">뉴스 검색</h2>
+          <p className="page-tab-description">네이버 뉴스 검색 API에서 환율·원화 관련 기사를 수집해 최신 시장 이슈를 확인합니다.</p>
         </div>
-        {statusNode ? <div className="mt-1 flex justify-end">{statusNode}</div> : null}
+        <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
+          <div className="page-tab-meta">
+            <span>총 {totalCount}건</span>
+            <span>{articles.length}건 표시</span>
+          </div>
+          {statusNode}
+        </div>
       </header>
 
       <form className="grid min-w-0 gap-2" onSubmit={submitFilters}>
@@ -124,7 +124,7 @@ export function NewsroomPage({
           <button
             aria-label="기간 필터"
             className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
-              isFilterOpen || filters.fromDate || filters.toDate ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/65 hover:text-white'
+              isFilterOpen || filters.fromDate || filters.toDate ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
             }`}
             onClick={() => setIsFilterOpen((current) => !current)}
             title="기간 필터"
@@ -132,7 +132,7 @@ export function NewsroomPage({
           >
             ⚙
           </button>
-          <label className="grid gap-1 text-[10px] font-semibold text-white/55">
+          <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
             <span className="sr-only">제목</span>
             <input
               className="glass-field h-9 rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
@@ -145,15 +145,15 @@ export function NewsroomPage({
           <button className="h-9 rounded-full border border-teal-600 bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700 lg:h-8" type="submit">
             검색
           </button>
-          <button className="h-9 rounded-full border border-white/15 bg-white/10 px-3.5 text-xs font-semibold text-white/60 hover:text-white lg:h-8" onClick={resetFilters} type="button">
+          <button className="h-9 rounded-full border border-zinc-200 bg-white px-3.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950 lg:h-8" onClick={resetFilters} type="button">
             초기화
           </button>
         </div>
         {isFilterOpen ? (
-          <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl border border-white/10 bg-white/5 p-2">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
             <button
               className={`h-8 self-end rounded-full border px-3 text-xs font-semibold ${
-                isTodayFilterActive ? 'border-teal-300/50 bg-teal-400/20 text-teal-100' : 'border-white/15 bg-white/10 text-white/60 hover:text-white'
+                isTodayFilterActive ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
               }`}
               onClick={applyTodayFilter}
               type="button"
@@ -167,14 +167,14 @@ export function NewsroomPage({
 
       <nav className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 sm:block" aria-label="뉴스 카테고리">
         <CategoryScrollButton direction="left" onClick={() => scrollCategories(-1)} />
-        <div className="scrollbar-none relative flex flex-nowrap gap-1 overflow-x-auto rounded-full border border-white/15 bg-white/10 p-1 sm:flex-wrap sm:overflow-visible" ref={(node) => {
+        <div className="scrollbar-none relative flex flex-nowrap gap-1 overflow-x-auto rounded-full border border-zinc-200 bg-white p-1 sm:flex-wrap sm:overflow-visible" ref={(node) => {
           categoryScrollerRef.current = node;
           categoryContainerRef.current = node;
         }}>
           <MovingTabIndicator indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
           {categoryTabs.map((category) => (
             <CategoryButton
-              active={selectedCategory === category.key}
+              active={activeCategoryLabelKey === category.key}
               key={category.key}
               label={category.label}
               onClick={() => {
@@ -227,7 +227,7 @@ function CategoryScrollButton({ direction, onClick }: { direction: 'left' | 'rig
   return (
     <button
       aria-label={direction === 'left' ? '이전 카테고리 보기' : '다음 카테고리 보기'}
-      className="grid h-7 w-7 place-items-center rounded-full border border-white/15 bg-white/10 text-sm font-semibold text-white/70 shadow-sm hover:bg-white/15 hover:text-white sm:hidden"
+      className="grid h-7 w-7 place-items-center rounded-lg border border-zinc-200 bg-white text-sm font-semibold text-zinc-600 shadow-sm hover:bg-zinc-50 hover:text-zinc-950 sm:hidden"
       onClick={onClick}
       type="button"
     >
@@ -245,7 +245,7 @@ function DateFilterFields({
 }) {
   return (
     <>
-      <label className="grid gap-1 text-[10px] font-semibold text-white/55">
+      <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
         시작일
         <input
           className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
@@ -255,7 +255,7 @@ function DateFilterFields({
           value={draftFilters.fromDate}
         />
       </label>
-      <label className="grid gap-1 text-[10px] font-semibold text-white/55">
+      <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
         종료일
         <input
           className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
@@ -277,7 +277,7 @@ const CategoryButton = React.forwardRef<HTMLButtonElement, { active: boolean; la
   return (
     <button
       className={`relative z-10 h-8 shrink-0 rounded-full px-3.5 text-xs font-semibold transition-colors duration-150 ${
-        active ? 'text-white' : 'text-white/60 hover:text-white'
+        active ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
       }`}
       onClick={onClick}
       ref={ref}
@@ -311,7 +311,7 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
   return (
     <article
-      className="glass-list-card group/card min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-white/10 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-200/50 sm:h-32 md:h-36 motion-reduce:transition-none"
+      className="glass-list-card group/card min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-zinc-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 sm:h-32 md:h-36 motion-reduce:transition-none"
       onClick={openArticle}
       onKeyDown={openArticleWithKeyboard}
       role="link"
@@ -358,7 +358,7 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
 function NewBadge() {
   return (
-    <span className="absolute right-2 top-2 z-10 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-normal text-white shadow-sm">
+    <span className="new-badge absolute right-2 top-2 z-10 rounded bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-normal text-white shadow-sm">
       New
     </span>
   );
@@ -373,7 +373,7 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
 
   if (article.imageUrl && !hasImageError) {
     return (
-      <div className="relative h-28 w-full self-start overflow-hidden bg-zinc-900/50 sm:h-32 md:h-36">
+      <div className="relative h-28 w-full self-start overflow-hidden bg-zinc-100 sm:h-32 md:h-36">
         {isNew ? <NewBadge /> : null}
         <img
           alt=""
@@ -387,7 +387,7 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
   }
 
   return (
-    <div className="relative grid h-28 w-full self-start place-items-center overflow-hidden bg-[linear-gradient(135deg,#0f766e,#3f3f46)] text-center text-white sm:h-32 md:h-36">
+    <div className="relative grid h-28 w-full self-start place-items-center overflow-hidden bg-teal-50 text-center text-teal-800 sm:h-32 md:h-36">
       {isNew ? <NewBadge /> : null}
       <div>
         <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white text-lg font-bold text-teal-700">₩</span>
