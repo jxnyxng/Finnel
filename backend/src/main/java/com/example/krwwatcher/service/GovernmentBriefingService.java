@@ -58,6 +58,7 @@ public class GovernmentBriefingService {
     @EventListener(ApplicationReadyEvent.class)
     @Async("startupSyncExecutor")
     public void syncOnStartupIfStale() {
+        markInterruptedRunningJob(Instant.now());
         if (!policyBriefingClient.isConfigured()) {
             return;
         }
@@ -428,6 +429,26 @@ public class GovernmentBriefingService {
             endedAt,
             truncateMessage(message),
             jobId
+        );
+    }
+
+    private void markInterruptedRunningJob(Instant endedAt) {
+        jdbcTemplate.update(
+            """
+                UPDATE batch_job_runs
+                SET status = 'FAILED',
+                    ended_at = ?,
+                    message = CASE
+                        WHEN message IS NULL OR message = '' THEN ?
+                        ELSE CONCAT(message, ', ', ?)
+                    END
+                WHERE job_name = ?
+                  AND status = 'RUNNING'
+                """,
+            endedAt,
+            "interrupted=backend-restarted",
+            "interrupted=backend-restarted",
+            JOB_NAME
         );
     }
 
