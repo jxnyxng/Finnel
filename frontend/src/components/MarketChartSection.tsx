@@ -31,6 +31,8 @@ type AxisTickProps = {
   };
 };
 
+type TooltipSide = 'left' | 'right';
+
 type MarketChartSectionProps<T extends RangeKey> = {
   title: string;
   helpAriaLabel: string;
@@ -38,12 +40,13 @@ type MarketChartSectionProps<T extends RangeKey> = {
   helpWidthClassName?: string;
   helpContent: ReactNode;
   range: T;
-  rangeColumns: 3 | 4;
+  rangeColumns: 2 | 3 | 4;
   rangeOptions: Array<RangeSelectorOption<T>>;
   onRangeChange: (range: T) => void;
   subtitle: ReactNode;
   keepHeaderSingleLineOnMobile?: boolean;
   statusText: ReactNode;
+  statusTextPlacement?: 'belowTitle' | 'headerRight';
   statusClassName?: string;
   series: ChartPoint[];
   emptyText: ReactNode;
@@ -67,6 +70,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   statusNode?: ReactNode;
   headerAction?: ReactNode;
   headerActionPlacement?: 'header' | 'chartControls';
+  headerStatus?: ReactNode;
   showLatestValueDot?: boolean;
   showLoadingOverlay?: boolean;
 };
@@ -87,6 +91,7 @@ export function MarketChartSection<T extends RangeKey>({
   panelFooterText,
   headerAction,
   headerActionPlacement = 'header',
+  headerStatus,
   showLatestValueDot = false,
   showLoadingOverlay = false,
   plotLeft,
@@ -99,6 +104,7 @@ export function MarketChartSection<T extends RangeKey>({
   statusClassName = 'text-zinc-500',
   statusNode,
   statusText,
+  statusTextPlacement = 'belowTitle',
   subtitle,
   title,
   tooltipContent,
@@ -121,7 +127,11 @@ export function MarketChartSection<T extends RangeKey>({
   const latestVibratedPointKeyRef = useRef<string | null>(null);
   const latestVibrationAtRef = useRef(0);
   const pendingHoverRef = useRef<ChartHoverState | null>(null);
+  const tooltipSideRef = useRef<TooltipSide>('right');
   const [chartPixelHeight, setChartPixelHeight] = useState(chartHeightPx);
+  const [chartPixelWidth, setChartPixelWidth] = useState(0);
+  const [isTouchTooltip, setIsTouchTooltip] = useState(false);
+  const [tooltipSide, setTooltipSide] = useState<TooltipSide>('right');
   const plotBottom = chartPixelHeight - chartBottom;
   const axisWidth = 58;
   const plotInsetLeft = 18;
@@ -132,15 +142,18 @@ export function MarketChartSection<T extends RangeKey>({
       return;
     }
 
-    const updateHeight = () => {
-      const nextHeight = element.getBoundingClientRect().height;
+    const updateChartSize = () => {
+      const { height: nextHeight, width: nextWidth } = element.getBoundingClientRect();
       if (nextHeight > 0) {
         setChartPixelHeight(nextHeight);
       }
+      if (nextWidth > 0) {
+        setChartPixelWidth(nextWidth);
+      }
     };
 
-    updateHeight();
-    const resizeObserver = new ResizeObserver(updateHeight);
+    updateChartSize();
+    const resizeObserver = new ResizeObserver(updateChartSize);
     resizeObserver.observe(element);
     return () => resizeObserver.disconnect();
   }, []);
@@ -173,17 +186,6 @@ export function MarketChartSection<T extends RangeKey>({
       return;
     }
 
-    if (usePointerHover) {
-      if (hoverCommitTimeoutRef.current !== null) {
-        return;
-      }
-      hoverCommitTimeoutRef.current = window.setTimeout(() => {
-        hoverCommitTimeoutRef.current = null;
-        commitHoverChange();
-      }, 120);
-      return;
-    }
-
     if (hoverFrameRef.current !== null) {
       return;
     }
@@ -199,6 +201,8 @@ export function MarketChartSection<T extends RangeKey>({
       return;
     }
 
+    setIsTouchTooltip(event.pointerType === 'touch');
+
     const rect = element.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
@@ -208,6 +212,20 @@ export function MarketChartSection<T extends RangeKey>({
       element.classList.remove('chart-crosshair-active');
       scheduleHoverChange(null, immediate);
       return;
+    }
+
+    const chartCenterX = rect.width / 2;
+    const sideSwitchBuffer = Math.min(72, Math.max(36, rect.width * 0.12));
+    const hasActiveTooltip = pendingHoverRef.current !== null;
+    let nextTooltipSide = hasActiveTooltip ? tooltipSideRef.current : x > chartCenterX ? 'left' : 'right';
+    if (tooltipSideRef.current === 'right' && x > chartCenterX + sideSwitchBuffer) {
+      nextTooltipSide = 'left';
+    } else if (tooltipSideRef.current === 'left' && x < chartCenterX - sideSwitchBuffer) {
+      nextTooltipSide = 'right';
+    }
+    if (tooltipSideRef.current !== nextTooltipSide) {
+      tooltipSideRef.current = nextTooltipSide;
+      setTooltipSide(nextTooltipSide);
     }
 
     const clampedY = Math.min(plotBottom, Math.max(chartTopMarginPx, y));
@@ -315,7 +333,7 @@ export function MarketChartSection<T extends RangeKey>({
     <div className="relative">
       <article className="glass-card min-w-0 rounded-2xl shadow-sm">
         <div className="grid gap-4 p-3.5 sm:gap-5 sm:p-4">
-          <div className="relative flex min-w-0 flex-col gap-2 px-1 sm:flex-row sm:items-start sm:justify-between">
+          <div className="relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 px-1">
             <div className="grid min-w-0 gap-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 <h2 className={`text-base font-semibold text-white ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>{title}</h2>
@@ -323,21 +341,23 @@ export function MarketChartSection<T extends RangeKey>({
                   {helpContent}
                 </ChartHelpTooltip>
               </div>
-              {statusText ? <span className={`block text-xs leading-5 ${statusClassName}`}>{statusText}</span> : null}
+              {statusText && statusTextPlacement === 'belowTitle' ? <span className={`block text-xs leading-5 ${statusClassName}`}>{statusText}</span> : null}
             </div>
-            <div className={`flex shrink-0 items-center gap-2 sm:justify-end ${keepHeaderSingleLineOnMobile ? 'flex-nowrap' : 'flex-wrap'}`}>
+            <div className={`flex shrink-0 items-center justify-end gap-2 text-right ${keepHeaderSingleLineOnMobile ? 'flex-nowrap' : 'flex-wrap'}`}>
+              {statusText && statusTextPlacement === 'headerRight' ? <span className={`block max-w-[58vw] whitespace-nowrap text-right text-xs leading-5 sm:max-w-none ${statusClassName}`}>{statusText}</span> : null}
               {subtitle ? (
                 <p className="whitespace-nowrap text-left text-xs text-white/70 sm:text-right">
                   {subtitle}
                 </p>
               ) : null}
+              {headerStatus}
               {headerActionPlacement === 'header' ? headerAction : null}
             </div>
           </div>
 
           <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
-            <div className="order-1 grid min-w-0 justify-items-center gap-3 px-1 py-2 text-center lg:hidden">
-              <div className="flex min-w-0 max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-1">
+            <div className="order-1 grid min-w-0 justify-items-center gap-2 px-1 pb-1 pt-2 text-center lg:hidden">
+              <div className="chart-price-divider flex min-w-0 max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-1">
                 <p className="min-w-0 break-words text-[1.78rem] font-semibold leading-none tracking-normal text-white">{metric ? formatMetricValue(metric) : '-'}</p>
                 <span className="shrink-0 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
               </div>
@@ -443,20 +463,37 @@ export function MarketChartSection<T extends RangeKey>({
                   top={chartTopMarginPx}
                   yDomain={yDomain}
                 />
-                {hover ? (
-                  <div
-                    className="chart-pointer-tooltip"
-                    style={{
-                      left: `clamp(0.5rem, ${hover.x + 12}px, calc(100% - 12rem))`,
-                      top: `clamp(0.5rem, ${hover.y - 54}px, calc(100% - 5.5rem))`
-                    }}
-                  >
-                    {cloneElement(tooltipContent, {
-                      active: true,
-                      payload: [{ payload: hover.point, value: hover.point.value }]
-                    })}
-                  </div>
-                ) : null}
+                {hover ? (() => {
+                  const tooltipWidth = 192;
+                  const tooltipHeight = 88;
+                  const tooltipGap = isTouchTooltip ? 72 : 26;
+                  const rawTooltipX = tooltipSide === 'left'
+                    ? hover.x - tooltipWidth - tooltipGap
+                    : hover.x + tooltipGap;
+                  const tooltipX = Math.min(
+                    Math.max(8, chartPixelWidth - tooltipWidth - 8),
+                    Math.max(8, rawTooltipX)
+                  );
+                  const tooltipY = Math.min(
+                    Math.max(8, chartPixelHeight - tooltipHeight - 8),
+                    Math.max(8, hover.y - (isTouchTooltip ? 82 : 58))
+                  );
+
+                  return (
+                    <div
+                      className="chart-pointer-tooltip"
+                      style={{
+                        left: `${tooltipX}px`,
+                        top: `${tooltipY}px`
+                      }}
+                    >
+                      {cloneElement(tooltipContent, {
+                        active: true,
+                        payload: [{ payload: hover.point, value: hover.point.value }]
+                      })}
+                    </div>
+                  );
+                })() : null}
               </div>
               {showLoadingOverlay ? (
                 <div className="chart-loading-overlay absolute inset-0 z-20 grid place-items-center px-4 text-center">
@@ -469,7 +506,7 @@ export function MarketChartSection<T extends RangeKey>({
 
             <aside className="order-2 hidden min-w-0 flex-col gap-2 lg:flex lg:min-h-96">
               <div className="px-1 pb-1 pt-3">
-                <div className="flex items-end justify-between gap-3">
+                <div className="chart-price-divider flex items-end justify-between gap-3">
                   <p className="min-w-0 break-words text-2xl font-semibold tracking-normal text-white sm:text-3xl">{metric ? formatMetricValue(metric) : '-'}</p>
                   <span className="shrink-0 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
                 </div>
