@@ -196,7 +196,9 @@ public class GovernmentBriefingService {
         );
         int count = totalCount == null ? 0 : totalCount;
         int totalPages = count == 0 ? 0 : (int) Math.ceil((double) count / normalizedPageSize);
-        FreshnessInfo freshness = contentFreshness(latestSuccessfulFetchOrSyncAt());
+        Instant lastSuccessfulFetchedAt = latestSuccessfulFetchOrSyncAt();
+        LatestSyncAttempt latestSyncAttempt = latestSyncAttempt();
+        FreshnessInfo freshness = contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt);
         return new GovernmentBriefingResponse(
             policyBriefingClient.isConfigured(),
             briefingCategories(fromDate, toDate, keyword),
@@ -208,7 +210,10 @@ public class GovernmentBriefingService {
             freshness.freshnessStatus(),
             freshness.staleReason(),
             freshness.expectedNextUpdateAt(),
-            freshness.lastSuccessfulFetchedAt()
+            freshness.lastSuccessfulFetchedAt(),
+            latestSyncAttempt == null ? null : latestSyncAttempt.status(),
+            latestSyncAttempt == null ? null : latestSyncAttempt.startedAt(),
+            latestSyncAttempt == null ? null : latestSyncAttempt.endedAt()
         );
     }
 
@@ -448,6 +453,24 @@ public class GovernmentBriefingService {
         ).stream().filter(Objects::nonNull).findFirst().orElse(null);
     }
 
+    private LatestSyncAttempt latestSyncAttempt() {
+        return jdbcTemplate.query(
+            """
+                SELECT status, started_at, ended_at
+                FROM batch_job_runs
+                WHERE job_name = ?
+                ORDER BY started_at DESC, id DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new LatestSyncAttempt(
+                rs.getString("status"),
+                rs.getTimestamp("started_at") == null ? null : rs.getTimestamp("started_at").toInstant(),
+                rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant()
+            ),
+            JOB_NAME
+        ).stream().findFirst().orElse(null);
+    }
+
     private Object[] relevantCategoryQueryParams(Object firstParam) {
         List<Object> params = new ArrayList<>();
         params.add(firstParam);
@@ -481,7 +504,11 @@ public class GovernmentBriefingService {
         return value == null ? "" : value;
     }
 
-    private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt) {
+    private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt, LatestSyncAttempt latestSyncAttempt) {
+        if (latestSyncAttempt != null && isFailedSyncStatus(latestSyncAttempt.status())) {
+            return new FreshnessInfo("STALE", "마지막 정부 정책 업데이트 시도가 실패했습니다.", latestSyncAttempt.endedAt(), lastSuccessfulFetchedAt);
+        }
+
         if (lastSuccessfulFetchedAt == null) {
             return new FreshnessInfo("MISSING", "저장된 최신 수집값이 없습니다.", null, null);
         }
@@ -492,6 +519,10 @@ public class GovernmentBriefingService {
         }
 
         return new FreshnessInfo("FRESH", null, expectedNextUpdateAt, lastSuccessfulFetchedAt);
+    }
+
+    private boolean isFailedSyncStatus(String status) {
+        return status != null && !"SUCCESS".equals(status) && !"RUNNING".equals(status);
     }
 
     private record BriefingCategoryRule(String code, String label, List<String> keywords) {
@@ -529,7 +560,10 @@ public class GovernmentBriefingService {
         String freshnessStatus,
         String staleReason,
         Instant expectedNextUpdateAt,
-        Instant lastSuccessfulFetchedAt
+        Instant lastSuccessfulFetchedAt,
+        String latestSyncStatus,
+        Instant latestSyncStartedAt,
+        Instant latestSyncEndedAt
     ) {
     }
 
@@ -541,6 +575,13 @@ public class GovernmentBriefingService {
         String staleReason,
         Instant expectedNextUpdateAt,
         Instant lastSuccessfulFetchedAt
+    ) {
+    }
+
+    private record LatestSyncAttempt(
+        String status,
+        Instant startedAt,
+        Instant endedAt
     ) {
     }
 }

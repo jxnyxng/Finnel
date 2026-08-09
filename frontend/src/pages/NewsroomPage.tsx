@@ -10,7 +10,6 @@ type NewsroomPageProps = {
   filters: NewsFilters;
   isLoading: boolean;
   isPendingInitialLoad?: boolean;
-  latestUpdatedAt?: string | null;
   page: number;
   selectedCategory: string;
   statusNode?: React.ReactNode;
@@ -28,7 +27,6 @@ export function NewsroomPage({
   filters,
   isLoading,
   isPendingInitialLoad = false,
-  latestUpdatedAt = null,
   page,
   selectedCategory,
   statusNode,
@@ -117,7 +115,6 @@ export function NewsroomPage({
           <div className="page-tab-meta">
             <span>총 {totalCount}건</span>
             <span>{articles.length}건 표시</span>
-            <span>최근 업데이트 {latestUpdatedAt ?? '-'}</span>
           </div>
           {statusNode}
         </div>

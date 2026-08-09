@@ -57,6 +57,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   xTickFormatter: (value: number) => string;
   yDomain: [number, number] | ['auto', 'auto'];
   tooltipContent: ReactElement;
+  titleAction?: ReactNode;
   usePointerHover?: boolean;
   hover: ChartHoverState | null;
   onHoverChange: (hover: ChartHoverState | null) => void;
@@ -69,7 +70,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   panelFooterText?: string;
   statusNode?: ReactNode;
   headerAction?: ReactNode;
-  headerActionPlacement?: 'header' | 'chartControls';
+  headerActionPlacement?: 'header' | 'chartControls' | 'panel';
   headerStatus?: ReactNode;
   showLatestValueDot?: boolean;
   showLoadingOverlay?: boolean;
@@ -107,6 +108,7 @@ export function MarketChartSection<T extends RangeKey>({
   statusTextPlacement = 'belowTitle',
   subtitle,
   title,
+  titleAction,
   tooltipContent,
   usePointerHover = false,
   xAxisHeight,
@@ -121,17 +123,12 @@ export function MarketChartSection<T extends RangeKey>({
   const chartSurfaceRef = useRef<HTMLDivElement | null>(null);
   const axisValueTextRef = useRef<HTMLSpanElement | null>(null);
   const axisTimeTextRef = useRef<HTMLDivElement | null>(null);
-  const hoverFrameRef = useRef<number | null>(null);
-  const hoverCommitTimeoutRef = useRef<number | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const latestVibratedPointKeyRef = useRef<string | null>(null);
   const latestVibrationAtRef = useRef(0);
   const pendingHoverRef = useRef<ChartHoverState | null>(null);
   const tooltipSideRef = useRef<TooltipSide>('right');
   const [chartPixelHeight, setChartPixelHeight] = useState(chartHeightPx);
-  const [chartPixelWidth, setChartPixelWidth] = useState(0);
-  const [isTouchTooltip, setIsTouchTooltip] = useState(false);
-  const [tooltipSide, setTooltipSide] = useState<TooltipSide>('right');
   const plotBottom = chartPixelHeight - chartBottom;
   const axisWidth = 58;
   const plotInsetLeft = 18;
@@ -143,12 +140,9 @@ export function MarketChartSection<T extends RangeKey>({
     }
 
     const updateChartSize = () => {
-      const { height: nextHeight, width: nextWidth } = element.getBoundingClientRect();
+      const { height: nextHeight } = element.getBoundingClientRect();
       if (nextHeight > 0) {
         setChartPixelHeight(nextHeight);
-      }
-      if (nextWidth > 0) {
-        setChartPixelWidth(nextWidth);
       }
     };
 
@@ -158,50 +152,22 @@ export function MarketChartSection<T extends RangeKey>({
     return () => resizeObserver.disconnect();
   }, []);
 
-  useLayoutEffect(() => () => {
-    if (hoverFrameRef.current !== null) {
-      window.cancelAnimationFrame(hoverFrameRef.current);
-    }
-    if (hoverCommitTimeoutRef.current !== null) {
-      window.clearTimeout(hoverCommitTimeoutRef.current);
-    }
-  }, []);
-
   const commitHoverChange = () => {
     onHoverChange(pendingHoverRef.current);
   };
 
-  const scheduleHoverChange = (nextHover: ChartHoverState | null, immediate = false) => {
+  const scheduleHoverChange = (nextHover: ChartHoverState | null) => {
     pendingHoverRef.current = nextHover;
-    if (immediate) {
-      if (hoverFrameRef.current !== null) {
-        window.cancelAnimationFrame(hoverFrameRef.current);
-        hoverFrameRef.current = null;
-      }
-      if (hoverCommitTimeoutRef.current !== null) {
-        window.clearTimeout(hoverCommitTimeoutRef.current);
-        hoverCommitTimeoutRef.current = null;
-      }
-      commitHoverChange();
-      return;
-    }
-
-    if (hoverFrameRef.current !== null) {
-      return;
-    }
-    hoverFrameRef.current = window.requestAnimationFrame(() => {
-      hoverFrameRef.current = null;
-      onHoverChange(pendingHoverRef.current);
-    });
+    commitHoverChange();
   };
 
-  const updateCrosshairPosition = (event: PointerEvent<HTMLDivElement>, immediate = false) => {
+  const updateCrosshairPosition = (event: PointerEvent<HTMLDivElement>) => {
     const element = chartSurfaceRef.current;
     if (!element || series.length === 0) {
       return;
     }
 
-    setIsTouchTooltip(event.pointerType === 'touch');
+    const isTouchPointer = event.pointerType === 'touch';
 
     const rect = element.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -210,7 +176,7 @@ export function MarketChartSection<T extends RangeKey>({
 
     if (x < plotInsetLeft || x > plotRightEdge || y < chartTopMarginPx || y > plotBottom) {
       element.classList.remove('chart-crosshair-active');
-      scheduleHoverChange(null, immediate);
+      scheduleHoverChange(null);
       return;
     }
 
@@ -225,16 +191,25 @@ export function MarketChartSection<T extends RangeKey>({
     }
     if (tooltipSideRef.current !== nextTooltipSide) {
       tooltipSideRef.current = nextTooltipSide;
-      setTooltipSide(nextTooltipSide);
     }
 
     const clampedY = Math.min(plotBottom, Math.max(chartTopMarginPx, y));
+    const tooltipPosition = getTooltipPosition({
+      chartHeight: rect.height,
+      chartWidth: rect.width,
+      isTouchPointer,
+      side: nextTooltipSide,
+      x,
+      y: clampedY
+    });
     const axisLabelY = Math.min(chartPixelHeight - 36, Math.max(10, clampedY));
     const axisTimeX = Math.min(rect.width - 37, Math.max(37, x));
     element.style.setProperty('--chart-crosshair-x', `${x}px`);
     element.style.setProperty('--chart-crosshair-y', `${clampedY}px`);
     element.style.setProperty('--chart-axis-label-y', `${axisLabelY}px`);
     element.style.setProperty('--chart-axis-time-x', `${axisTimeX}px`);
+    element.style.setProperty('--chart-tooltip-left', `${tooltipPosition.x}px`);
+    element.style.setProperty('--chart-tooltip-top', `${tooltipPosition.y}px`);
     element.classList.add('chart-crosshair-active');
 
     if (usePointerHover) {
@@ -269,7 +244,7 @@ export function MarketChartSection<T extends RangeKey>({
           timeTextNode.textContent = formatCrosshairDate(point.dateValue, range);
         }
         const nextHover = { point, value: axisValue, x, y: clampedY };
-        scheduleHoverChange(nextHover, immediate);
+        scheduleHoverChange(nextHover);
         vibrateForTouchPoint(event, point);
       }
     }
@@ -279,13 +254,13 @@ export function MarketChartSection<T extends RangeKey>({
     chartSurfaceRef.current?.classList.remove('chart-crosshair-active');
     activePointerIdRef.current = null;
     latestVibratedPointKeyRef.current = null;
-    scheduleHoverChange(null, true);
+    scheduleHoverChange(null);
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     activePointerIdRef.current = event.pointerId;
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    updateCrosshairPosition(event, true);
+    updateCrosshairPosition(event);
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
@@ -340,6 +315,7 @@ export function MarketChartSection<T extends RangeKey>({
                 <ChartHelpTooltip ariaLabel={helpAriaLabel} title={helpTitle} widthClassName={helpWidthClassName}>
                   {helpContent}
                 </ChartHelpTooltip>
+                {titleAction}
               </div>
               {statusText && statusTextPlacement === 'belowTitle' ? <span className={`block text-xs leading-5 ${statusClassName}`}>{statusText}</span> : null}
             </div>
@@ -464,28 +440,9 @@ export function MarketChartSection<T extends RangeKey>({
                   yDomain={yDomain}
                 />
                 {hover ? (() => {
-                  const tooltipWidth = 192;
-                  const tooltipHeight = 88;
-                  const tooltipGap = isTouchTooltip ? 72 : 26;
-                  const rawTooltipX = tooltipSide === 'left'
-                    ? hover.x - tooltipWidth - tooltipGap
-                    : hover.x + tooltipGap;
-                  const tooltipX = Math.min(
-                    Math.max(8, chartPixelWidth - tooltipWidth - 8),
-                    Math.max(8, rawTooltipX)
-                  );
-                  const tooltipY = Math.min(
-                    Math.max(8, chartPixelHeight - tooltipHeight - 8),
-                    Math.max(8, hover.y - (isTouchTooltip ? 82 : 58))
-                  );
-
                   return (
                     <div
                       className="chart-pointer-tooltip"
-                      style={{
-                        left: `${tooltipX}px`,
-                        top: `${tooltipY}px`
-                      }}
                     >
                       {cloneElement(tooltipContent, {
                         active: true,
@@ -515,6 +472,11 @@ export function MarketChartSection<T extends RangeKey>({
                 </div>
               </div>
               <div className="glass-subcard flex min-w-0 flex-1 flex-col justify-center rounded-2xl p-4">
+                {headerActionPlacement === 'panel' && headerAction ? (
+                  <div className="panel-action-row">
+                    {headerAction}
+                  </div>
+                ) : null}
                 <div className="grid gap-4">
                   {statusNode ? (
                     <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2">
@@ -522,7 +484,7 @@ export function MarketChartSection<T extends RangeKey>({
                     </div>
                   ) : null}
                 </div>
-                <dl className={`${statusNode ? 'mt-4' : ''} flex flex-col gap-3 text-xs`}>
+                <dl className={`${statusNode ? 'mt-4' : headerActionPlacement === 'panel' && headerAction ? 'mt-2' : ''} flex flex-col gap-3 text-xs`}>
                   {panelDetails.map((item) => (
                     <div key={item.label} className="flex items-start justify-between gap-3">
                       <dt className="shrink-0 text-white/55">{item.label}</dt>
@@ -535,12 +497,17 @@ export function MarketChartSection<T extends RangeKey>({
             </aside>
 
             <div className="glass-subcard order-3 min-w-0 rounded-2xl px-3 py-4 lg:hidden">
+              {headerActionPlacement === 'panel' && headerAction ? (
+                <div className="panel-action-row">
+                  {headerAction}
+                </div>
+              ) : null}
               {statusNode ? (
                 <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2">
                   {statusNode}
                 </div>
               ) : null}
-              <dl className={`${statusNode ? 'mt-5' : ''} flex flex-col gap-2.5 text-xs`}>
+              <dl className={`${statusNode ? 'mt-5' : headerActionPlacement === 'panel' && headerAction ? 'mt-2' : ''} flex flex-col gap-2.5 text-xs`}>
                 {panelDetails.map((item) => (
                   <div key={item.label} className="flex items-start justify-between gap-3">
                     <dt className="shrink-0 text-white/55">{item.label}</dt>
@@ -629,6 +596,32 @@ function getPointerAxisValue({
 
   const ratio = (Math.min(plotBottom, Math.max(plotTop, y)) - plotTop) / (plotBottom - plotTop);
   return max - ratio * (max - min);
+}
+
+function getTooltipPosition({
+  chartHeight,
+  chartWidth,
+  isTouchPointer,
+  side,
+  x,
+  y
+}: {
+  chartHeight: number;
+  chartWidth: number;
+  isTouchPointer: boolean;
+  side: TooltipSide;
+  x: number;
+  y: number;
+}) {
+  const tooltipWidth = 192;
+  const tooltipHeight = 88;
+  const tooltipGap = isTouchPointer ? 72 : 26;
+  const rawX = side === 'left' ? x - tooltipWidth - tooltipGap : x + tooltipGap;
+
+  return {
+    x: Math.min(Math.max(8, chartWidth - tooltipWidth - 8), Math.max(8, rawX)),
+    y: Math.min(Math.max(8, chartHeight - tooltipHeight - 8), Math.max(8, y - (isTouchPointer ? 82 : 58)))
+  };
 }
 
 function YAxisTick({ payload, x = 0, y = 0 }: AxisTickProps) {
