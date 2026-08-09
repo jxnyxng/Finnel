@@ -165,7 +165,10 @@ export function CurrencyStrengthPage({
                         <div
                           className={`currency-rank-score-marker absolute top-1 h-5 w-2 -translate-x-1/2 rounded-full ${isWeak ? 'bg-rose-600' : 'bg-teal-600'}`}
                           key={`${animationKey}-${rank.areaCode}`}
-                          style={{ '--currency-rank-marker-left': `${valuePosition}%` } as React.CSSProperties}
+                          style={{
+                            '--currency-rank-marker-delay': `${120 + index * 48}ms`,
+                            '--currency-rank-marker-left': `${valuePosition}%`
+                          } as React.CSSProperties}
                         />
                       </div>
                       <div className="relative mt-1 h-4 text-[11px] text-white/55">
