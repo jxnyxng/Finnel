@@ -114,7 +114,7 @@ export function GovernmentBriefingsPage({
     <section className="grid min-w-0 gap-3">
       <header className="page-tab-header">
         <div className="min-w-0">
-          <p className="page-tab-eyebrow">정책브리핑 공식 콘텐츠</p>
+          <p className="page-tab-eyebrow">GOVERNMENT POLICY</p>
           <h2 className="page-tab-title">정부 정책</h2>
           <p className="page-tab-description">대한민국 정책브리핑 공개 API에서 수집한 정부 부처 공식 발표입니다. 원문 링크와 발행일을 함께 보존해 출처를 확인할 수 있습니다.</p>
         </div>
@@ -180,7 +180,7 @@ export function GovernmentBriefingsPage({
           categoryScrollerRef.current = node;
           categoryContainerRef.current = node;
         }}>
-          <MovingTabIndicator indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
+          <MovingTabIndicator contained indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
           {categoryTabs.map((category) => (
             <CategoryButton
               active={activeCategoryLabelKey === category.key}
@@ -201,14 +201,10 @@ export function GovernmentBriefingsPage({
         <CategoryScrollButton direction="right" onClick={() => scrollCategories(1)} />
       </nav>
 
-      {!configured ? (
-        <section className="rounded-2xl border border-amber-300/30 bg-amber-400/15 p-4 text-sm text-amber-100 shadow-sm">
-          정책브리핑 API 키가 아직 설정되지 않았습니다. `backend/.env`에 `POLICY_BRIEFING_API_KEY`를 추가한 뒤 백엔드를 다시 실행하세요.
-        </section>
-      ) : null}
-
       <section className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
-        {isLoading && articles.length === 0 ? (
+        {!configured ? (
+          <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
+        ) : isLoading && articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">정부 정책을 불러오는 중입니다.</div>
         ) : isPendingInitialLoad ? (
           <div className="min-h-40" />
