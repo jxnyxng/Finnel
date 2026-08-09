@@ -81,7 +81,8 @@ describe('sync freshness status', () => {
         reerValue: null,
         previousNeerRank: null,
         previousNeerValue: null,
-        neerValueChange: null
+        neerValueChange: null,
+        fetchedAt: '2026-07-21T01:30:00Z'
       }],
       seoulDate: '2026-07-21',
       seoulTime: '10:30',
