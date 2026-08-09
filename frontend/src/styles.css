@@ -1158,7 +1158,7 @@ body,
 }
 
 .currency-rank-score-marker {
-  animation: currency-rank-score-marker-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) 140ms both;
+  animation: currency-rank-score-marker-enter 620ms cubic-bezier(0.22, 1, 0.36, 1) var(--currency-rank-marker-delay, 120ms) both;
   left: var(--currency-rank-marker-left, 0%);
   will-change: left;
 }
