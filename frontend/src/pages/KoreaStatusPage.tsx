@@ -107,7 +107,7 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
     <section className="grid min-w-0 gap-4">
       <header className="page-tab-header page-tab-header-after-news">
         <div className="min-w-0">
-          <p className="page-tab-eyebrow">관련 지표</p>
+          <p className="page-tab-eyebrow">KOREA INDICATORS</p>
           <h2 className="page-tab-title">원화 관련 정책·거시 지표</h2>
           <p className="page-tab-description">금리, 물가, 무역수지, 외환보유액처럼 원화 흐름을 해석할 때 함께 보는 지표를 정리합니다.</p>
         </div>
@@ -155,7 +155,7 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
       {isLoading ? (
         <div className="glass-card min-w-0 rounded-2xl p-6 text-sm text-white/60 shadow-sm">국내 정책 지표를 확인 중입니다.</div>
       ) : errorMessage ? (
-        <div className="glass-card min-w-0 rounded-2xl p-6 text-sm text-rose-100 shadow-sm">{errorMessage}</div>
+        <div className="glass-card grid min-h-32 place-items-center rounded-2xl px-4 text-center text-sm font-medium text-zinc-700 shadow-sm">{errorMessage}</div>
       ) : (
         <div className="page-content-enter grid min-w-0 gap-4" key={activeSectionKey}>
           {visibleSections.map((section) => {
@@ -443,85 +443,87 @@ function IndicatorInfoPanel({
   return createPortal(
     <div className="modal-overlay responsive-modal-overlay fixed inset-0 z-[100] flex bg-zinc-950/35" onClick={onClose}>
       <section
-        className="modal-panel modal-scroll-area glass-modal responsive-modal-panel responsive-modal-scroll rounded-2xl p-4 text-sm shadow-xl sm:p-5 md:p-6"
+        className="modal-panel glass-modal responsive-modal-panel overflow-hidden rounded-2xl text-sm shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-teal-100">{indicator.category}</p>
-            <h3 className="mt-1 text-base font-semibold text-white">{indicator.title}</h3>
-          </div>
-          <button
-            className="h-7 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
-            onClick={onClose}
-            type="button"
-          >
-            닫기
-          </button>
-        </div>
-        <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-2xl border border-zinc-200 bg-white p-4 text-xs shadow-sm md:grid-cols-2">
-          <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
-          <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
-          <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
-          <InfoPanelRow label="출처" value={indicator.source} />
-          <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
-          <InfoPanelRow label="최신성" value={indicator.freshnessReason ?? collectionStatusLabel(indicator)} />
-        </dl>
-        {(indicator.componentFreshnesses ?? []).length > 0 ? (
-          <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold text-zinc-700">계산에 사용한 데이터</p>
-            <div className="mt-3 grid gap-2">
-              {(indicator.componentFreshnesses ?? []).map((component) => (
-                <div className="grid gap-x-3 gap-y-1 rounded-lg bg-zinc-50 p-3 text-[11px] text-zinc-500 md:grid-cols-[minmax(0,1fr)_96px_96px_64px]" key={component.code}>
-                  <span className="min-w-0 font-semibold text-zinc-800">{component.title}</span>
-                  <span>기준 {component.baseDate ?? '-'}</span>
-                  <span>수집 {component.fetchedAt ? component.fetchedAt.slice(0, 10) : '-'}</span>
-                  <span>{component.freshnessReason ?? component.freshnessStatus}</span>
-                </div>
-              ))}
+        <div className="modal-scroll-area responsive-modal-scroll p-4 sm:p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-teal-100">{indicator.category}</p>
+              <h3 className="mt-1 text-base font-semibold text-white">{indicator.title}</h3>
             </div>
-          </div>
-        ) : null}
-        {hasChart ? (
-          <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold text-zinc-800">과거 흐름</p>
-                <p className="mt-0.5 text-[11px] text-zinc-500">
-                  {history ? `${history.startDate} - ${history.endDate} · ${history.points.length}개 관측치` : '기간별 저장 데이터를 조회합니다.'}
-                </p>
-              </div>
-              <HistoryRangeSelector history={history} value={historyRange} onChange={setHistoryRange} />
-            </div>
-            <div className="chart-range-enter" key={`${indicator.code}-${history?.range ?? historyRange}-${history?.endDate ?? ''}`}>
-              <DomesticIndicatorHistoryChart
-                history={history}
-                indicator={indicator}
-                isLoading={isHistoryLoading}
-                error={historyError}
-              />
-            </div>
-          </div>
-        ) : null}
-        <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-700 shadow-sm">
-          {indicator.krwImpact}
-        </div>
-        <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-600 shadow-sm">
-          <p className="font-semibold text-zinc-800">수집 기준</p>
-          <p className="mt-1">{indicator.note}</p>
-        </div>
-        {indicator.sourceUrl ? (
-          <div className="mt-4 flex justify-end">
-            <a
-              className="inline-flex h-8 items-center text-[11px] font-semibold text-zinc-950 underline-offset-4 hover:underline"
-              href={indicator.sourceUrl}
-              rel="noreferrer"
-              target="_blank"
+            <button
+              className="h-7 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+              onClick={onClose}
+              type="button"
             >
-              출처에서 보기
-            </a>
+              닫기
+            </button>
           </div>
-        ) : null}
+          <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-2xl border border-zinc-200 bg-white p-4 text-xs shadow-sm md:grid-cols-2">
+            <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+            <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
+            <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
+            <InfoPanelRow label="출처" value={indicator.source} />
+            <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
+            <InfoPanelRow label="최신성" value={indicator.freshnessReason ?? collectionStatusLabel(indicator)} />
+          </dl>
+          {(indicator.componentFreshnesses ?? []).length > 0 ? (
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-semibold text-zinc-700">계산에 사용한 데이터</p>
+              <div className="mt-3 grid gap-2">
+                {(indicator.componentFreshnesses ?? []).map((component) => (
+                  <div className="grid gap-x-3 gap-y-1 rounded-lg bg-zinc-50 p-3 text-[11px] text-zinc-500 md:grid-cols-[minmax(0,1fr)_96px_96px_64px]" key={component.code}>
+                    <span className="min-w-0 font-semibold text-zinc-800">{component.title}</span>
+                    <span>기준 {component.baseDate ?? '-'}</span>
+                    <span>수집 {component.fetchedAt ? component.fetchedAt.slice(0, 10) : '-'}</span>
+                    <span>{component.freshnessReason ?? component.freshnessStatus}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {hasChart ? (
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-zinc-800">과거 흐름</p>
+                  <p className="mt-0.5 text-[11px] text-zinc-500">
+                    {history ? `${history.startDate} - ${history.endDate} · ${history.points.length}개 관측치` : '기간별 저장 데이터를 조회합니다.'}
+                  </p>
+                </div>
+                <HistoryRangeSelector history={history} value={historyRange} onChange={setHistoryRange} />
+              </div>
+              <div className="chart-range-enter" key={`${indicator.code}-${history?.range ?? historyRange}-${history?.endDate ?? ''}`}>
+                <DomesticIndicatorHistoryChart
+                  history={history}
+                  indicator={indicator}
+                  isLoading={isHistoryLoading}
+                  error={historyError}
+                />
+              </div>
+            </div>
+          ) : null}
+          <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-700 shadow-sm">
+            {indicator.krwImpact}
+          </div>
+          <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-600 shadow-sm">
+            <p className="font-semibold text-zinc-800">수집 기준</p>
+            <p className="mt-1">{indicator.note}</p>
+          </div>
+          {indicator.sourceUrl ? (
+            <div className="mt-4 flex justify-end">
+              <a
+                className="inline-flex h-8 items-center text-[11px] font-semibold text-zinc-950 underline-offset-4 hover:underline"
+                href={indicator.sourceUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                출처에서 보기
+              </a>
+            </div>
+          ) : null}
+        </div>
       </section>
     </div>,
     document.body
@@ -557,7 +559,7 @@ function HistoryRangeSelector({
 
   return (
     <div className="relative inline-flex h-10 shrink-0 rounded-full border border-zinc-200 bg-white p-0.5 shadow-sm" ref={containerRef}>
-      <MovingTabIndicator indicator={indicator} isMoving={isMoving} />
+      <MovingTabIndicator contained indicator={indicator} isMoving={isMoving} />
       {options.map((option) => (
         <button
           className={`relative z-10 inline-flex h-full min-w-14 items-center justify-center rounded-full px-3 text-center text-xs font-semibold leading-none transition-colors duration-150 ${
