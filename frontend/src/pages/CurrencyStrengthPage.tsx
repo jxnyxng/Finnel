@@ -32,6 +32,7 @@ export function CurrencyStrengthPage({
     [ranks, sortMode]
   );
   const latestDate = sortedRanks[0]?.baseDate ?? null;
+  const latestFetchedAt = getLatestFetchedAt(sortedRanks);
   const latestReerDate = sortedRanks.find((rank) => rank.reerBaseDate !== null)?.reerBaseDate ?? null;
   const neerValues = sortedRanks.map((rank) => rank.neerValue);
   const minNeer = neerValues.length > 0 ? Math.min(...neerValues) : 0;
@@ -53,6 +54,13 @@ export function CurrencyStrengthPage({
         <div className="min-w-0">
           <h2 className="page-tab-title mt-0">화폐 랭킹</h2>
           <p className="page-tab-description">주요 통화의 상대 강도를 BIS broad NEER 기준으로 비교합니다.</p>
+        </div>
+        <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
+          <div className="page-tab-meta">
+            <span>NEER {latestDate ?? '-'}</span>
+            <span>REER {latestReerDate ?? '-'}</span>
+            <span>최근 업데이트 {latestFetchedAt}</span>
+          </div>
         </div>
       </header>
       {sortedRanks.length === 0 ? (
@@ -266,6 +274,25 @@ function getAreaDisplay(areaCode: string, fallbackName: string) {
     name: koreanRegionNames.of(areaCode) ?? fallbackName,
     flag: getFlagEmoji(areaCode)
   };
+}
+
+function getLatestFetchedAt(ranks: CurrencyStrengthRank[]) {
+  const latestMs = ranks
+    .map((rank) => new Date(rank.fetchedAt).getTime())
+    .filter(Number.isFinite)
+    .reduce<number | null>((latest, fetchedAt) => latest === null ? fetchedAt : Math.max(latest, fetchedAt), null);
+
+  if (latestMs === null) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Seoul'
+  }).format(new Date(latestMs));
 }
 
 function getFlagEmoji(areaCode: string) {

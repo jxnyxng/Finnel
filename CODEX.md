@@ -38,6 +38,7 @@
 - 운영 EC2 systemd 서비스명은 `koreaone-backend`입니다.
 - 운영 MySQL은 EC2 Docker 컨테이너 `krw-watcher-mysql`을 사용합니다.
 - 운영 Nginx는 `/api/`, `/actuator/`를 `127.0.0.1:8080` 백엔드로 프록시하고, 프론트 정적 파일은 `/var/www/koreaone`에 배포합니다.
+- 운영 EC2 프론트 반영은 `frontend`에서 `npm run build` 후 `sudo rsync -av --delete dist/ /var/www/koreaone/` 및 `sudo systemctl reload nginx` 순서로 수행합니다. 기본 Nginx root인 `/usr/share/nginx/html`에 복사해도 실제 서비스 화면은 바뀌지 않을 수 있습니다.
 - 운영 JVM timezone은 `Asia/Seoul`로 맞춰져 있습니다. 시간대 처리는 별도 코드/테스트 정리가 필요합니다.
 - 정책브리핑 API는 3일 초과 조회 시 `THREE_DAYS_OVER_ERROR`가 발생하므로 최신/백필 수집은 3일 이하 단위로 호출해야 합니다.
 - 정책브리핑 API는 XML 또는 JSON으로 응답할 수 있습니다. `PolicyBriefingClient`는 둘 다 파싱해야 하며, 금융/환율/재정/무역/물가 관련 필터는 유지합니다.
