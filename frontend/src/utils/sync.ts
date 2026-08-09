@@ -1,4 +1,3 @@
-import axios, { AxiosError } from 'axios';
 import type {
   CurrencyStrengthRank,
   DailyDashboardResponse,
@@ -39,7 +38,7 @@ export function getIntradayStatusLabel(
 
 export function getLatestSyncLabel(syncStatus: SyncStatus | null, remainingCooldownSeconds: number) {
   if (!syncStatus?.latestStartedAt) {
-    return '전체 데이터 수집 이력 없음 · 화면은 저장된 DB 데이터를 자동으로 다시 확인합니다.';
+    return '전체 데이터 수집 이력 없음 · 화면은 저장된 데이터를 자동으로 다시 확인합니다.';
   }
 
   const latestTime = formatDateTime(syncStatus.latestEndedAt ?? syncStatus.latestStartedAt);
@@ -192,22 +191,9 @@ export function getServiceUpdateInterval(activeTab: MainTabKey) {
 }
 
 export function getRequestErrorMessage(error: unknown, fallback: string) {
-  if (!axios.isAxiosError(error)) {
-    return `${fallback} 백엔드 로그를 확인하세요.`;
-  }
-
-  const axiosError = error as AxiosError<{ message?: string; error?: string; status?: number }>;
-  const status = axiosError.response?.status;
-  const responseMessage = axiosError.response?.data?.message ?? axiosError.response?.data?.error;
-  if (status && responseMessage) {
-    return `${fallback} HTTP ${status}: ${responseMessage}`;
-  }
-
-  if (status) {
-    return `${fallback} HTTP ${status}`;
-  }
-
-  return `${fallback} ${axiosError.message}`;
+  void error;
+  void fallback;
+  return '현재 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
 export function isFailedSyncStatus(status: string | null | undefined) {

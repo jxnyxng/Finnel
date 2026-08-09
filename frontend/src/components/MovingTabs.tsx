@@ -28,13 +28,13 @@ export function MovingTabIndicator({
 
   const compactInset = 0;
   const height = compact ? Math.max(0, indicator.height - compactInset * 2) : indicator.height;
-  const left = compact ? indicator.left + compactInset : contained ? indicator.left : indicator.left + 1;
+  const left = compact ? indicator.left + compactInset : indicator.left;
   const top = compact
     ? Math.max(0, (indicator.containerHeight - height) / 2)
     : indicator.top;
   const width = compact
     ? Math.max(0, indicator.width - compactInset * 2)
-    : contained ? indicator.width : Math.max(0, indicator.width - 2);
+    : indicator.width;
 
   return (
     <span
