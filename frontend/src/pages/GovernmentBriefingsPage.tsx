@@ -14,7 +14,6 @@ type GovernmentBriefingsPageProps = {
   filters: GovernmentBriefingFilters;
   isLoading: boolean;
   isPendingInitialLoad?: boolean;
-  latestUpdatedAt?: string | null;
   page: number;
   selectedCategory: string;
   statusNode?: React.ReactNode;
@@ -32,7 +31,6 @@ export function GovernmentBriefingsPage({
   filters,
   isLoading,
   isPendingInitialLoad = false,
-  latestUpdatedAt = null,
   onCategoryChange,
   onFiltersApply,
   onLoadMore,
@@ -122,7 +120,6 @@ export function GovernmentBriefingsPage({
           <div className="page-tab-meta">
             <span>총 {totalCount}건</span>
             <span>{articles.length}건 표시</span>
-            <span>최근 업데이트 {latestUpdatedAt ?? '-'}</span>
           </div>
           {statusNode}
         </div>
