@@ -56,6 +56,7 @@ import {
 } from './utils/time';
 import type {
   ChartHoverState,
+  ContentSyncStatus,
   DailyDashboardResponse,
   ForeignExchangeRate,
   GovernmentBriefingArticle,
@@ -110,6 +111,7 @@ function App() {
   const [newsTotalCount, setNewsTotalCount] = React.useState(0);
   const [newsTotalPages, setNewsTotalPages] = React.useState(0);
   const [latestNewsFetchedAt, setLatestNewsFetchedAt] = React.useState<string | null>(null);
+  const [newsSyncStatus, setNewsSyncStatus] = React.useState<ContentSyncStatus | null>(null);
   const [governmentBriefings, setGovernmentBriefings] = React.useState<GovernmentBriefingArticle[]>([]);
   const [governmentBriefingCategories, setGovernmentBriefingCategories] = React.useState<GovernmentBriefingCategory[]>([]);
   const [isGovernmentBriefingsConfigured, setIsGovernmentBriefingsConfigured] = React.useState(false);
@@ -122,6 +124,7 @@ function App() {
   const [governmentBriefingsTotalCount, setGovernmentBriefingsTotalCount] = React.useState(0);
   const [governmentBriefingsTotalPages, setGovernmentBriefingsTotalPages] = React.useState(0);
   const [latestGovernmentBriefingFetchedAt, setLatestGovernmentBriefingFetchedAt] = React.useState<string | null>(null);
+  const [governmentBriefingsSyncStatus, setGovernmentBriefingsSyncStatus] = React.useState<ContentSyncStatus | null>(null);
   const [nowMs, setNowMs] = React.useState(() => Date.now());
   const isMainAppPage = activePage === 'home' || mainTabs.some((tab) => tab.key === activePage);
   const mainTabNavRef = React.useRef<HTMLElement | null>(null);
@@ -250,10 +253,18 @@ function App() {
       setNewsTotalCount(response.data.totalCount);
       setNewsTotalPages(response.data.totalPages);
       setLatestNewsFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
+      setNewsSyncStatus({
+        freshnessStatus: response.data.freshnessStatus ?? null,
+        lastSuccessfulFetchedAt: response.data.lastSuccessfulFetchedAt ?? null,
+        latestSyncEndedAt: response.data.latestSyncEndedAt ?? null,
+        latestSyncStartedAt: response.data.latestSyncStartedAt ?? null,
+        latestSyncStatus: response.data.latestSyncStatus ?? null
+      });
     } catch {
       if (mode === 'replace') {
         setNewsArticles([]);
         setLatestNewsFetchedAt(null);
+        setNewsSyncStatus(null);
       }
     } finally {
       setHasNewsLoaded(true);
@@ -307,10 +318,18 @@ function App() {
       setGovernmentBriefingsTotalCount(response.data.totalCount);
       setGovernmentBriefingsTotalPages(response.data.totalPages);
       setLatestGovernmentBriefingFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
+      setGovernmentBriefingsSyncStatus({
+        freshnessStatus: response.data.freshnessStatus ?? null,
+        lastSuccessfulFetchedAt: response.data.lastSuccessfulFetchedAt ?? null,
+        latestSyncEndedAt: response.data.latestSyncEndedAt ?? null,
+        latestSyncStartedAt: response.data.latestSyncStartedAt ?? null,
+        latestSyncStatus: response.data.latestSyncStatus ?? null
+      });
     } catch {
       if (mode === 'replace') {
         setGovernmentBriefings([]);
         setLatestGovernmentBriefingFetchedAt(null);
+        setGovernmentBriefingsSyncStatus(null);
       }
     } finally {
       setHasGovernmentBriefingsLoaded(true);
@@ -381,6 +400,7 @@ function App() {
   const dollarIndexMetric = findMetric(metrics, 'BROAD_DOLLAR_INDEX');
   const usdKrwSeries = dashboard?.usdKrwSeries ?? [];
   const usdKrwIntradaySeries = dashboard?.usdKrwIntradaySeries ?? [];
+  const latestUsdKrwIntradayPoint = usdKrwIntradaySeries[usdKrwIntradaySeries.length - 1] ?? null;
   const dxyIndexSeries = dashboard?.dxyIndexSeries ?? [];
   const dollarIndexSeries = dashboard?.dollarIndexSeries ?? [];
   const advancedDollarIndexStatus = dashboard?.advancedDollarIndexStatus ?? null;
@@ -388,6 +408,7 @@ function App() {
   const currencyStrengthRanks = dashboard?.currencyStrengthRanks ?? [];
   const foreignExchangeRates = dashboard?.foreignExchangeRates ?? [];
   const domesticIndicators = dashboard?.domesticIndicators ?? [];
+  const usdKrwIndicator = domesticIndicators.find((indicator) => indicator.code === 'USD_KRW') ?? null;
   const dataSources = dashboard?.dataSources ?? [];
   const isInitialDashboardLoading = dashboardLoadState === 'loading' && dashboard === null;
   const shouldCoverDashboardCharts = dashboardLoadState === 'loading' && dashboard !== null;
@@ -424,10 +445,12 @@ function App() {
     dashboard,
     dashboardLoadState,
     domesticIndicators,
+    governmentBriefingsSyncStatus,
     isGovernmentBriefingsConfigured,
     intradayStatus,
     latestGovernmentBriefingFetchedAt,
     isNewsConfigured,
+    newsSyncStatus,
     latestNewsFetchedAt,
     latestIntradayDate,
     ranks: currencyStrengthRanks,
@@ -446,9 +469,50 @@ function App() {
   }, []);
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
   const marketDailyStatus = getMarketDailyStatus(dashboard, syncStatus);
+  const dollarIndexSourceRun = syncStatus?.sourceRuns?.find((sourceRun) => sourceRun.sourceName === 'dollarIndex') ?? null;
+  const activeDollarIndexFetchedAt = showBroadDollarIndex
+    ? dollarIndexStatus?.fetchedAt ?? null
+    : advancedDollarIndexStatus?.fetchedAt ?? null;
+  const usdKrwLatestUpdatedAt = usdKrwIndicator?.lastSuccessfulFetchedAt ?? usdKrwIndicator?.fetchedAt ?? null;
+  const usdKrwIntradayLatestUpdatedAt = latestUsdKrwIntradayPoint?.observedAt ?? usdKrwLatestUpdatedAt;
+  const usdKrwIntradayStatusDetails = getStatusDetails({
+    attemptedAt: intradayStatus?.latestEndedAt ?? intradayStatus?.latestStartedAt ?? null,
+    latestUpdatedAt: usdKrwIntradayLatestUpdatedAt,
+    syncStatus: intradayStatus?.latestStatus ?? null
+  });
+  const usdKrwDailyStatusDetails = getStatusDetails({
+    attemptedAt: syncStatus?.latestEndedAt ?? syncStatus?.latestStartedAt ?? null,
+    latestUpdatedAt: usdKrwLatestUpdatedAt,
+    syncStatus: syncStatus?.latestStatus ?? null
+  });
+  const dollarIndexStatusDetails = getStatusDetails({
+    attemptedAt: dollarIndexSourceRun?.endedAt ?? dollarIndexSourceRun?.startedAt ?? syncStatus?.latestEndedAt ?? syncStatus?.latestStartedAt ?? null,
+    latestUpdatedAt: activeDollarIndexFetchedAt,
+    syncStatus: dollarIndexSourceRun?.status ?? syncStatus?.latestStatus ?? null
+  });
+  const newsStatusDetails = getStatusDetails({
+    attemptedAt: newsSyncStatus?.latestSyncEndedAt ?? newsSyncStatus?.latestSyncStartedAt ?? null,
+    latestUpdatedAt: latestNewsFetchedAt,
+    syncStatus: newsSyncStatus?.latestSyncStatus ?? null
+  });
+  const governmentBriefingsStatusDetails = getStatusDetails({
+    attemptedAt: governmentBriefingsSyncStatus?.latestSyncEndedAt ?? governmentBriefingsSyncStatus?.latestSyncStartedAt ?? null,
+    latestUpdatedAt: latestGovernmentBriefingFetchedAt,
+    syncStatus: governmentBriefingsSyncStatus?.latestSyncStatus ?? null
+  });
+  const activeStatusDetails = activeTab === 'newsroom'
+    ? newsStatusDetails
+    : activeTab === 'governmentBriefings'
+      ? governmentBriefingsStatusDetails
+      : getStatusDetails({
+          attemptedAt: syncStatus?.latestEndedAt ?? syncStatus?.latestStartedAt ?? null,
+          latestUpdatedAt: syncStatus?.latestEndedAt ?? null,
+          syncStatus: syncStatus?.latestStatus ?? null
+        });
   const showUsdKrwLatestValueDot = usdKrwRange === '1D' && activeServiceStatus.tone !== 'idle' && isUsdKrwIntradayActive;
   const usdKrwStatusNode = (
     <UpdateStatusBox
+      details={usdKrwRange === '1D' ? usdKrwIntradayStatusDetails : usdKrwDailyStatusDetails}
       interval={usdKrwRange === '1D' ? '환율 1분봉 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
       statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatus.label}
       tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatus.tone}
@@ -456,6 +520,7 @@ function App() {
   );
   const dollarIndexStatusNode = (
     <UpdateStatusBox
+      details={dollarIndexStatusDetails}
       interval="달러 지수 일별 · 09:10/15:10"
       statusLabel={marketDailyStatus.label}
       tone={marketDailyStatus.tone}
@@ -464,6 +529,7 @@ function App() {
   const showPageStatus = activePage !== 'dashboard' && activePage !== 'exchangeGuide' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator';
   const activeStatusNode = showPageStatus ? (
     <UpdateStatusBox
+      details={activeStatusDetails}
       interval={activeServiceUpdateInterval}
       statusLabel={activeServiceStatus.label}
       tone={activeServiceStatus.tone}
@@ -473,7 +539,7 @@ function App() {
     false,
     latestIntradayDate,
     usdKrwIntradaySeries.length,
-    usdKrwIntradaySeries[usdKrwIntradaySeries.length - 1]?.observedAt ?? null,
+    latestUsdKrwIntradayPoint?.observedAt ?? null,
     remainingIntradayCooldownSeconds
   );
   const usdKrwChartStatusText = usdKrwRange === '1D'
@@ -495,7 +561,6 @@ function App() {
     { label: '기간', value: getPanelPeriodLabel(visibleDollarIndexSeries) },
     { label: '관측값', value: `${visibleDollarIndexSeries.length}개` },
     { label: '최신 기준일', value: dollarIndexStatus?.latestBaseDate ?? latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-' },
-    { label: '수집 시각', value: formatDataFetchedAt(dollarIndexStatus?.fetchedAt ?? null) },
     { label: '구성', value: '26개' },
     { label: '의미', value: '넓은 교역 상대 기준 달러 강도' },
     { label: '해석', value: '상승하면 달러 강세' },
@@ -506,7 +571,6 @@ function App() {
     { label: '기간', value: getPanelPeriodLabel(visibleDxyIndexSeries) },
     { label: '관측값', value: `${visibleDxyIndexSeries.length}개` },
     { label: '최신 기준일', value: advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-' },
-    { label: '수집 시각', value: formatDataFetchedAt(advancedDollarIndexStatus?.fetchedAt ?? null) },
     { label: '구성', value: '7개' },
     { label: '의미', value: '주요 7개 통화권 대비 달러 강도' },
     { label: '해석', value: '상승하면 달러 강세' },
@@ -521,7 +585,7 @@ function App() {
     : advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-';
   const activeDollarIndexChartStatusText = `일별 지수 · 최신 ${activeDollarIndexLatestBaseDate} · ${marketDailyStatus.label}`;
   const activeDollarIndexHeaderAction = (
-    <div className="w-36 shrink-0">
+    <div className="dollar-index-mode-control w-[6.75rem] shrink-0">
       <RangeSelector
         columns={2}
         compact
@@ -682,8 +746,6 @@ function App() {
 
             <MarketChartSection
               emptyText={dashboardEmptyText}
-              headerAction={activeDollarIndexHeaderAction}
-              headerActionPlacement="chartControls"
               headerStatus={dollarIndexStatusNode}
               helpAriaLabel="달러인덱스 안내"
               helpContent={(
@@ -721,6 +783,7 @@ function App() {
               statusText={activeDollarIndexChartStatusText}
               subtitle={null}
               title="달러인덱스"
+              titleAction={activeDollarIndexHeaderAction}
               tooltipContent={<DollarIndexTooltip title={showBroadDollarIndex ? '26개 교역 상대 달러' : '7개 통화권 달러'} />}
               usePointerHover
               xAxisHeight={dailyXAxisHeightPx}
@@ -770,7 +833,6 @@ function App() {
               filters={newsFilters}
               isLoading={delayedNewsLoading}
               isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
-              latestUpdatedAt={formatDataFetchedAt(latestNewsFetchedAt)}
               onFiltersApply={applyNewsFilters}
               onCategoryChange={changeNewsCategory}
               onLoadMore={changeNewsPage}
@@ -792,7 +854,6 @@ function App() {
               filters={governmentBriefingFilters}
               isLoading={delayedGovernmentBriefingsLoading}
               isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
-              latestUpdatedAt={formatDataFetchedAt(latestGovernmentBriefingFetchedAt)}
               onCategoryChange={changeGovernmentBriefingCategory}
               onFiltersApply={applyGovernmentBriefingFilters}
               onLoadMore={changeGovernmentBriefingsPage}
@@ -911,22 +972,36 @@ function getDashboardErrorMessage(_error: unknown) {
 }
 
 function UpdateStatusBox({
+  details = [],
   interval,
   statusLabel,
   tone
 }: {
+  details?: string[];
   interval: string;
   statusLabel: string;
   tone: string;
 }) {
+  const tooltipLines = details.length > 0 ? details : [interval];
+  const ariaLabel = `${statusLabel}. ${tooltipLines.join('. ')}`;
+
   return (
-    <div className="flex max-w-full min-w-0 flex-nowrap items-center justify-between gap-3 text-[10px] font-medium text-zinc-500">
+    <div className="service-status-box relative flex max-w-full min-w-0 flex-nowrap items-center justify-between gap-3 text-[10px] font-medium text-zinc-500">
       <span className="inline-flex min-w-0 flex-1 items-center">
         <span className="truncate">{interval}</span>
       </span>
-      <span className="inline-flex min-w-0 shrink-0 items-center gap-1">
+      <span
+        aria-label={ariaLabel}
+        className="service-status-trigger inline-flex min-w-0 shrink-0 items-center gap-1"
+        tabIndex={0}
+      >
         <span className={`service-status-dot service-status-dot-${tone} shrink-0`} aria-hidden="true" />
         <span className="truncate">{statusLabel}</span>
+        <span className="service-status-tooltip" role="tooltip">
+          {tooltipLines.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </span>
       </span>
     </div>
   );
@@ -1408,6 +1483,35 @@ function formatDataFetchedAt(value: string | null) {
     return '-';
   }
   return formatForeignExchangeUpdatedAt(new Date(value));
+}
+
+function getContentSyncStatusLabel(status: string) {
+  if (status === 'SUCCESS') {
+    return '성공';
+  }
+  if (status === 'RUNNING') {
+    return '진행중';
+  }
+  return '실패';
+}
+
+function getStatusDetails({
+  attemptedAt,
+  latestUpdatedAt,
+  syncStatus
+}: {
+  attemptedAt?: string | null;
+  latestUpdatedAt?: string | null;
+  syncStatus?: string | null;
+}) {
+  const details: string[] = [];
+  if (latestUpdatedAt) {
+    details.push(`최근 업데이트 ${formatDataFetchedAt(latestUpdatedAt)}`);
+  }
+  if (syncStatus) {
+    details.push(`마지막 시도 ${formatDataFetchedAt(attemptedAt ?? null)} · ${getContentSyncStatusLabel(syncStatus)}`);
+  }
+  return details;
 }
 
 function calculateKrwAmount(value: string, rate: ForeignExchangeRate | null) {

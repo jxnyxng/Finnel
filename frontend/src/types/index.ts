@@ -246,6 +246,9 @@ export type NewsResponse = {
   staleReason?: string | null;
   expectedNextUpdateAt?: string | null;
   lastSuccessfulFetchedAt?: string | null;
+  latestSyncStatus?: string | null;
+  latestSyncStartedAt?: string | null;
+  latestSyncEndedAt?: string | null;
 };
 
 export type GovernmentBriefingArticle = {
@@ -286,6 +289,17 @@ export type GovernmentBriefingResponse = {
   staleReason?: string | null;
   expectedNextUpdateAt?: string | null;
   lastSuccessfulFetchedAt?: string | null;
+  latestSyncStatus?: string | null;
+  latestSyncStartedAt?: string | null;
+  latestSyncEndedAt?: string | null;
+};
+
+export type ContentSyncStatus = {
+  freshnessStatus?: FreshnessStatus | null;
+  lastSuccessfulFetchedAt?: string | null;
+  latestSyncStatus?: string | null;
+  latestSyncStartedAt?: string | null;
+  latestSyncEndedAt?: string | null;
 };
 
 export type ChartPoint = {
