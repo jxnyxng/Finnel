@@ -50,7 +50,7 @@ app:
         admin-token: ${SYNC_ADMIN_TOKEN:}
         allowed-internal-cidrs: ${SYNC_ALLOWED_INTERNAL_CIDRS:}
         backfill-rate-limit-cooldown: ${SYNC_BACKFILL_RATE_LIMIT_COOLDOWN:15m}
-      news-cron: ${NEWS_SYNC_CRON:0 */10 * * * MON-FRI}
+      news-cron: ${NEWS_SYNC_CRON:0 */10 * * * *}
   external-apis:
     koreaexim:
       base-url: ${KOREAEXIM_BASE_URL:https://www.koreaexim.go.kr/site/program/financial}
