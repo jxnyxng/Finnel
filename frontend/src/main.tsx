@@ -886,7 +886,6 @@ function App() {
         ) : null}
 
       </section>
-      {activePage !== 'home' && activePage !== 'calculator' ? <ExchangeRateCalculator rates={foreignExchangeRates} /> : null}
       {activePage !== 'home' ? <AppFooter /> : null}
     </main>
   );
@@ -1135,104 +1134,6 @@ function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; 
   );
 }
 
-function ExchangeRateCalculator({ rates }: { rates: ForeignExchangeRate[] }) {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [isHoverExpansionPaused, setIsHoverExpansionPaused] = React.useState(false);
-  const [isClosing, setIsClosing] = React.useState(false);
-  const [isOpening, setIsOpening] = React.useState(false);
-  const closeTimerRef = React.useRef<number | null>(null);
-  const openTimerRef = React.useRef<number | null>(null);
-
-  const openCalculator = () => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-
-    if (openTimerRef.current !== null) {
-      window.clearTimeout(openTimerRef.current);
-      openTimerRef.current = null;
-    }
-
-    setIsClosing(false);
-    setIsOpening(true);
-    setIsOpen(true);
-
-    openTimerRef.current = window.setTimeout(() => {
-      setIsOpening(false);
-      openTimerRef.current = null;
-    }, 220);
-  };
-
-  const closeCalculator = () => {
-    setIsHoverExpansionPaused(true);
-    setIsOpening(false);
-    setIsClosing(true);
-    setIsOpen(false);
-
-    closeTimerRef.current = window.setTimeout(() => {
-      setIsClosing(false);
-      setIsHoverExpansionPaused(false);
-      closeTimerRef.current = null;
-    }, 420);
-  };
-
-  React.useEffect(() => () => {
-    if (closeTimerRef.current !== null) {
-      window.clearTimeout(closeTimerRef.current);
-    }
-
-    if (openTimerRef.current !== null) {
-      window.clearTimeout(openTimerRef.current);
-    }
-  }, []);
-
-  const containerClassName = getCalculatorContainerClassName(isOpen, isClosing, isHoverExpansionPaused);
-  const shouldShowPanel = isOpen || isClosing;
-  const containerHeight = isOpen ? 306 : 56;
-
-  return (
-    <div className="fixed bottom-3 right-3 z-40 flex max-w-[calc(100vw-1.5rem)] justify-end sm:bottom-4 sm:right-4 sm:max-w-[calc(100vw-2rem)]">
-      <div
-        className={containerClassName}
-        style={{ height: `${containerHeight}px` }}
-        onMouseLeave={() => {
-          if (!isClosing) {
-            setIsHoverExpansionPaused(false);
-          }
-        }}
-      >
-      {isClosing ? (
-        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-          <CalculatorIcon className="h-7 w-7 text-teal-700" />
-        </div>
-      ) : null}
-      {shouldShowPanel ? (
-        <section
-          aria-label="환전 계산기"
-          className={`transition-opacity duration-200 ease-out ${isClosing || isOpening ? 'opacity-0' : 'opacity-100'}`}
-        >
-          <ExchangeRateConversionCalculator onClose={closeCalculator} rates={rates} />
-        </section>
-      ) : (
-        <button
-          aria-label="환전 계산기 열기"
-          aria-pressed={isOpen}
-          className="flex h-14 w-full cursor-pointer items-center gap-2.5 bg-white px-[13px] text-left text-teal-700 transition-colors hover:bg-teal-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-teal-200/40"
-          onClick={openCalculator}
-          type="button"
-        >
-          <CalculatorIcon className="h-7 w-7 shrink-0 text-teal-700" />
-          <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-24 group-hover:opacity-100">
-            환전계산기
-          </span>
-        </button>
-      )}
-      </div>
-    </div>
-  );
-}
-
 function ExchangeRateConversionCalculator({
   onClose,
   rates
@@ -1377,48 +1278,6 @@ function ExchangeRateConversionCalculator({
           )}
     </>
   );
-}
-
-function CalculatorIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-      viewBox="0 0 24 24"
-    >
-      <rect height="18" rx="2.5" width="14" x="5" y="3" />
-      <path d="M8 7h8" />
-      <path d="M8 11h1" />
-      <path d="M12 11h1" />
-      <path d="M16 11h.01" />
-      <path d="M8 15h1" />
-      <path d="M12 15h1" />
-      <path d="M16 15h.01" />
-      <path d="M8 19h1" />
-      <path d="M12 19h4" />
-    </svg>
-  );
-}
-
-function getCalculatorContainerClassName(isOpen: boolean, isClosing: boolean, isHoverExpansionPaused: boolean) {
-  const baseClassName = 'glass-modal relative overflow-hidden border-2 border-teal-300/40 shadow-lg transition-[width,height,border-radius,box-shadow] ease-out';
-
-  if (isOpen) {
-    return `${baseClassName} duration-[600ms] w-[min(22rem,calc(100vw-2rem))] rounded-md shadow-xl`;
-  }
-
-  if (isClosing) {
-    return `${baseClassName} duration-[420ms] w-14 rounded-[28px]`;
-  }
-
-  return `${baseClassName} group duration-500 w-14 rounded-[28px] ${
-    isHoverExpansionPaused ? '' : 'hover:w-40 hover:rounded-[18px] hover:shadow-xl'
-  }`;
 }
 
 function getCurrencyFlag(code: string) {
