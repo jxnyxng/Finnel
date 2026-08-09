@@ -172,11 +172,13 @@ type RangeSelectorOption<T extends string> = {
 
 export function RangeSelector<T extends string>({
   columns,
+  compact = false,
   onChange,
   options,
   value
 }: {
-  columns: 3 | 4;
+  columns: 2 | 3 | 4;
+  compact?: boolean;
   onChange: (value: T) => void;
   options: Array<RangeSelectorOption<T>>;
   value: T;
@@ -189,13 +191,15 @@ export function RangeSelector<T extends string>({
 
   return (
     <div
-      className={`relative grid h-10 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-zinc-200 bg-white p-0.5`}
+      className={`relative grid ${compact ? 'h-8' : 'h-10'} w-full min-w-0 shrink-0 gap-0.5 ${
+        columns === 4 ? 'grid-cols-4' : columns === 3 ? 'grid-cols-3' : 'grid-cols-2'
+      } rounded-full border border-zinc-200 bg-white p-0.5`}
       ref={containerRef}
     >
-      <MovingTabIndicator contained indicator={indicator} isMoving={isMoving} />
+      <MovingTabIndicator compact={compact} contained indicator={indicator} isMoving={isMoving} />
       {options.map((option) => (
         <button
-          className={`relative z-10 inline-flex h-full min-w-0 items-center justify-center rounded-full px-2 text-center text-xs font-semibold leading-none transition-colors ${
+          className={`relative z-10 inline-flex ${compact ? 'h-7 min-w-14 px-3 text-[11px]' : 'h-full min-w-0 px-2 text-xs'} items-center justify-center rounded-full text-center font-semibold leading-none transition-colors ${
             labelActiveKey === option.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
           }`}
           key={option.key}
