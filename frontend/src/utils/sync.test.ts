@@ -119,6 +119,33 @@ describe('sync freshness status', () => {
       tone: 'idle'
     });
   });
+
+  it('shows content update check when the latest news sync attempt failed after a recent success', () => {
+    expect(getServiceStatus({
+      activeTab: 'newsroom',
+      dashboard: null,
+      domesticIndicators: [],
+      isGovernmentBriefingsConfigured: true,
+      intradayStatus: null,
+      isNewsConfigured: true,
+      latestIntradayDate: null,
+      latestNewsFetchedAt: new Date().toISOString(),
+      newsSyncStatus: {
+        freshnessStatus: 'STALE',
+        lastSuccessfulFetchedAt: new Date().toISOString(),
+        latestSyncEndedAt: new Date().toISOString(),
+        latestSyncStartedAt: new Date().toISOString(),
+        latestSyncStatus: 'FAILED'
+      },
+      ranks: [],
+      seoulDate: '2026-07-21',
+      seoulTime: '10:30',
+      syncStatus: null
+    })).toEqual({
+      label: '업데이트 점검',
+      tone: 'error'
+    });
+  });
 });
 
 function syncStatusFixture(latestStatus: string): SyncStatus {

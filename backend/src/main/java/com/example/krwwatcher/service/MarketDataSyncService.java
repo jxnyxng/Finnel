@@ -51,6 +51,13 @@ public class MarketDataSyncService {
     private static final String DAILY_BACKFILL_JOB_NAME = "DAILY_EXCHANGE_BACKFILL_SYNC";
     private static final String EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME = "EXCHANGE_RATE_HISTORY_BACKFILL_SYNC";
     private static final String CURRENT_EXCHANGE_RATE_JOB_NAME = "CURRENT_EXCHANGE_RATE_SYNC";
+    private static final List<String> MANAGED_JOB_NAMES = List.of(
+        JOB_NAME,
+        INTRADAY_JOB_NAME,
+        DAILY_BACKFILL_JOB_NAME,
+        EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME,
+        CURRENT_EXCHANGE_RATE_JOB_NAME
+    );
     private static final LocalDate EXCHANGE_RATE_HISTORY_START_DATE = LocalDate.of(1999, 1, 1);
     private static final int DOLLAR_INDEX_REFRESH_OVERLAP_DAYS = 30;
     private static final int RECENT_MONTH_REFRESH_OVERLAP = 6;
@@ -225,6 +232,7 @@ public class MarketDataSyncService {
         }
 
         Instant now = Instant.now();
+        markInterruptedRunningJobs(now);
         syncCurrentExchangeRatesNow(SyncTrigger.SCHEDULED_CURRENT_EXCHANGE);
 
         if (currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), now).canSync()) {
@@ -1663,6 +1671,45 @@ public class MarketDataSyncService {
         );
     }
 
+    private void markInterruptedRunningJobs(Instant endedAt) {
+        String jobNames = managedJobNamesSqlList();
+        List<Object> sourceParams = new ArrayList<>();
+        sourceParams.add("INTERRUPTED_BY_RESTART");
+        sourceParams.add("Backend restarted before this source run completed.");
+        sourceParams.add(endedAt);
+        jdbcTemplate.update(
+            """
+                UPDATE batch_job_source_runs
+                SET status = 'FAILED',
+                    error_code = ?,
+                    error_message = ?,
+                    ended_at = ?
+                WHERE status = 'RUNNING'
+                  AND job_name IN (%s)
+                """.formatted(jobNames),
+            sourceParams.toArray()
+        );
+
+        List<Object> jobParams = new ArrayList<>();
+        jobParams.add(endedAt);
+        jobParams.add("interrupted=backend-restarted");
+        jobParams.add("interrupted=backend-restarted");
+        jdbcTemplate.update(
+            """
+                UPDATE batch_job_runs
+                SET status = 'FAILED',
+                    ended_at = ?,
+                    message = CASE
+                        WHEN message IS NULL OR message = '' THEN ?
+                        ELSE CONCAT(message, ', ', ?)
+                    END
+                WHERE status = 'RUNNING'
+                  AND job_name IN (%s)
+                """.formatted(jobNames),
+            jobParams.toArray()
+        );
+    }
+
     private String truncateErrorMessage(String errorMessage) {
         if (errorMessage == null || errorMessage.length() <= 1000) {
             return errorMessage;
@@ -2047,6 +2094,10 @@ public class MarketDataSyncService {
 
     private String coreSourceSqlList() {
         return String.join(", ", CORE_SOURCE_NAMES.stream().map(source -> "'" + source + "'").toList());
+    }
+
+    private String managedJobNamesSqlList() {
+        return String.join(", ", MANAGED_JOB_NAMES.stream().map(jobName -> "'" + jobName + "'").toList());
     }
 
     private boolean isStaleRunning(Instant startedAt, Instant now) {

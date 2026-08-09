@@ -176,7 +176,9 @@ public class NewsService {
         List<NewsArticle> articles = jdbcTemplate.query(sql, (rs, rowNum) -> mapArticle(rs), params.toArray());
 
         int totalPages = totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / normalizedPageSize);
-        FreshnessInfo freshness = contentFreshness(latestSuccessfulFetchOrSyncAt());
+        Instant lastSuccessfulFetchedAt = latestSuccessfulFetchOrSyncAt();
+        LatestSyncAttempt latestSyncAttempt = latestSyncAttempt();
+        FreshnessInfo freshness = contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt);
         return new NewsResponse(
             naverNewsClient.isConfigured(),
             categories(fromDate, toDate, keyword),
@@ -188,7 +190,10 @@ public class NewsService {
             freshness.freshnessStatus(),
             freshness.staleReason(),
             freshness.expectedNextUpdateAt(),
-            freshness.lastSuccessfulFetchedAt()
+            freshness.lastSuccessfulFetchedAt(),
+            latestSyncAttempt == null ? null : latestSyncAttempt.status(),
+            latestSyncAttempt == null ? null : latestSyncAttempt.startedAt(),
+            latestSyncAttempt == null ? null : latestSyncAttempt.endedAt()
         );
     }
 
@@ -491,6 +496,24 @@ public class NewsService {
         ).stream().filter(java.util.Objects::nonNull).findFirst().orElse(null);
     }
 
+    private LatestSyncAttempt latestSyncAttempt() {
+        return jdbcTemplate.query(
+            """
+                SELECT status, started_at, ended_at
+                FROM batch_job_runs
+                WHERE job_name = ?
+                ORDER BY started_at DESC, id DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new LatestSyncAttempt(
+                rs.getString("status"),
+                rs.getTimestamp("started_at") == null ? null : rs.getTimestamp("started_at").toInstant(),
+                rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant()
+            ),
+            JOB_NAME
+        ).stream().findFirst().orElse(null);
+    }
+
     private String buildArticleWhereClause(NewsArticleSearchCriteria criteria, List<Object> params) {
         List<String> conditions = new ArrayList<>();
         if (StringUtils.hasText(criteria.categoryCode()) && !"all".equals(criteria.categoryCode())) {
@@ -548,7 +571,11 @@ public class NewsService {
         );
     }
 
-    private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt) {
+    private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt, LatestSyncAttempt latestSyncAttempt) {
+        if (latestSyncAttempt != null && isFailedSyncStatus(latestSyncAttempt.status())) {
+            return new FreshnessInfo("STALE", "마지막 뉴스 업데이트 시도가 실패했습니다.", latestSyncAttempt.endedAt(), lastSuccessfulFetchedAt);
+        }
+
         if (lastSuccessfulFetchedAt == null) {
             return new FreshnessInfo("MISSING", "저장된 최신 수집값이 없습니다.", null, null);
         }
@@ -559,6 +586,10 @@ public class NewsService {
         }
 
         return new FreshnessInfo("FRESH", null, expectedNextUpdateAt, lastSuccessfulFetchedAt);
+    }
+
+    private boolean isFailedSyncStatus(String status) {
+        return status != null && !"SUCCESS".equals(status) && !"RUNNING".equals(status);
     }
 
     public record NewsCategory(String code, String name, String query, int articleCount) {
@@ -592,7 +623,10 @@ public class NewsService {
         String freshnessStatus,
         String staleReason,
         Instant expectedNextUpdateAt,
-        Instant lastSuccessfulFetchedAt
+        Instant lastSuccessfulFetchedAt,
+        String latestSyncStatus,
+        Instant latestSyncStartedAt,
+        Instant latestSyncEndedAt
     ) {
     }
 
@@ -607,6 +641,13 @@ public class NewsService {
         String staleReason,
         Instant expectedNextUpdateAt,
         Instant lastSuccessfulFetchedAt
+    ) {
+    }
+
+    private record LatestSyncAttempt(
+        String status,
+        Instant startedAt,
+        Instant endedAt
     ) {
     }
 

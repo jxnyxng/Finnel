@@ -1,5 +1,6 @@
 import type {
   CurrencyStrengthRank,
+  ContentSyncStatus,
   DailyDashboardResponse,
   DomesticIndicator,
   MainTabKey,
@@ -56,8 +57,10 @@ export function getServiceStatus({
   dashboardLoadState,
   domesticIndicators,
   isGovernmentBriefingsConfigured,
+  governmentBriefingsSyncStatus,
   intradayStatus,
   isNewsConfigured,
+  newsSyncStatus,
   latestGovernmentBriefingFetchedAt,
   latestIntradayDate,
   latestNewsFetchedAt,
@@ -71,8 +74,10 @@ export function getServiceStatus({
   dashboardLoadState?: 'idle' | 'loading' | 'ready' | 'error';
   domesticIndicators: DomesticIndicator[];
   isGovernmentBriefingsConfigured: boolean;
+  governmentBriefingsSyncStatus?: ContentSyncStatus | null;
   intradayStatus: SyncStatus | null;
   isNewsConfigured: boolean;
+  newsSyncStatus?: ContentSyncStatus | null;
   latestGovernmentBriefingFetchedAt?: string | null;
   latestIntradayDate: string | null;
   latestNewsFetchedAt?: string | null;
@@ -82,11 +87,11 @@ export function getServiceStatus({
   syncStatus: SyncStatus | null;
 }): { label: string; tone: ServiceStatusTone } {
   if (activeTab === 'newsroom') {
-    return getContentFreshnessStatus(isNewsConfigured, latestNewsFetchedAt, 60);
+    return getContentFreshnessStatus(isNewsConfigured, newsSyncStatus, latestNewsFetchedAt, 60);
   }
 
   if (activeTab === 'governmentBriefings') {
-    return getContentFreshnessStatus(isGovernmentBriefingsConfigured, latestGovernmentBriefingFetchedAt, 60);
+    return getContentFreshnessStatus(isGovernmentBriefingsConfigured, governmentBriefingsSyncStatus, latestGovernmentBriefingFetchedAt, 60);
   }
 
   if (!dashboard && dashboardLoadState === 'loading') {
@@ -234,11 +239,29 @@ export function getMarketDailyStatus(
   return { label: '업데이트 대기', tone: 'idle' };
 }
 
-function getContentFreshnessStatus(isConfigured: boolean, latestFetchedAt: string | null | undefined, maxAgeMinutes: number) {
+function getContentFreshnessStatus(
+  isConfigured: boolean,
+  syncStatus: ContentSyncStatus | null | undefined,
+  latestFetchedAtFallback: string | null | undefined,
+  maxAgeMinutes: number
+) {
   if (!isConfigured) {
     return { label: '업데이트 대기', tone: 'idle' as const };
   }
 
+  if (isRunningSyncStatus(syncStatus?.latestSyncStatus)) {
+    return { label: '업데이트 중', tone: 'idle' as const };
+  }
+
+  if (isFailedSyncStatus(syncStatus?.latestSyncStatus)) {
+    return { label: '업데이트 점검', tone: 'error' as const };
+  }
+
+  if (syncStatus?.freshnessStatus === 'STALE') {
+    return { label: '업데이트 지연', tone: 'error' as const };
+  }
+
+  const latestFetchedAt = syncStatus?.lastSuccessfulFetchedAt ?? latestFetchedAtFallback;
   if (!latestFetchedAt) {
     return { label: '업데이트 대기', tone: 'idle' as const };
   }
