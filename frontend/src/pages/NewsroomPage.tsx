@@ -108,7 +108,7 @@ export function NewsroomPage({
     <section className="grid min-w-0 gap-3">
       <header className="page-tab-header">
         <div className="min-w-0">
-          <p className="page-tab-eyebrow">네이버 뉴스 기반</p>
+          <p className="page-tab-eyebrow">NEWSROOM</p>
           <h2 className="page-tab-title">뉴스 검색</h2>
           <p className="page-tab-description">네이버 뉴스 검색 API에서 환율·원화 관련 기사를 수집해 최신 시장 이슈를 확인합니다.</p>
         </div>
@@ -174,7 +174,7 @@ export function NewsroomPage({
           categoryScrollerRef.current = node;
           categoryContainerRef.current = node;
         }}>
-          <MovingTabIndicator indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
+          <MovingTabIndicator contained indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
           {categoryTabs.map((category) => (
             <CategoryButton
               active={activeCategoryLabelKey === category.key}
@@ -195,14 +195,10 @@ export function NewsroomPage({
         <CategoryScrollButton direction="right" onClick={() => scrollCategories(1)} />
       </nav>
 
-      {!configured ? (
-        <section className="rounded-2xl border border-amber-300/30 bg-amber-400/15 p-4 text-sm text-amber-100 shadow-sm">
-          네이버 뉴스 API 키가 아직 설정되지 않았습니다. `backend/.env`에 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`을 추가한 뒤 백엔드를 다시 실행하세요.
-        </section>
-      ) : null}
-
       <section className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
-        {isLoading && articles.length === 0 ? (
+        {!configured ? (
+          <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
+        ) : isLoading && articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">뉴스를 불러오는 중입니다.</div>
         ) : isPendingInitialLoad ? (
           <div className="min-h-40" />
