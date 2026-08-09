@@ -12,12 +12,12 @@ import {
 } from './constants';
 import {
   DollarIndexTooltip,
+  RangeSelector,
   UsdKrwTooltip
 } from './components/ChartElements';
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
-import { MovingTabIndicator, useMovingTabIndicator } from './components/MovingTabs';
 import { RelatedNewsBanner, prefetchRelatedNews } from './components/RelatedNewsBanner';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
@@ -126,13 +126,7 @@ function App() {
   const isMainAppPage = activePage === 'home' || mainTabs.some((tab) => tab.key === activePage);
   const mainTabNavRef = React.useRef<HTMLElement | null>(null);
   const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
-  const dollarIndexTabNavRef = React.useRef<HTMLDivElement | null>(null);
-  const dollarIndexTabButtonRefs = React.useRef<Partial<Record<DollarIndexTabKey, HTMLButtonElement | null>>>({});
-  const [dollarIndexTabIndicator, setDollarIndexTabIndicator] = React.useState({ height: 0, left: 0, top: 0, width: 0 });
-  const [dollarIndexTabButtonWidth, setDollarIndexTabButtonWidth] = React.useState(0);
-  const dollarIndexTabIndicatorMotionTimeoutRef = React.useRef<number | null>(null);
-  const [isDollarIndexTabIndicatorMoving, setIsDollarIndexTabIndicatorMoving] = React.useState(false);
-  const [activeDollarIndexLabelKey, setActiveDollarIndexLabelKey] = React.useState<DollarIndexTabKey | null>('advanced');
+  const activeDollarIndexTabKey: DollarIndexTabKey = showBroadDollarIndex ? 'broad' : 'advanced';
   const goDashboard = React.useCallback(() => {
     flushSync(() => {
       setActiveTab('dashboard');
@@ -159,12 +153,6 @@ function App() {
     }
     setActiveMainTabKey(null);
   }, [activePage]);
-  React.useEffect(() => () => {
-    if (dollarIndexTabIndicatorMotionTimeoutRef.current !== null) {
-      window.clearTimeout(dollarIndexTabIndicatorMotionTimeoutRef.current);
-    }
-  }, []);
-
   React.useEffect(() => {
     if (!isMainAppPage) {
       return;
@@ -183,52 +171,6 @@ function App() {
       left: Math.max(0, nextScrollLeft)
     });
   }, [activePage, isMainAppPage]);
-
-  React.useLayoutEffect(() => {
-    const activeKey: DollarIndexTabKey = showBroadDollarIndex ? 'broad' : 'advanced';
-    const updateIndicator = () => {
-      const nav = dollarIndexTabNavRef.current;
-      const button = dollarIndexTabButtonRefs.current[activeKey];
-      const maxButtonWidth = Math.ceil(Math.max(
-        0,
-        ...dollarIndexTabs.map((tab) => dollarIndexTabButtonRefs.current[tab.key]?.scrollWidth ?? 0)
-      ));
-      setDollarIndexTabButtonWidth((current) => current === maxButtonWidth ? current : maxButtonWidth);
-
-      if (!nav || !button) {
-        setDollarIndexTabIndicator({ height: 0, left: 0, top: 0, width: 0 });
-        return;
-      }
-
-      const navRect = nav.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const nextIndicator = {
-        height: buttonRect.height,
-        left: buttonRect.left - navRect.left,
-        top: buttonRect.top - navRect.top,
-        width: buttonRect.width
-      };
-      setDollarIndexTabIndicator((current) => {
-        if (
-          current.height === nextIndicator.height &&
-          current.left === nextIndicator.left &&
-          current.top === nextIndicator.top &&
-          current.width === nextIndicator.width
-        ) {
-          return current;
-        }
-        return nextIndicator;
-      });
-    };
-
-    updateIndicator();
-    const animationFrame = window.requestAnimationFrame(updateIndicator);
-    window.addEventListener('resize', updateIndicator);
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener('resize', updateIndicator);
-    };
-  }, [activePage, dashboardLoadState, dollarIndexTabButtonWidth, showBroadDollarIndex]);
 
   const loadDashboard = React.useCallback(async (showLoading = false) => {
     if (showLoading) {
@@ -494,16 +436,6 @@ function App() {
     syncStatus
   });
   const selectDollarIndexTab = React.useCallback((tabKey: DollarIndexTabKey) => {
-    setActiveDollarIndexLabelKey(tabKey);
-    setIsDollarIndexTabIndicatorMoving(true);
-    if (dollarIndexTabIndicatorMotionTimeoutRef.current !== null) {
-      window.clearTimeout(dollarIndexTabIndicatorMotionTimeoutRef.current);
-    }
-    dollarIndexTabIndicatorMotionTimeoutRef.current = window.setTimeout(() => {
-      setIsDollarIndexTabIndicatorMoving(false);
-      dollarIndexTabIndicatorMotionTimeoutRef.current = null;
-    }, 180);
-
     if (tabKey === 'broad') {
       setShowBroadDollarIndex(true);
       setActiveAdvancedDollarHover(null);
@@ -515,6 +447,20 @@ function App() {
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
   const marketDailyStatus = getMarketDailyStatus(dashboard, syncStatus);
   const showUsdKrwLatestValueDot = usdKrwRange === '1D' && activeServiceStatus.tone !== 'idle' && isUsdKrwIntradayActive;
+  const usdKrwStatusNode = (
+    <UpdateStatusBox
+      interval={usdKrwRange === '1D' ? '환율 1분봉 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
+      statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatus.label}
+      tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatus.tone}
+    />
+  );
+  const dollarIndexStatusNode = (
+    <UpdateStatusBox
+      interval="달러 지수 일별 · 09:10/15:10"
+      statusLabel={marketDailyStatus.label}
+      tone={marketDailyStatus.tone}
+    />
+  );
   const showPageStatus = activePage !== 'dashboard' && activePage !== 'exchangeGuide' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator';
   const activeStatusNode = showPageStatus ? (
     <UpdateStatusBox
@@ -575,41 +521,14 @@ function App() {
     : advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-';
   const activeDollarIndexChartStatusText = `일별 지수 · 최신 ${activeDollarIndexLatestBaseDate} · ${marketDailyStatus.label}`;
   const activeDollarIndexHeaderAction = (
-    <div
-      aria-label="달러인덱스 기준"
-      className="relative inline-flex h-10 overflow-visible rounded-full border border-zinc-200 bg-white p-0.5 text-[11px] font-semibold shadow-sm"
-      ref={dollarIndexTabNavRef}
-    >
-      {dollarIndexTabIndicator.width > 0 ? (
-        <span
-          className={`moving-tab-indicator-frame pointer-events-none absolute left-0 top-0 ${isDollarIndexTabIndicatorMoving ? 'moving-tab-indicator-frame-moving' : ''}`}
-          style={{
-            height: dollarIndexTabIndicator.height,
-            transform: `translate(${dollarIndexTabIndicator.left}px, ${dollarIndexTabIndicator.top}px)`,
-            width: dollarIndexTabIndicator.width
-          }}
-        >
-          <span className={`moving-tab-indicator block h-full w-full ${isDollarIndexTabIndicatorMoving ? 'moving-tab-indicator-liquid' : ''}`} />
-        </span>
-      ) : null}
-      {dollarIndexTabs.map((tab) => {
-        const isActive = showBroadDollarIndex ? tab.key === 'broad' : tab.key === 'advanced';
-        const shouldShowFallbackActive = isActive && dollarIndexTabIndicator.width === 0;
-        return (
-          <button
-            className={`relative z-10 inline-flex h-9 shrink-0 items-center justify-center rounded-full px-3 text-center text-[11px] font-semibold leading-none transition-colors duration-150 ${activeDollarIndexLabelKey === tab.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'} ${shouldShowFallbackActive ? 'bg-zinc-950 shadow-sm' : ''}`}
-            key={tab.key}
-            onClick={() => selectDollarIndexTab(tab.key)}
-            ref={(node) => {
-              dollarIndexTabButtonRefs.current[tab.key] = node;
-            }}
-            style={dollarIndexTabButtonWidth > 0 ? { width: dollarIndexTabButtonWidth } : undefined}
-            type="button"
-          >
-            <span className="whitespace-nowrap leading-none">{tab.label}</span>
-          </button>
-        );
-      })}
+    <div className="w-36 shrink-0">
+      <RangeSelector
+        columns={2}
+        compact
+        onChange={selectDollarIndexTab}
+        options={[...dollarIndexTabs]}
+        value={activeDollarIndexTabKey}
+      />
     </div>
   );
 
@@ -723,6 +642,7 @@ function App() {
           <section className="page-content-enter grid gap-4">
             <MarketChartSection
               emptyText={dashboardEmptyText}
+              headerStatus={usdKrwStatusNode}
               helpAriaLabel="USD/KRW 그래프 안내"
               helpContent={(
                 <>
@@ -764,6 +684,7 @@ function App() {
               emptyText={dashboardEmptyText}
               headerAction={activeDollarIndexHeaderAction}
               headerActionPlacement="chartControls"
+              headerStatus={dollarIndexStatusNode}
               helpAriaLabel="달러인덱스 안내"
               helpContent={(
                 <>
