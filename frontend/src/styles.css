@@ -180,6 +180,20 @@ body,
   color: #ffffff;
 }
 
+.exchange-guide-step-badge {
+  background: #0f766e;
+  border: 1px solid #0f766e;
+  border-radius: 999px;
+  color: #ffffff !important;
+  display: inline-flex;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 0.38rem 0.55rem;
+  width: fit-content;
+}
+
 .glass-card :is(.text-rose-100, .text-rose-200),
 .glass-subcard :is(.text-rose-100, .text-rose-200),
 .glass-list-card :is(.text-rose-100, .text-rose-200),
@@ -230,6 +244,7 @@ body,
 .chart-grid-surface {
   background: var(--surface-muted);
   border: 1px solid var(--border);
+  touch-action: none;
 }
 
 .chart-plot-grid {
@@ -283,6 +298,40 @@ body,
 
 .chart-hover-tooltip {
   will-change: opacity;
+}
+
+.chart-pointer-tooltip {
+  pointer-events: none;
+  position: absolute;
+  z-index: 16;
+}
+
+.chart-control-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 0;
+  width: min(100%, 26rem);
+}
+
+.chart-control-row-with-action {
+  width: min(100%, 31rem);
+}
+
+.chart-range-control {
+  flex: 1 1 10rem;
+  max-width: 16rem;
+  min-width: min(100%, 10rem);
+}
+
+.chart-secondary-control {
+  display: flex;
+  flex: 0 1 auto;
+  justify-content: center;
+  min-width: 0;
 }
 
 .related-news-slide {
@@ -989,6 +1038,14 @@ body,
 
 .moving-tab-active-label {
   color: #ffffff;
+}
+
+.glass-card .moving-tab-active-label,
+.glass-subcard .moving-tab-active-label,
+.glass-list-card .moving-tab-active-label,
+.glass-modal .moving-tab-active-label,
+.main-tab-button-active {
+  color: #ffffff !important;
 }
 
 .moving-tab-indicator-enter {
