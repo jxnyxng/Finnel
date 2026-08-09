@@ -856,6 +856,7 @@ function App() {
               filters={newsFilters}
               isLoading={delayedNewsLoading}
               isPendingInitialLoad={isNewsLoading && !delayedNewsLoading && newsArticles.length === 0}
+              latestUpdatedAt={formatDataFetchedAt(latestNewsFetchedAt)}
               onFiltersApply={applyNewsFilters}
               onCategoryChange={changeNewsCategory}
               onLoadMore={changeNewsPage}
@@ -877,6 +878,7 @@ function App() {
               filters={governmentBriefingFilters}
               isLoading={delayedGovernmentBriefingsLoading}
               isPendingInitialLoad={isGovernmentBriefingsLoading && !delayedGovernmentBriefingsLoading && governmentBriefings.length === 0}
+              latestUpdatedAt={formatDataFetchedAt(latestGovernmentBriefingFetchedAt)}
               onCategoryChange={changeGovernmentBriefingCategory}
               onFiltersApply={applyGovernmentBriefingFilters}
               onLoadMore={changeGovernmentBriefingsPage}

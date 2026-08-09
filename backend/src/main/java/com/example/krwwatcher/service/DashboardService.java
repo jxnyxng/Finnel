@@ -1176,7 +1176,7 @@ public class DashboardService {
 
         List<EffectiveExchangeRateRow> rows = jdbcTemplate.query(
             """
-                SELECT base_date, area_code, area_name, value
+                SELECT base_date, area_code, area_name, value, fetched_at
                 FROM effective_exchange_rates
                 WHERE index_type = 'NEER'
                   AND basket_type = 'BROAD'
@@ -1186,7 +1186,8 @@ public class DashboardService {
                 rs.getDate("base_date").toLocalDate(),
                 rs.getString("area_code"),
                 rs.getString("area_name"),
-                rs.getBigDecimal("value")
+                rs.getBigDecimal("value"),
+                rs.getTimestamp("fetched_at").toInstant()
             ),
             latestNeerDate
         ).stream()
@@ -1212,7 +1213,8 @@ public class DashboardService {
                 latestReerByArea.get(row.areaCode()),
                 previousRank,
                 previousValue,
-                previousValue == null ? null : row.value().subtract(previousValue)
+                previousValue == null ? null : row.value().subtract(previousValue),
+                row.fetchedAt()
             ));
         }
         return ranks;
@@ -1240,7 +1242,7 @@ public class DashboardService {
     private List<EffectiveExchangeRateRow> findNeerRows(LocalDate baseDate) {
         return jdbcTemplate.query(
             """
-                SELECT base_date, area_code, area_name, value
+                SELECT base_date, area_code, area_name, value, fetched_at
                 FROM effective_exchange_rates
                 WHERE index_type = 'NEER'
                   AND basket_type = 'BROAD'
@@ -1250,7 +1252,8 @@ public class DashboardService {
                 rs.getDate("base_date").toLocalDate(),
                 rs.getString("area_code"),
                 rs.getString("area_name"),
-                rs.getBigDecimal("value")
+                rs.getBigDecimal("value"),
+                rs.getTimestamp("fetched_at").toInstant()
             ),
             baseDate
         ).stream()
@@ -1696,7 +1699,8 @@ public class DashboardService {
         LocalDate baseDate,
         String areaCode,
         String areaName,
-        BigDecimal value
+        BigDecimal value,
+        Instant fetchedAt
     ) {
     }
 
@@ -1711,7 +1715,8 @@ public class DashboardService {
         BigDecimal reerValue,
         Integer previousNeerRank,
         BigDecimal previousNeerValue,
-        BigDecimal neerValueChange
+        BigDecimal neerValueChange,
+        Instant fetchedAt
     ) {
     }
 

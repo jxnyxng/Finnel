@@ -28,6 +28,8 @@ public class OperationalHealthIndicator implements HealthIndicator {
     private static final int CONSECUTIVE_FULL_SYNC_FAILURE_ALERT_THRESHOLD = 2;
     private static final String MARKET_DATA_SYNC_JOB = "MARKET_DATA_SYNC";
     private static final String INTRADAY_EXCHANGE_SYNC_JOB = "INTRADAY_EXCHANGE_SYNC";
+    private static final String NEWS_SYNC_JOB = "NEWS_SYNC";
+    private static final String GOVERNMENT_BRIEFING_SYNC_JOB = "GOVERNMENT_BRIEFING_SYNC";
 
     private final JdbcTemplate jdbcTemplate;
     private final ExternalApiProperties externalApiProperties;
@@ -53,8 +55,8 @@ public class OperationalHealthIndicator implements HealthIndicator {
 
         status = status.worst(checkCoreSync(details));
         status = status.worst(checkUsdKrwFreshness(details));
-        status = status.worst(checkContentFreshness("news", "news_articles", details));
-        status = status.worst(checkContentFreshness("governmentBriefings", "government_briefings", details));
+        status = status.worst(checkContentFreshness("news", "news_articles", NEWS_SYNC_JOB, details));
+        status = status.worst(checkContentFreshness("governmentBriefings", "government_briefings", GOVERNMENT_BRIEFING_SYNC_JOB, details));
         status = status.worst(checkExternalApiConfiguration(details));
         details.put("alertCriteria", alertCriteria());
 
@@ -137,22 +139,28 @@ public class OperationalHealthIndicator implements HealthIndicator {
         return HealthStatus.UP;
     }
 
-    private HealthStatus checkContentFreshness(String detailKey, String tableName, Map<String, Object> details) {
+    private HealthStatus checkContentFreshness(String detailKey, String tableName, String jobName, Map<String, Object> details) {
         Instant latestFetchedAt = latestFetchedAt(tableName);
+        Instant latestSuccessfulJobEndedAt = latestSuccessfulJobEndedAt(jobName);
+        Instant latestSuccessfulContentCheckAt = latestMax(latestFetchedAt, latestSuccessfulJobEndedAt);
         Instant now = Instant.now();
 
         Map<String, Object> freshness = new LinkedHashMap<>();
         freshness.put("latestFetchedAt", latestFetchedAt);
+        freshness.put("jobName", jobName);
+        freshness.put("latestSuccessfulJobEndedAt", latestSuccessfulJobEndedAt);
+        freshness.put("latestSuccessfulContentCheckAt", latestSuccessfulContentCheckAt);
+        freshness.put("latestSyncStatus", latestStatus(jobName));
         freshness.put("staleAfter", CONTENT_STALE_AFTER.toString());
         details.put(detailKey, freshness);
 
-        if (latestFetchedAt == null) {
+        if (latestSuccessfulContentCheckAt == null) {
             freshness.put("status", "DEGRADED");
             freshness.put("reason", "no successful content fetch has been recorded");
             return HealthStatus.DEGRADED;
         }
 
-        Duration lag = Duration.between(latestFetchedAt, now);
+        Duration lag = Duration.between(latestSuccessfulContentCheckAt, now);
         freshness.put("lagSeconds", lag.getSeconds());
         if (lag.compareTo(CONTENT_STALE_AFTER) > 0) {
             freshness.put("status", "DEGRADED");
@@ -285,6 +293,16 @@ public class OperationalHealthIndicator implements HealthIndicator {
             "SELECT MAX(fetched_at) FROM " + tableName,
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant()
         );
+    }
+
+    private Instant latestMax(Instant left, Instant right) {
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        return left.isAfter(right) ? left : right;
     }
 
     private boolean hasText(String value) {
