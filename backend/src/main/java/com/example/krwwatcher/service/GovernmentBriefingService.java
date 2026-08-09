@@ -28,6 +28,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class GovernmentBriefingService {
 
+    private static final String JOB_NAME = "GOVERNMENT_BRIEFING_SYNC";
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final int MAX_PAGE_SIZE = 30;
     private static final int MIN_RELEVANCE_SCORE = 4;
@@ -48,7 +49,6 @@ public class GovernmentBriefingService {
     private final PolicyBriefingClient policyBriefingClient;
     private final JdbcTemplate jdbcTemplate;
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
-    private volatile Instant lastSuccessfulSyncAt;
 
     public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, JdbcTemplate jdbcTemplate) {
         this.policyBriefingClient = policyBriefingClient;
@@ -80,25 +80,31 @@ public class GovernmentBriefingService {
             return new GovernmentBriefingSyncResult("SKIPPED_RUNNING", "정부 브리핑 수집이 이미 진행 중입니다.", 0, Instant.now());
         }
 
+        Instant startedAt = Instant.now();
+        Long jobId = startJob(startedAt, "latest");
         int rows = 0;
         try {
             for (PolicyBriefingClient.PolicyBriefingPayload payload : policyBriefingClient.fetchLatest(1, 30)) {
                 rows += upsertRelevantBriefing(payload);
             }
         } catch (RuntimeException exception) {
+            Instant endedAt = Instant.now();
+            String message = "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName();
+            finishJob(jobId, "FAILED", endedAt, message);
             return new GovernmentBriefingSyncResult(
                 "POLICY_BRIEFING_API_ERROR",
-                "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName(),
+                message,
                 rows,
-                Instant.now()
+                endedAt
             );
         } finally {
             syncRunning.set(false);
         }
 
         Instant syncedAt = Instant.now();
-        lastSuccessfulSyncAt = syncedAt;
-        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows, rows, syncedAt);
+        String message = "briefings=" + rows;
+        finishJob(jobId, "SUCCESS", syncedAt, message);
+        return new GovernmentBriefingSyncResult("SUCCESS", message, rows, syncedAt);
     }
 
     @Transactional
@@ -112,6 +118,8 @@ public class GovernmentBriefingService {
         }
 
         int normalizedMonths = Math.max(1, Math.min(months, MAX_BACKFILL_MONTHS));
+        Instant startedAt = Instant.now();
+        Long jobId = startJob(startedAt, "backfill months=" + normalizedMonths);
         LocalDate endDate = LocalDate.now(SEOUL_ZONE);
         LocalDate cursor = endDate.minusMonths(normalizedMonths).plusDays(1);
         int fetched = 0;
@@ -129,19 +137,23 @@ public class GovernmentBriefingService {
                 cursor = windowEnd.plusDays(1);
             }
         } catch (RuntimeException exception) {
+            Instant endedAt = Instant.now();
+            String message = "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName() + ", calls=" + calls + ", fetched=" + fetched + ", rows=" + rows;
+            finishJob(jobId, "FAILED", endedAt, message);
             return new GovernmentBriefingSyncResult(
                 "POLICY_BRIEFING_API_ERROR",
-                "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName() + ", calls=" + calls + ", fetched=" + fetched + ", rows=" + rows,
+                message,
                 rows,
-                Instant.now()
+                endedAt
             );
         } finally {
             syncRunning.set(false);
         }
 
         Instant syncedAt = Instant.now();
-        lastSuccessfulSyncAt = syncedAt;
-        return new GovernmentBriefingSyncResult("SUCCESS", "briefings=" + rows + ", fetched=" + fetched + ", calls=" + calls, rows, syncedAt);
+        String message = "briefings=" + rows + ", fetched=" + fetched + ", calls=" + calls;
+        finishJob(jobId, "SUCCESS", syncedAt, message);
+        return new GovernmentBriefingSyncResult("SUCCESS", message, rows, syncedAt);
     }
 
     public GovernmentBriefingResponse latest(String category, LocalDate fromDate, LocalDate toDate, int page, int pageSize, String keyword) {
@@ -383,13 +395,57 @@ public class GovernmentBriefingService {
 
     private Instant latestSuccessfulFetchOrSyncAt() {
         Instant latestFetchedAt = findLatestBriefingFetchedAt();
+        Instant latestSyncEndedAt = latestSuccessfulJobEndedAt();
         if (latestFetchedAt == null) {
-            return lastSuccessfulSyncAt;
+            return latestSyncEndedAt;
         }
-        if (lastSuccessfulSyncAt == null) {
+        if (latestSyncEndedAt == null) {
             return latestFetchedAt;
         }
-        return latestFetchedAt.isAfter(lastSuccessfulSyncAt) ? latestFetchedAt : lastSuccessfulSyncAt;
+        return latestFetchedAt.isAfter(latestSyncEndedAt) ? latestFetchedAt : latestSyncEndedAt;
+    }
+
+    private Long startJob(Instant startedAt, String mode) {
+        jdbcTemplate.update(
+            "INSERT INTO batch_job_runs (job_name, status, started_at, message) VALUES (?, ?, ?, ?)",
+            JOB_NAME,
+            "RUNNING",
+            startedAt,
+            mode + " sync started"
+        );
+        return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+    }
+
+    private void finishJob(Long jobId, String status, Instant endedAt, String message) {
+        jdbcTemplate.update(
+            "UPDATE batch_job_runs SET status = ?, ended_at = ?, message = ? WHERE id = ?",
+            status,
+            endedAt,
+            truncateMessage(message),
+            jobId
+        );
+    }
+
+    private String truncateMessage(String message) {
+        if (message == null || message.length() <= 1000) {
+            return message;
+        }
+        return message.substring(0, 1000);
+    }
+
+    private Instant latestSuccessfulJobEndedAt() {
+        return jdbcTemplate.query(
+            """
+                SELECT ended_at
+                FROM batch_job_runs
+                WHERE job_name = ?
+                  AND status = 'SUCCESS'
+                ORDER BY ended_at DESC, started_at DESC, id DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant(),
+            JOB_NAME
+        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     private Object[] relevantCategoryQueryParams(Object firstParam) {

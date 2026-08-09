@@ -40,6 +40,7 @@ export type CurrencyStrengthRank = {
   previousNeerRank: number | null;
   previousNeerValue: number | null;
   neerValueChange: number | null;
+  fetchedAt: string;
 };
 
 export type ForeignExchangeRate = {
