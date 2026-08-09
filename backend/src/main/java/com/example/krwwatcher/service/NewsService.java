@@ -26,6 +26,7 @@ import org.springframework.web.client.RestClientResponseException;
 @Service
 public class NewsService {
 
+    private static final String JOB_NAME = "NEWS_SYNC";
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final int LATEST_DISPLAY_COUNT = 100;
     private static final int BACKFILL_DISPLAY_COUNT = 100;
@@ -103,6 +104,8 @@ public class NewsService {
             return new NewsSyncResult("SKIPPED_RUNNING", "뉴스 수집이 이미 진행 중입니다.", 0, Instant.now());
         }
 
+        Instant startedAt = Instant.now();
+        Long jobId = startJob(startedAt, mode);
         int rows = 0;
         try {
             Instant cutoff = LocalDate.now(SEOUL_ZONE)
@@ -119,17 +122,33 @@ public class NewsService {
             newsArticleMaintenance.deleteDuplicateNewsArticles();
             newsArticleMaintenance.hydrateMissingLatestImages();
         } catch (RestClientResponseException exception) {
+            Instant endedAt = Instant.now();
+            String message = "네이버 뉴스 API HTTP " + exception.getStatusCode().value() + ": " + newsArticleText.cleanText(exception.getResponseBodyAsString());
+            finishJob(jobId, "FAILED", endedAt, message);
             return new NewsSyncResult(
                 "NAVER_API_ERROR",
-                "네이버 뉴스 API HTTP " + exception.getStatusCode().value() + ": " + newsArticleText.cleanText(exception.getResponseBodyAsString()),
+                message,
                 rows,
-                Instant.now()
+                endedAt
+            );
+        } catch (RuntimeException exception) {
+            Instant endedAt = Instant.now();
+            String message = "뉴스 수집 실패: " + exception.getClass().getSimpleName();
+            finishJob(jobId, "FAILED", endedAt, message);
+            return new NewsSyncResult(
+                "NEWS_SYNC_ERROR",
+                message,
+                rows,
+                endedAt
             );
         } finally {
             syncRunning.set(false);
         }
 
-        return new NewsSyncResult("SUCCESS", "mode=" + mode + ", news=" + rows, rows, Instant.now());
+        Instant syncedAt = Instant.now();
+        String message = "mode=" + mode + ", news=" + rows;
+        finishJob(jobId, "SUCCESS", syncedAt, message);
+        return new NewsSyncResult("SUCCESS", message, rows, syncedAt);
     }
 
     public NewsResponse latest(String categoryCode, LocalDate fromDate, LocalDate toDate, String keyword, int page, int pageSize) {
@@ -157,7 +176,7 @@ public class NewsService {
         List<NewsArticle> articles = jdbcTemplate.query(sql, (rs, rowNum) -> mapArticle(rs), params.toArray());
 
         int totalPages = totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / normalizedPageSize);
-        FreshnessInfo freshness = contentFreshness(findLatestNewsFetchedAt());
+        FreshnessInfo freshness = contentFreshness(latestSuccessfulFetchOrSyncAt());
         return new NewsResponse(
             naverNewsClient.isConfigured(),
             categories(fromDate, toDate, keyword),
@@ -415,6 +434,61 @@ public class NewsService {
                 """,
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant()
         ).stream().findFirst().orElse(null);
+    }
+
+    private Instant latestSuccessfulFetchOrSyncAt() {
+        Instant latestFetchedAt = findLatestNewsFetchedAt();
+        Instant latestSyncEndedAt = latestSuccessfulJobEndedAt();
+        if (latestFetchedAt == null) {
+            return latestSyncEndedAt;
+        }
+        if (latestSyncEndedAt == null) {
+            return latestFetchedAt;
+        }
+        return latestFetchedAt.isAfter(latestSyncEndedAt) ? latestFetchedAt : latestSyncEndedAt;
+    }
+
+    private Long startJob(Instant startedAt, String mode) {
+        jdbcTemplate.update(
+            "INSERT INTO batch_job_runs (job_name, status, started_at, message) VALUES (?, ?, ?, ?)",
+            JOB_NAME,
+            "RUNNING",
+            startedAt,
+            mode + " sync started"
+        );
+        return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+    }
+
+    private void finishJob(Long jobId, String status, Instant endedAt, String message) {
+        jdbcTemplate.update(
+            "UPDATE batch_job_runs SET status = ?, ended_at = ?, message = ? WHERE id = ?",
+            status,
+            endedAt,
+            truncateMessage(message),
+            jobId
+        );
+    }
+
+    private String truncateMessage(String message) {
+        if (message == null || message.length() <= 1000) {
+            return message;
+        }
+        return message.substring(0, 1000);
+    }
+
+    private Instant latestSuccessfulJobEndedAt() {
+        return jdbcTemplate.query(
+            """
+                SELECT ended_at
+                FROM batch_job_runs
+                WHERE job_name = ?
+                  AND status = 'SUCCESS'
+                ORDER BY ended_at DESC, started_at DESC, id DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant(),
+            JOB_NAME
+        ).stream().filter(java.util.Objects::nonNull).findFirst().orElse(null);
     }
 
     private String buildArticleWhereClause(NewsArticleSearchCriteria criteria, List<Object> params) {
