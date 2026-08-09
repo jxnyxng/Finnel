@@ -70,6 +70,7 @@ public class NewsService {
     @EventListener(ApplicationReadyEvent.class)
     @Async("startupSyncExecutor")
     public void syncOnStartupIfStale() {
+        markInterruptedRunningJob(Instant.now());
         newsArticleMaintenance.normalizeStoredNewsArticles();
         newsArticleMaintenance.deleteDuplicateNewsArticles();
         newsArticleMaintenance.hydrateMissingLatestImages();
@@ -471,6 +472,26 @@ public class NewsService {
             endedAt,
             truncateMessage(message),
             jobId
+        );
+    }
+
+    private void markInterruptedRunningJob(Instant endedAt) {
+        jdbcTemplate.update(
+            """
+                UPDATE batch_job_runs
+                SET status = 'FAILED',
+                    ended_at = ?,
+                    message = CASE
+                        WHEN message IS NULL OR message = '' THEN ?
+                        ELSE CONCAT(message, ', ', ?)
+                    END
+                WHERE job_name = ?
+                  AND status = 'RUNNING'
+                """,
+            endedAt,
+            "interrupted=backend-restarted",
+            "interrupted=backend-restarted",
+            JOB_NAME
         );
     }
 
