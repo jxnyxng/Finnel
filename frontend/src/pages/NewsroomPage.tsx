@@ -97,6 +97,7 @@ export function NewsroomPage({
   };
   const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
   const hasMore = page < totalPages;
+  const articleListKey = `${totalCount}-${articles[0]?.link ?? ''}-${articles[articles.length - 1]?.link ?? ''}`;
   const scrollCategories = (direction: -1 | 1) => {
     categoryScrollerRef.current?.scrollBy({
       behavior: 'smooth',
@@ -205,7 +206,7 @@ export function NewsroomPage({
         ) : articles.length === 0 ? (
           <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 뉴스가 없습니다.</div>
         ) : (
-          <div className="grid min-w-0 gap-2.5 sm:gap-3">
+          <div className="news-list-enter grid min-w-0 gap-2.5 sm:gap-3" key={articleListKey}>
             {articles.map((article) => (
               <NewsArticleCard article={article} key={`${article.categoryCode}-${article.link}`} />
             ))}
