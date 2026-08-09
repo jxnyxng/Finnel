@@ -301,8 +301,10 @@ body,
 }
 
 .chart-pointer-tooltip {
+  left: var(--chart-tooltip-left, 0);
   pointer-events: none;
   position: absolute;
+  top: var(--chart-tooltip-top, 0);
   will-change: left, top;
   z-index: 16;
 }
@@ -324,6 +326,8 @@ body,
 }
 
 .chart-control-row-with-action {
+  gap: 0.35rem;
+  justify-content: flex-end;
   width: min(100%, 31rem);
 }
 
@@ -336,8 +340,20 @@ body,
 .chart-secondary-control {
   display: flex;
   flex: 0 1 auto;
-  justify-content: center;
+  justify-content: flex-end;
+  margin-left: auto;
   min-width: 0;
+}
+
+.panel-action-row {
+  display: flex;
+  justify-content: center;
+  margin-top: -0.35rem;
+  min-width: 0;
+}
+
+.dollar-index-mode-control {
+  margin-left: 0.15rem;
 }
 
 .chart-price-divider {
@@ -597,6 +613,69 @@ body,
 .service-status-dot-idle {
   background: #a1a1aa;
   box-shadow: none;
+}
+
+.service-status-trigger {
+  border-radius: 9999px;
+  cursor: default;
+  outline: none;
+  padding: 2px 5px;
+  position: relative;
+  transition: background 140ms ease;
+}
+
+.service-status-trigger:hover,
+.service-status-trigger:focus-visible {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.service-status-trigger:focus-visible {
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.24);
+}
+
+.service-status-tooltip {
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  bottom: calc(100% + 8px);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.22);
+  color: #ffffff;
+  display: grid;
+  font-size: 11px;
+  font-weight: 600;
+  gap: 3px;
+  line-height: 1.45;
+  max-width: min(78vw, 260px);
+  min-width: 190px;
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  text-align: left;
+  transform: translateY(4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  white-space: nowrap;
+  z-index: 40;
+}
+
+.service-status-tooltip::after {
+  background: rgba(15, 23, 42, 0.96);
+  bottom: -4px;
+  content: "";
+  height: 8px;
+  position: absolute;
+  right: 18px;
+  transform: rotate(45deg);
+  width: 8px;
+}
+
+.service-status-trigger:hover .service-status-tooltip,
+.service-status-trigger:focus-visible .service-status-tooltip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .latest-value-core {

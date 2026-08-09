@@ -234,6 +234,65 @@ class MarketDataSyncRunStateTest {
     }
 
     @Test
+    void startupCleanupMarksInterruptedMarketDataRunsAsFailed() {
+        Instant startedAt = Instant.parse("2026-08-09T05:47:23Z");
+        Instant cleanupAt = Instant.parse("2026-08-09T05:50:22Z");
+        jdbcTemplate.update(
+            "INSERT INTO batch_job_runs (job_name, status, started_at, message) VALUES (?, ?, ?, ?)",
+            "MARKET_DATA_SYNC",
+            "RUNNING",
+            startedAt,
+            "SCHEDULED sync started"
+        );
+        Long jobId = jdbcTemplate.queryForObject("SELECT MAX(id) FROM batch_job_runs", Long.class);
+        jdbcTemplate.update(
+            """
+                INSERT INTO batch_job_source_runs
+                    (batch_job_run_id, job_name, source_name, status, rows_processed, started_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+            jobId,
+            "MARKET_DATA_SYNC",
+            "exchange",
+            "RUNNING",
+            0,
+            startedAt
+        );
+        jdbcTemplate.update(
+            "INSERT INTO batch_job_runs (job_name, status, started_at, message) VALUES (?, ?, ?, ?)",
+            "NEWS_SYNC",
+            "RUNNING",
+            startedAt,
+            "news still running"
+        );
+
+        ReflectionTestUtils.invokeMethod(marketDataSyncService, "markInterruptedRunningJobs", cleanupAt);
+
+        String jobRun = jdbcTemplate.queryForObject(
+            "SELECT CONCAT(status, '|', ended_at IS NOT NULL, '|', message) FROM batch_job_runs WHERE id = ?",
+            String.class,
+            jobId
+        );
+        String sourceRun = jdbcTemplate.queryForObject(
+            """
+                SELECT CONCAT(status, '|', ended_at IS NOT NULL, '|', error_code, '|', error_message)
+                FROM batch_job_source_runs
+                WHERE batch_job_run_id = ?
+                """,
+            String.class,
+            jobId
+        );
+        String unrelatedStatus = jdbcTemplate.queryForObject(
+            "SELECT status FROM batch_job_runs WHERE job_name = 'NEWS_SYNC'",
+            String.class
+        );
+
+        assertThat(jobRun).isEqualTo("FAILED|TRUE|SCHEDULED sync started, interrupted=backend-restarted");
+        assertThat(sourceRun).isEqualTo("FAILED|TRUE|INTERRUPTED_BY_RESTART|Backend restarted before this source run completed.");
+        assertThat(unrelatedStatus).isEqualTo("RUNNING");
+    }
+
+    @Test
     void sourceRunFailureIsRecordedWithStructuredErrorDetails() throws Exception {
         Class<?> counterClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$SyncCounter");
         var constructor = counterClass.getDeclaredConstructor();
