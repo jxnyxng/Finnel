@@ -31,6 +31,10 @@ export function CurrencyStrengthPage({
     () => [...ranks].sort((a, b) => sortMode === 'strong' ? b.neerValue - a.neerValue : a.neerValue - b.neerValue),
     [ranks, sortMode]
   );
+  const animationKey = React.useMemo(
+    () => `${sortMode}-${sortedRanks.map((rank) => `${rank.areaCode}:${rank.neerValue}`).join('|')}`,
+    [sortMode, sortedRanks]
+  );
   const latestDate = sortedRanks[0]?.baseDate ?? null;
   const latestFetchedAt = getLatestFetchedAt(sortedRanks);
   const latestReerDate = sortedRanks.find((rank) => rank.reerBaseDate !== null)?.reerBaseDate ?? null;
@@ -159,8 +163,9 @@ export function CurrencyStrengthPage({
                         />
                         <div className="absolute top-1 h-5 w-px bg-white/55" style={{ left: `${benchmarkPosition}%` }} />
                         <div
-                          className={`absolute top-1 h-5 w-2 -translate-x-1/2 rounded-full ${isWeak ? 'bg-rose-600' : 'bg-teal-600'}`}
-                          style={{ left: `${valuePosition}%` }}
+                          className={`currency-rank-score-marker absolute top-1 h-5 w-2 -translate-x-1/2 rounded-full ${isWeak ? 'bg-rose-600' : 'bg-teal-600'}`}
+                          key={`${animationKey}-${rank.areaCode}`}
+                          style={{ '--currency-rank-marker-left': `${valuePosition}%` } as React.CSSProperties}
                         />
                       </div>
                       <div className="relative mt-1 h-4 text-[11px] text-white/55">

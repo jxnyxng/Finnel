@@ -115,6 +115,7 @@ export function GovernmentBriefingsPage({
           <p className="page-tab-eyebrow">GOVERNMENT POLICY</p>
           <h2 className="page-tab-title">정부 정책</h2>
           <p className="page-tab-description">대한민국 정책브리핑 공개 API에서 수집한 정부 부처 공식 발표입니다. 원문 링크와 발행일을 함께 보존해 출처를 확인할 수 있습니다.</p>
+          <p className="mt-1 text-xs font-medium text-zinc-500">평일 공개 자료를 기준으로 업데이트합니다.</p>
         </div>
         <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
           <div className="page-tab-meta">
