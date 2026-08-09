@@ -515,13 +515,6 @@ function App() {
   const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
   const marketDailyStatus = getMarketDailyStatus(dashboard, syncStatus);
   const showUsdKrwLatestValueDot = usdKrwRange === '1D' && activeServiceStatus.tone !== 'idle' && isUsdKrwIntradayActive;
-  const usdKrwStatusNode = (
-    <UpdateStatusBox
-      interval={usdKrwRange === '1D' ? '환율 1분봉 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
-      statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatus.label}
-      tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatus.tone}
-    />
-  );
   const showPageStatus = activePage !== 'dashboard' && activePage !== 'exchangeGuide' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator';
   const activeStatusNode = showPageStatus ? (
     <UpdateStatusBox
@@ -584,7 +577,7 @@ function App() {
   const activeDollarIndexHeaderAction = (
     <div
       aria-label="달러인덱스 기준"
-      className="relative inline-flex overflow-visible rounded-full border border-zinc-200 bg-white p-1 text-[11px] font-semibold shadow-sm"
+      className="relative inline-flex h-10 overflow-visible rounded-full border border-zinc-200 bg-white p-0.5 text-[11px] font-semibold shadow-sm"
       ref={dollarIndexTabNavRef}
     >
       {dollarIndexTabIndicator.width > 0 ? (
@@ -592,8 +585,8 @@ function App() {
           className={`moving-tab-indicator-frame pointer-events-none absolute left-0 top-0 ${isDollarIndexTabIndicatorMoving ? 'moving-tab-indicator-frame-moving' : ''}`}
           style={{
             height: dollarIndexTabIndicator.height,
-            transform: `translate(${dollarIndexTabIndicator.left + 1}px, ${dollarIndexTabIndicator.top - 1}px)`,
-            width: Math.max(0, dollarIndexTabIndicator.width - 2)
+            transform: `translate(${dollarIndexTabIndicator.left}px, ${dollarIndexTabIndicator.top}px)`,
+            width: dollarIndexTabIndicator.width
           }}
         >
           <span className={`moving-tab-indicator block h-full w-full ${isDollarIndexTabIndicatorMoving ? 'moving-tab-indicator-liquid' : ''}`} />
@@ -604,7 +597,7 @@ function App() {
         const shouldShowFallbackActive = isActive && dollarIndexTabIndicator.width === 0;
         return (
           <button
-            className={`relative z-10 inline-flex h-7 shrink-0 items-center justify-center rounded-lg px-3 text-center text-[11px] font-semibold leading-none transition-colors duration-150 ${activeDollarIndexLabelKey === tab.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'} ${shouldShowFallbackActive ? 'bg-zinc-950 shadow-sm' : ''}`}
+            className={`relative z-10 inline-flex h-9 shrink-0 items-center justify-center rounded-full px-3 text-center text-[11px] font-semibold leading-none transition-colors duration-150 ${activeDollarIndexLabelKey === tab.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'} ${shouldShowFallbackActive ? 'bg-zinc-950 shadow-sm' : ''}`}
             key={tab.key}
             onClick={() => selectDollarIndexTab(tab.key)}
             ref={(node) => {
@@ -683,9 +676,9 @@ function App() {
           >
             {mainTabs.map((tab) => (
               <React.Fragment key={tab.key}>
-                {tab.key === 'dataSources' ? <span className="mx-2 hidden h-5 w-px shrink-0 self-center bg-zinc-200 md:block md:ml-auto" aria-hidden="true" /> : null}
+                {tab.key === 'dataSources' ? <span className="mx-1.5 block h-5 w-px shrink-0 self-center bg-zinc-200 md:mx-2 md:ml-auto" aria-hidden="true" /> : null}
                 <button
-                  className={`main-tab-button relative z-10 inline-flex h-7 shrink-0 items-center justify-center rounded-md px-2.5 text-center text-[11px] font-bold leading-none sm:h-8 sm:px-3 sm:text-[12px] ${
+                  className={`main-tab-button relative z-10 inline-flex h-[30px] shrink-0 items-center justify-center rounded-md px-[11px] text-center text-[12px] font-bold leading-none sm:h-[35px] sm:px-[13px] sm:text-[13px] ${
                     activeMainTabKey === tab.key ? 'main-tab-button-active' : 'border border-transparent text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950'
                   }`}
                   onClick={() => navigateMainTab(tab.key)}
@@ -730,7 +723,6 @@ function App() {
           <section className="page-content-enter grid gap-4">
             <MarketChartSection
               emptyText={dashboardEmptyText}
-              headerAction={usdKrwStatusNode}
               helpAriaLabel="USD/KRW 그래프 안내"
               helpContent={(
                 <>
@@ -771,6 +763,7 @@ function App() {
             <MarketChartSection
               emptyText={dashboardEmptyText}
               headerAction={activeDollarIndexHeaderAction}
+              headerActionPlacement="chartControls"
               helpAriaLabel="달러인덱스 안내"
               helpContent={(
                 <>
@@ -912,7 +905,7 @@ function App() {
 
       </section>
       {activePage !== 'home' && activePage !== 'calculator' ? <ExchangeRateCalculator rates={foreignExchangeRates} /> : null}
-      {activePage !== 'home' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator' ? <AppFooter /> : null}
+      {activePage !== 'home' ? <AppFooter /> : null}
     </main>
   );
 }
@@ -992,15 +985,8 @@ function useDelayedFlag(value: boolean, delayMs: number) {
   return delayedValue;
 }
 
-function getDashboardErrorMessage(error: unknown) {
-  if (axios.isAxiosError(error)) {
-    const status = error.response?.status;
-    return status
-      ? `대시보드 API 호출 실패 HTTP ${status}: 저장된 DB 데이터를 다시 확인하세요.`
-      : `대시보드 API 호출 실패: ${error.message}`;
-  }
-
-  return '대시보드 API 호출 실패: 백엔드 상태를 확인하세요.';
+function getDashboardErrorMessage(_error: unknown) {
+  return '현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.';
 }
 
 function UpdateStatusBox({

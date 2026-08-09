@@ -196,7 +196,7 @@ export function ExchangeRateGuidePage() {
         <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 lg:grid-cols-4">
           {importanceCards.map((card, index) => (
             <article className="glass-subcard min-w-0 rounded-2xl p-3" key={card.title}>
-              <span className="grid h-7 w-7 place-items-center rounded bg-teal-700 text-xs font-semibold text-white">{index + 1}</span>
+              <span className="exchange-guide-step-badge">POINT {index + 1}</span>
               <h4 className="mt-3 text-sm font-semibold text-zinc-950">{card.title}</h4>
               <p className="mt-2 text-xs leading-5 text-zinc-600">{card.body}</p>
             </article>

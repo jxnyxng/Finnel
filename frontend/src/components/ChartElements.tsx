@@ -189,10 +189,10 @@ export function RangeSelector<T extends string>({
 
   return (
     <div
-      className={`relative grid h-11 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-zinc-200 bg-white p-1`}
+      className={`relative grid h-10 w-full min-w-0 shrink-0 gap-0.5 ${columns === 4 ? 'grid-cols-4' : 'grid-cols-3'} rounded-full border border-zinc-200 bg-white p-0.5`}
       ref={containerRef}
     >
-      <MovingTabIndicator indicator={indicator} isMoving={isMoving} />
+      <MovingTabIndicator contained indicator={indicator} isMoving={isMoving} />
       {options.map((option) => (
         <button
           className={`relative z-10 inline-flex h-full min-w-0 items-center justify-center rounded-full px-2 text-center text-xs font-semibold leading-none transition-colors ${
@@ -243,7 +243,7 @@ export function ChartPlotGrid({
 
 export function ChartEmptyState({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full items-center justify-center rounded-md border border-dashed border-zinc-200 bg-zinc-50 px-4 text-center text-sm text-zinc-500">
+    <div className="flex h-full items-center justify-center rounded-md border border-dashed border-zinc-200 bg-white px-4 text-center text-sm font-medium text-zinc-700">
       {children}
     </div>
   );

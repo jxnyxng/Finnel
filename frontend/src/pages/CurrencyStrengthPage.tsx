@@ -52,6 +52,7 @@ export function CurrencyStrengthPage({
     <section className="grid gap-4">
       <header className="page-tab-header">
         <div className="min-w-0">
+          <p className="page-tab-eyebrow">CURRENCY RANKING</p>
           <h2 className="page-tab-title mt-0">화폐 랭킹</h2>
           <p className="page-tab-description">주요 통화의 상대 강도를 BIS broad NEER 기준으로 비교합니다.</p>
         </div>
@@ -64,7 +65,7 @@ export function CurrencyStrengthPage({
         </div>
       </header>
       {sortedRanks.length === 0 ? (
-        <div className="glass-card grid min-h-32 place-items-center rounded-2xl text-sm text-white/45 shadow-sm">
+        <div className="glass-card grid min-h-32 place-items-center rounded-2xl px-4 text-center text-sm font-medium text-zinc-700 shadow-sm">
           {isLoading ? '저장된 통화 랭킹 데이터를 불러오는 중입니다.' : emptyMessage}
         </div>
       ) : (

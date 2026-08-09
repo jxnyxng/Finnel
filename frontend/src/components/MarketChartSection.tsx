@@ -1,4 +1,4 @@
-import { type PointerEvent, type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import { cloneElement, type PointerEvent, type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   chartBottomMarginPx,
@@ -66,6 +66,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   panelFooterText?: string;
   statusNode?: ReactNode;
   headerAction?: ReactNode;
+  headerActionPlacement?: 'header' | 'chartControls';
   showLatestValueDot?: boolean;
   showLoadingOverlay?: boolean;
 };
@@ -85,6 +86,7 @@ export function MarketChartSection<T extends RangeKey>({
   panelDetails = [],
   panelFooterText,
   headerAction,
+  headerActionPlacement = 'header',
   showLatestValueDot = false,
   showLoadingOverlay = false,
   plotLeft,
@@ -115,6 +117,9 @@ export function MarketChartSection<T extends RangeKey>({
   const axisTimeTextRef = useRef<HTMLDivElement | null>(null);
   const hoverFrameRef = useRef<number | null>(null);
   const hoverCommitTimeoutRef = useRef<number | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
+  const latestVibratedPointKeyRef = useRef<string | null>(null);
+  const latestVibrationAtRef = useRef(0);
   const pendingHoverRef = useRef<ChartHoverState | null>(null);
   const [chartPixelHeight, setChartPixelHeight] = useState(chartHeightPx);
   const plotBottom = chartPixelHeight - chartBottom;
@@ -188,7 +193,7 @@ export function MarketChartSection<T extends RangeKey>({
     });
   };
 
-  const updateCrosshairPosition = (event: PointerEvent<HTMLDivElement>) => {
+  const updateCrosshairPosition = (event: PointerEvent<HTMLDivElement>, immediate = false) => {
     const element = chartSurfaceRef.current;
     if (!element || series.length === 0) {
       return;
@@ -201,6 +206,7 @@ export function MarketChartSection<T extends RangeKey>({
 
     if (x < plotInsetLeft || x > plotRightEdge || y < chartTopMarginPx || y > plotBottom) {
       element.classList.remove('chart-crosshair-active');
+      scheduleHoverChange(null, immediate);
       return;
     }
 
@@ -244,28 +250,80 @@ export function MarketChartSection<T extends RangeKey>({
         if (timeTextNode) {
           timeTextNode.textContent = formatCrosshairDate(point.dateValue, range);
         }
+        const nextHover = { point, value: axisValue, x, y: clampedY };
+        scheduleHoverChange(nextHover, immediate);
+        vibrateForTouchPoint(event, point);
       }
     }
   };
 
   const hideCrosshair = () => {
     chartSurfaceRef.current?.classList.remove('chart-crosshair-active');
+    activePointerIdRef.current = null;
+    latestVibratedPointKeyRef.current = null;
     scheduleHoverChange(null, true);
   };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    activePointerIdRef.current = event.pointerId;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    updateCrosshairPosition(event, true);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (activePointerIdRef.current !== null && event.pointerId !== activePointerIdRef.current) {
+      return;
+    }
+    updateCrosshairPosition(event);
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    activePointerIdRef.current = null;
+  };
+
+  const vibrateForTouchPoint = (event: PointerEvent<HTMLDivElement>, point: ChartPoint) => {
+    if (event.pointerType !== 'touch' || typeof navigator.vibrate !== 'function') {
+      return;
+    }
+
+    const pointKey = `${point.dateValue}-${point.value}`;
+    const now = Date.now();
+    if (latestVibratedPointKeyRef.current === pointKey || now - latestVibrationAtRef.current < 80) {
+      return;
+    }
+
+    latestVibratedPointKeyRef.current = pointKey;
+    latestVibrationAtRef.current = now;
+    navigator.vibrate(8);
+  };
+
+  const chartControls = (
+    <div className={`chart-control-row ${headerActionPlacement === 'chartControls' && headerAction ? 'chart-control-row-with-action' : ''}`}>
+      <div className="chart-range-control">
+        <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
+      </div>
+      {headerActionPlacement === 'chartControls' && headerAction ? (
+        <div className="chart-secondary-control">
+          {headerAction}
+        </div>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className="relative">
       <article className="glass-card min-w-0 rounded-2xl shadow-sm">
         <div className="grid gap-4 p-3.5 sm:gap-5 sm:p-4">
-          <div className={`relative flex min-w-0 gap-2 px-1 ${
-            keepHeaderSingleLineOnMobile ? 'flex-row items-center justify-between' : 'flex-col sm:flex-row sm:items-center sm:justify-between'
-          }`}>
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <h2 className={`text-base font-semibold text-white ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>{title}</h2>
-              <ChartHelpTooltip ariaLabel={helpAriaLabel} title={helpTitle} widthClassName={helpWidthClassName}>
-                {helpContent}
-              </ChartHelpTooltip>
-              {statusText ? <span className={`whitespace-nowrap text-xs ${statusClassName}`}>{statusText}</span> : null}
+          <div className="relative flex min-w-0 flex-col gap-2 px-1 sm:flex-row sm:items-start sm:justify-between">
+            <div className="grid min-w-0 gap-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <h2 className={`text-base font-semibold text-white ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>{title}</h2>
+                <ChartHelpTooltip ariaLabel={helpAriaLabel} title={helpTitle} widthClassName={helpWidthClassName}>
+                  {helpContent}
+                </ChartHelpTooltip>
+              </div>
+              {statusText ? <span className={`block text-xs leading-5 ${statusClassName}`}>{statusText}</span> : null}
             </div>
             <div className={`flex shrink-0 items-center gap-2 sm:justify-end ${keepHeaderSingleLineOnMobile ? 'flex-nowrap' : 'flex-wrap'}`}>
               {subtitle ? (
@@ -273,25 +331,26 @@ export function MarketChartSection<T extends RangeKey>({
                   {subtitle}
                 </p>
               ) : null}
-              {headerAction}
+              {headerActionPlacement === 'header' ? headerAction : null}
             </div>
           </div>
 
           <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
-            <div className="order-1 flex min-w-0 items-center justify-between gap-4 px-1 py-2 lg:hidden">
-              <div className="flex min-w-0 items-baseline gap-2">
+            <div className="order-1 grid min-w-0 justify-items-center gap-3 px-1 py-2 text-center lg:hidden">
+              <div className="flex min-w-0 max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-1">
                 <p className="min-w-0 break-words text-[1.78rem] font-semibold leading-none tracking-normal text-white">{metric ? formatMetricValue(metric) : '-'}</p>
                 <span className="shrink-0 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
               </div>
-              <div className="min-w-[9rem] max-w-[58%] shrink-0">
-                <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
-              </div>
+              {chartControls}
             </div>
 
             <div
               className="chart-grid-surface relative order-2 h-72 min-w-0 overflow-hidden rounded-2xl sm:h-80 lg:order-1 lg:h-full lg:min-h-96"
+              onPointerCancel={hideCrosshair}
+              onPointerDown={handlePointerDown}
               onPointerLeave={hideCrosshair}
-              onPointerMove={updateCrosshairPosition}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
               ref={chartSurfaceRef}
             >
               <div className="chart-range-enter absolute inset-0" key={range}>
@@ -384,6 +443,20 @@ export function MarketChartSection<T extends RangeKey>({
                   top={chartTopMarginPx}
                   yDomain={yDomain}
                 />
+                {hover ? (
+                  <div
+                    className="chart-pointer-tooltip"
+                    style={{
+                      left: `clamp(0.5rem, ${hover.x + 12}px, calc(100% - 12rem))`,
+                      top: `clamp(0.5rem, ${hover.y - 54}px, calc(100% - 5.5rem))`
+                    }}
+                  >
+                    {cloneElement(tooltipContent, {
+                      active: true,
+                      payload: [{ payload: hover.point, value: hover.point.value }]
+                    })}
+                  </div>
+                ) : null}
               </div>
               {showLoadingOverlay ? (
                 <div className="chart-loading-overlay absolute inset-0 z-20 grid place-items-center px-4 text-center">
@@ -401,7 +474,7 @@ export function MarketChartSection<T extends RangeKey>({
                   <span className="shrink-0 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
                 </div>
                 <div className="mt-4">
-                  <RangeSelector columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
+                  {chartControls}
                 </div>
               </div>
               <div className="glass-subcard flex min-w-0 flex-1 flex-col justify-center rounded-2xl p-4">
