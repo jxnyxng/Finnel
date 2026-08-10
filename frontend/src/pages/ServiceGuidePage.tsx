@@ -37,10 +37,10 @@ const slides = [
 
 export function ServiceGuidePage() {
   return (
-    <section className="relative left-1/2 -my-4 w-screen -translate-x-1/2">
+    <section className="relative left-1/2 -my-3 w-screen -translate-x-1/2 overflow-hidden">
       {slides.map((slide, index) => (
         <section
-          className="relative min-h-[calc(100vh-2.75rem)] overflow-hidden bg-zinc-50"
+          className="relative h-[calc(100dvh-4.75rem)] min-h-[34rem] overflow-hidden bg-zinc-50"
           key={slide.title}
         >
           <div
@@ -52,7 +52,7 @@ export function ServiceGuidePage() {
           />
           <div className="absolute inset-0 bg-white/78" />
           <div className={`absolute inset-0 ${index % 2 === 0 ? 'bg-gradient-to-r' : 'bg-gradient-to-l'} from-white via-white/86 to-transparent`} />
-          <div className="relative z-10 flex min-h-[calc(100vh-2.75rem)] items-center justify-center px-6 py-16 md:px-14 md:py-20">
+          <div className="relative z-10 flex h-full items-center justify-center px-6 py-10 md:px-14 md:py-12">
             <div className={`flex w-full max-w-[88vw] flex-col md:max-w-[60vw] ${slide.placement}`}>
               <p className="text-sm font-semibold text-teal-700">{slide.eyebrow}</p>
               <h2 className="mt-5 text-4xl font-semibold leading-[1.08] tracking-normal text-zinc-950 md:text-5xl">

@@ -1,4 +1,4 @@
-import { cloneElement, type PointerEvent, type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import { cloneElement, type PointerEvent, type ReactElement, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import {
   chartBottomMarginPx,
@@ -65,6 +65,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   plotRight: number;
   referenceStroke: string;
   lineStroke: string;
+  lineStrokeWidth?: number;
   metric?: MetricSnapshot | null;
   panelDetails?: Array<{ label: string; value: string }>;
   panelFooterText?: string;
@@ -84,6 +85,7 @@ export function MarketChartSection<T extends RangeKey>({
   helpWidthClassName,
   hover,
   lineStroke,
+  lineStrokeWidth = 2,
   metric,
   keepHeaderSingleLineOnMobile = false,
   onHoverChange,
@@ -123,10 +125,15 @@ export function MarketChartSection<T extends RangeKey>({
   const chartSurfaceRef = useRef<HTMLDivElement | null>(null);
   const axisValueTextRef = useRef<HTMLSpanElement | null>(null);
   const axisTimeTextRef = useRef<HTMLDivElement | null>(null);
+  const pointerTooltipRef = useRef<HTMLDivElement | null>(null);
+  const pointerTooltipTimeRef = useRef<HTMLElement | null>(null);
+  const pointerTooltipValueRef = useRef<HTMLElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const latestVibratedPointKeyRef = useRef<string | null>(null);
   const latestVibrationAtRef = useRef(0);
   const pendingHoverRef = useRef<ChartHoverState | null>(null);
+  const hoverAnimationFrameRef = useRef<number | null>(null);
+  const committedHoverKeyRef = useRef<string | null>(null);
   const tooltipSideRef = useRef<TooltipSide>('right');
   const [chartPixelHeight, setChartPixelHeight] = useState(chartHeightPx);
   const plotBottom = chartPixelHeight - chartBottom;
@@ -153,13 +160,42 @@ export function MarketChartSection<T extends RangeKey>({
   }, []);
 
   const commitHoverChange = () => {
-    onHoverChange(pendingHoverRef.current);
+    hoverAnimationFrameRef.current = null;
+    const nextHover = pendingHoverRef.current;
+    committedHoverKeyRef.current = hoverStateKey(nextHover);
+    onHoverChange(nextHover);
   };
 
-  const scheduleHoverChange = (nextHover: ChartHoverState | null) => {
+  const scheduleHoverChange = (nextHover: ChartHoverState | null, options: { commitOnSamePoint?: boolean; positionOnly?: boolean } = {}) => {
+    const nextKey = hoverStateKey(nextHover);
+    if (options.positionOnly && committedHoverKeyRef.current !== null && nextKey !== null) {
+      pendingHoverRef.current = nextHover;
+      return;
+    }
+    if (!options.commitOnSamePoint && nextKey === committedHoverKeyRef.current) {
+      pendingHoverRef.current = nextHover;
+      return;
+    }
     pendingHoverRef.current = nextHover;
-    commitHoverChange();
+    if (nextKey === null || committedHoverKeyRef.current === null) {
+      if (hoverAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(hoverAnimationFrameRef.current);
+        hoverAnimationFrameRef.current = null;
+      }
+      commitHoverChange();
+      return;
+    }
+    if (hoverAnimationFrameRef.current !== null) {
+      return;
+    }
+    hoverAnimationFrameRef.current = window.requestAnimationFrame(commitHoverChange);
   };
+
+  useEffect(() => () => {
+    if (hoverAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(hoverAnimationFrameRef.current);
+    }
+  }, []);
 
   const updateCrosshairPosition = (event: PointerEvent<HTMLDivElement>) => {
     const element = chartSurfaceRef.current;
@@ -210,6 +246,9 @@ export function MarketChartSection<T extends RangeKey>({
     element.style.setProperty('--chart-axis-time-x', `${axisTimeX}px`);
     element.style.setProperty('--chart-tooltip-left', `${tooltipPosition.x}px`);
     element.style.setProperty('--chart-tooltip-top', `${tooltipPosition.y}px`);
+    if (pointerTooltipRef.current?.isConnected) {
+      pointerTooltipRef.current.style.transform = `translate3d(${tooltipPosition.x}px, ${tooltipPosition.y}px, 0)`;
+    }
     element.classList.add('chart-crosshair-active');
 
     if (usePointerHover) {
@@ -243,8 +282,14 @@ export function MarketChartSection<T extends RangeKey>({
         if (timeTextNode) {
           timeTextNode.textContent = formatCrosshairDate(point.dateValue, range);
         }
+        if (pointerTooltipTimeRef.current?.isConnected) {
+          pointerTooltipTimeRef.current.textContent = formatCrosshairDate(point.dateValue, range);
+        }
+        if (pointerTooltipValueRef.current?.isConnected) {
+          pointerTooltipValueRef.current.textContent = `${formatValue(point.value)}원`;
+        }
         const nextHover = { point, value: axisValue, x, y: clampedY };
-        scheduleHoverChange(nextHover);
+        scheduleHoverChange(nextHover, { positionOnly: true });
         vibrateForTouchPoint(event, point);
       }
     }
@@ -366,7 +411,7 @@ export function MarketChartSection<T extends RangeKey>({
                           plotLeft: plotInsetLeft,
                           plotTop: chartTopMarginPx
                         });
-                        scheduleHoverChange(nextHover);
+                        scheduleHoverChange(nextHover, { commitOnSamePoint: true });
                       }}
                     >
                       <XAxis
@@ -411,7 +456,7 @@ export function MarketChartSection<T extends RangeKey>({
                         type="monotone"
                         dataKey="value"
                         stroke={lineStroke}
-                        strokeWidth={2}
+                        strokeWidth={lineStrokeWidth}
                         dot={false}
                         activeDot={usePointerHover ? false : { r: 4, strokeWidth: 2 }}
                         isAnimationActive={false}
@@ -439,10 +484,34 @@ export function MarketChartSection<T extends RangeKey>({
                   top={chartTopMarginPx}
                   yDomain={yDomain}
                 />
-                {hover ? (() => {
+                {hover ? usePointerHover ? (
+                  <div
+                    className="chart-pointer-tooltip"
+                    ref={pointerTooltipRef}
+                  >
+                    <div className="chart-hover-tooltip w-44 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 shadow-lg shadow-zinc-950/10">
+                      <p className="font-semibold text-zinc-950">{title}</p>
+                      <dl className="mt-2 grid gap-1.5">
+                        <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
+                          <dt className="text-zinc-400">시점</dt>
+                          <dd className="min-w-0 font-medium leading-5 text-zinc-800" ref={pointerTooltipTimeRef}>
+                            {formatCrosshairDate(hover.point.dateValue, range)}
+                          </dd>
+                        </div>
+                        <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
+                          <dt className="text-zinc-400">환율</dt>
+                          <dd className="min-w-0 font-medium leading-5 text-zinc-800" ref={pointerTooltipValueRef}>
+                            {formatValue(hover.point.value)}원
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                ) : (() => {
                   return (
                     <div
                       className="chart-pointer-tooltip"
+                      ref={pointerTooltipRef}
                     >
                       {cloneElement(tooltipContent, {
                         active: true,
@@ -568,6 +637,10 @@ function getNearestPointFromPointerX({
   }
 
   return Math.abs(previous.x - targetX) <= Math.abs(current.x - targetX) ? previous : current;
+}
+
+function hoverStateKey(hover: ChartHoverState | null) {
+  return hover ? `${hover.point.dateValue}|${hover.point.value}` : null;
 }
 
 function getPointerAxisValue({

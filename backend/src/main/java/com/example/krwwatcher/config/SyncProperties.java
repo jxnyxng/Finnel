@@ -6,8 +6,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app.sync")
 public record SyncProperties(
+    Content content,
     MarketData marketData
 ) {
+
+    public record Content(
+        boolean enabled
+    ) {
+    }
 
     public record MarketData(
         boolean enabled,

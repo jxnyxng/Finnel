@@ -741,7 +741,7 @@ class MarketDataSyncRunStateTest {
     }
 
     private SyncProperties syncProperties() {
-        return new SyncProperties(new SyncProperties.MarketData(
+        return new SyncProperties(new SyncProperties.Content(true), new SyncProperties.MarketData(
             true,
             Duration.ofMinutes(15),
             "",

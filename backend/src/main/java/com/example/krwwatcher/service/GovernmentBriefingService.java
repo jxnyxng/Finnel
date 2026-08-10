@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.example.krwwatcher.config.SyncProperties;
 import com.example.krwwatcher.external.PolicyBriefingClient;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -47,11 +48,13 @@ public class GovernmentBriefingService {
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private final PolicyBriefingClient policyBriefingClient;
+    private final SyncProperties syncProperties;
     private final JdbcTemplate jdbcTemplate;
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
-    public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, JdbcTemplate jdbcTemplate) {
+    public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, SyncProperties syncProperties, JdbcTemplate jdbcTemplate) {
         this.policyBriefingClient = policyBriefingClient;
+        this.syncProperties = syncProperties;
         this.jdbcTemplate = jdbcTemplate;
     }
 
@@ -59,6 +62,10 @@ public class GovernmentBriefingService {
     @Async("startupSyncExecutor")
     public void syncOnStartupIfStale() {
         markInterruptedRunningJob(Instant.now());
+        if (!isContentSyncEnabled()) {
+            return;
+        }
+
         if (!policyBriefingClient.isConfigured()) {
             return;
         }
@@ -68,11 +75,19 @@ public class GovernmentBriefingService {
 
     @Scheduled(cron = "${app.sync.market-data.news-cron}", zone = "${app.sync.market-data.zone}")
     public void scheduledSync() {
+        if (!isContentSyncEnabled()) {
+            return;
+        }
+
         syncLatest();
     }
 
     @Transactional
     public GovernmentBriefingSyncResult syncLatest() {
+        if (!isContentSyncEnabled()) {
+            return new GovernmentBriefingSyncResult("SKIPPED_DISABLED", "콘텐츠 수집이 비활성화되어 있습니다.", 0, Instant.now());
+        }
+
         if (!policyBriefingClient.isConfigured()) {
             return new GovernmentBriefingSyncResult("SKIPPED_NOT_CONFIGURED", "POLICY_BRIEFING_API_KEY 설정이 필요합니다.", 0, Instant.now());
         }
@@ -110,6 +125,10 @@ public class GovernmentBriefingService {
 
     @Transactional
     public GovernmentBriefingSyncResult backfill(int months) {
+        if (!isContentSyncEnabled()) {
+            return new GovernmentBriefingSyncResult("SKIPPED_DISABLED", "콘텐츠 수집이 비활성화되어 있습니다.", 0, Instant.now());
+        }
+
         if (!policyBriefingClient.isConfigured()) {
             return new GovernmentBriefingSyncResult("SKIPPED_NOT_CONFIGURED", "POLICY_BRIEFING_API_KEY 설정이 필요합니다.", 0, Instant.now());
         }
@@ -155,6 +174,10 @@ public class GovernmentBriefingService {
         String message = "briefings=" + rows + ", fetched=" + fetched + ", calls=" + calls;
         finishJob(jobId, "SUCCESS", syncedAt, message);
         return new GovernmentBriefingSyncResult("SUCCESS", message, rows, syncedAt);
+    }
+
+    private boolean isContentSyncEnabled() {
+        return syncProperties == null || syncProperties.content() == null || syncProperties.content().enabled();
     }
 
     public GovernmentBriefingResponse latest(String category, LocalDate fromDate, LocalDate toDate, int page, int pageSize, String keyword) {
