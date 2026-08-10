@@ -34,6 +34,8 @@ app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
   sync:
+    content:
+      enabled: ${CONTENT_SYNC_ENABLED:true}
     market-data:
       enabled: ${MARKET_DATA_SYNC_ENABLED:true}
       manual-cooldown: ${MARKET_DATA_SYNC_MANUAL_COOLDOWN:15m}
