@@ -281,10 +281,12 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePage
           role="dialog"
         >
           <div
-            className="modal-panel modal-scroll-area responsive-modal-panel responsive-calculator-modal responsive-modal-scroll"
+            className="modal-panel glass-modal responsive-modal-panel responsive-calculator-modal overflow-hidden rounded-2xl shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <ExchangeProfitCalculator calculatorMeta={calculatorMeta} onClose={() => setIsCalculatorModalOpen(false)} rates={rates} />
+            <div className="modal-scroll-area responsive-modal-scroll">
+              <ExchangeProfitCalculator calculatorMeta={calculatorMeta} onClose={() => setIsCalculatorModalOpen(false)} rates={rates} />
+            </div>
           </div>
         </div>
       ), document.body) : null}

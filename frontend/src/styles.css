@@ -301,11 +301,13 @@ body,
 }
 
 .chart-pointer-tooltip {
-  left: var(--chart-tooltip-left, 0);
+  contain: layout paint style;
   pointer-events: none;
   position: absolute;
-  top: var(--chart-tooltip-top, 0);
-  will-change: left, top;
+  left: 0;
+  top: 0;
+  transform: translate3d(var(--chart-tooltip-left, 0), var(--chart-tooltip-top, 0), 0);
+  will-change: transform;
   z-index: 16;
 }
 
@@ -1022,20 +1024,20 @@ body,
 }
 
 .home-deck {
-  --home-deck-height: calc(100vh - 72px);
+  --home-deck-height: calc(100dvh - 104px);
   height: var(--home-deck-height);
   overscroll-behavior: contain;
 }
 
 @media (min-width: 640px) {
   .home-deck {
-    --home-deck-height: calc(100vh - 66px);
+    --home-deck-height: calc(100dvh - 112px);
   }
 }
 
 @media (min-width: 1280px) {
   .home-deck {
-    --home-deck-height: calc(100vh - 64px);
+    --home-deck-height: calc(100dvh - 118px);
   }
 }
 
@@ -1212,7 +1214,19 @@ body,
 }
 
 .responsive-calculator-modal {
+  max-height: min(760px, calc(100dvh - 1.5rem));
   max-width: min(430px, calc(100vw - 1.5rem));
+}
+
+.responsive-calculator-modal .glass-card {
+  border: 0;
+  border-radius: 0;
+  min-height: auto;
+  width: 100%;
+}
+
+.responsive-calculator-modal :is(input, select, textarea) {
+  font-size: 16px;
 }
 
 .responsive-modal-scroll {
@@ -1273,6 +1287,7 @@ body,
   }
 
   .responsive-calculator-modal {
+    max-height: min(780px, calc(100dvh - 2.5rem));
     max-width: min(430px, calc(100vw - 2.5rem));
   }
 }
