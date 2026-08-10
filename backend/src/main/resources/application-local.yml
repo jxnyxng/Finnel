@@ -1,0 +1,6 @@
+app:
+  sync:
+    content:
+      enabled: false
+    market-data:
+      enabled: false

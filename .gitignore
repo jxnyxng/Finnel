@@ -42,7 +42,6 @@ backend/replay_pid*
 backend/.gradletasknamecache
 
 # Local Spring profiles that may contain machine-specific secrets
-backend/src/main/resources/application-local.yml
 backend/src/main/resources/application-local.yaml
 backend/src/main/resources/application-local.properties
 backend/src/main/resources/application-dev.yml

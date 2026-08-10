@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.example.krwwatcher.config.SyncProperties;
 import com.example.krwwatcher.external.NaverNewsClient;
 import com.example.krwwatcher.service.news.NewsArticleMaintenance;
 import com.example.krwwatcher.service.news.NewsArticleSearchCriteria;
@@ -45,6 +46,7 @@ public class NewsService {
     );
 
     private final NaverNewsClient naverNewsClient;
+    private final SyncProperties syncProperties;
     private final JdbcTemplate jdbcTemplate;
     private final NewsArticleMaintenance newsArticleMaintenance;
     private final NewsArticleText newsArticleText;
@@ -52,11 +54,13 @@ public class NewsService {
 
     public NewsService(
         NaverNewsClient naverNewsClient,
+        SyncProperties syncProperties,
         JdbcTemplate jdbcTemplate,
         NewsArticleMaintenance newsArticleMaintenance,
         NewsArticleText newsArticleText
     ) {
         this.naverNewsClient = naverNewsClient;
+        this.syncProperties = syncProperties;
         this.jdbcTemplate = jdbcTemplate;
         this.newsArticleMaintenance = newsArticleMaintenance;
         this.newsArticleText = newsArticleText;
@@ -64,6 +68,10 @@ public class NewsService {
 
     @Scheduled(cron = "${app.sync.market-data.news-cron}", zone = "${app.sync.market-data.zone}")
     public void scheduledSync() {
+        if (!isContentSyncEnabled()) {
+            return;
+        }
+
         syncLatestNews();
     }
 
@@ -71,6 +79,10 @@ public class NewsService {
     @Async("startupSyncExecutor")
     public void syncOnStartupIfStale() {
         markInterruptedRunningJob(Instant.now());
+        if (!isContentSyncEnabled()) {
+            return;
+        }
+
         newsArticleMaintenance.normalizeStoredNewsArticles();
         newsArticleMaintenance.deleteDuplicateNewsArticles();
         newsArticleMaintenance.hydrateMissingLatestImages();
@@ -97,6 +109,10 @@ public class NewsService {
     }
 
     public NewsSyncResult runSync(String mode, boolean backfill) {
+        if (!isContentSyncEnabled()) {
+            return new NewsSyncResult("SKIPPED_DISABLED", "콘텐츠 수집이 비활성화되어 있습니다.", 0, Instant.now());
+        }
+
         if (!naverNewsClient.isConfigured()) {
             return new NewsSyncResult("SKIPPED_NOT_CONFIGURED", "NAVER_CLIENT_ID/NAVER_CLIENT_SECRET 설정이 필요합니다.", 0, Instant.now());
         }
@@ -150,6 +166,10 @@ public class NewsService {
         String message = "mode=" + mode + ", news=" + rows;
         finishJob(jobId, "SUCCESS", syncedAt, message);
         return new NewsSyncResult("SUCCESS", message, rows, syncedAt);
+    }
+
+    private boolean isContentSyncEnabled() {
+        return syncProperties == null || syncProperties.content() == null || syncProperties.content().enabled();
     }
 
     public NewsResponse latest(String categoryCode, LocalDate fromDate, LocalDate toDate, String keyword, int page, int pageSize) {
