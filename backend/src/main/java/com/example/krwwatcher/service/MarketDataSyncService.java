@@ -134,6 +134,10 @@ public class MarketDataSyncService {
     }
 
     public SyncResult requestManualSync() {
+        if (!syncProperties.marketData().enabled()) {
+            return skipped("SKIPPED_DISABLED", "Market data sync is disabled", SyncTrigger.MANUAL, currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now()));
+        }
+
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), now);
         if (!syncWindow.canSync() && !hasRetryableFailedCoreSource(JOB_NAME, syncProperties.marketData().manualCooldown(), now)) {
@@ -144,6 +148,10 @@ public class MarketDataSyncService {
     }
 
     public SyncResult requestIntradayRefresh() {
+        if (!syncProperties.marketData().enabled()) {
+            return skipped("SKIPPED_DISABLED", "Intraday sync is disabled", SyncTrigger.INTRADAY, currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), Instant.now()));
+        }
+
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), now);
         if (!shouldRunIntradaySyncNow(SyncTrigger.INTRADAY)) {
@@ -157,6 +165,10 @@ public class MarketDataSyncService {
     }
 
     public SyncResult requestDailyBackfill() {
+        if (!syncProperties.marketData().enabled()) {
+            return skipped("SKIPPED_DISABLED", "Daily exchange backfill is disabled", SyncTrigger.DAILY_BACKFILL, currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now()));
+        }
+
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), now);
         if (!syncWindow.canSync()) {
@@ -167,6 +179,10 @@ public class MarketDataSyncService {
     }
 
     public SyncResult requestExchangeRateHistoryBackfill() {
+        if (!syncProperties.marketData().enabled()) {
+            return skipped("SKIPPED_DISABLED", "Exchange rate history backfill is disabled", SyncTrigger.EXCHANGE_RATE_HISTORY_BACKFILL, currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now()));
+        }
+
         Instant now = Instant.now();
         SyncWindow syncWindow = currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), now);
         if (!syncWindow.canSync()) {

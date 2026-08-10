@@ -717,6 +717,7 @@ function App() {
               helpTitle="USD/KRW 그래프"
               hover={activeUsdKrwHover}
               lineStroke="#0f766e"
+              lineStrokeWidth={1.25}
               metric={usdKrwMetric}
               onHoverChange={setActiveUsdKrwHover}
               onRangeChange={setUsdKrwRange}
