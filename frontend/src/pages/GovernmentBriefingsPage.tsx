@@ -48,7 +48,7 @@ export function GovernmentBriefingsPage({
   const categoryTabs = React.useMemo(
     () => [
       { key: 'all', label: '전체' },
-      ...categories.map((category) => ({ key: category.code, label: `${category.name} ${category.articleCount}` }))
+      ...categories.map((category) => ({ key: category.code, label: getGovernmentBriefingCategoryLabel(category.code) }))
     ],
     [categories]
   );
@@ -56,6 +56,7 @@ export function GovernmentBriefingsPage({
   const activeCategoryTabKey = categoryTabKeys.includes(selectedCategory) ? selectedCategory : null;
   const {
     buttonRefs: categoryButtonRefs,
+    buttonWidth: categoryButtonWidth,
     containerRef: categoryContainerRef,
     indicator: categoryIndicator,
     isMoving: isCategoryIndicatorMoving,
@@ -63,7 +64,9 @@ export function GovernmentBriefingsPage({
     startMoving: startCategoryIndicatorMoving
   } = useMovingTabIndicator({
     activeKey: activeCategoryTabKey,
-    keys: categoryTabKeys
+    equalizeButtonWidths: true,
+    keys: categoryTabKeys,
+    minButtonWidth: 82
   });
 
   React.useEffect(() => {
@@ -101,6 +104,9 @@ export function GovernmentBriefingsPage({
   };
   const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
   const hasMore = page < totalPages;
+  const selectedCategoryCount = selectedCategory === 'all'
+    ? totalCount
+    : categories.find((category) => category.code === selectedCategory)?.articleCount ?? 0;
   const scrollCategories = (direction: -1 | 1) => {
     categoryScrollerRef.current?.scrollBy({
       behavior: 'smooth',
@@ -174,32 +180,38 @@ export function GovernmentBriefingsPage({
 
       <nav className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 sm:block" aria-label="정부 정책 카테고리">
         <CategoryScrollButton direction="left" onClick={() => scrollCategories(-1)} />
-        <div className="scrollbar-none relative flex min-w-0 flex-nowrap gap-1 overflow-x-auto rounded-full border border-zinc-200 bg-white p-1 sm:flex-wrap sm:overflow-visible" ref={(node) => {
-          categoryScrollerRef.current = node;
-          categoryContainerRef.current = node;
-        }}>
-          <MovingTabIndicator contained indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
-          {categoryTabs.map((category) => (
-            <CategoryButton
-              active={activeCategoryLabelKey === category.key}
-              key={category.key}
-              label={category.label}
-              onClick={() => {
-                if (selectedCategory !== category.key) {
-                  startCategoryIndicatorMoving();
-                }
-                onCategoryChange(category.key);
-              }}
-              ref={(node) => {
-                categoryButtonRefs.current[category.key] = node;
-              }}
-            />
-          ))}
+        <div className="glass-card flex min-w-0 items-stretch rounded-full p-0.5 shadow-sm sm:items-center sm:justify-between">
+          <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden" ref={(node) => {
+            categoryScrollerRef.current = node;
+            categoryContainerRef.current = node;
+          }}>
+            <MovingTabIndicator contained indicator={categoryIndicator} isMoving={isCategoryIndicatorMoving} />
+            {categoryTabs.map((category) => (
+              <CategoryButton
+                active={activeCategoryLabelKey === category.key}
+                key={category.key}
+                label={category.label}
+                onClick={() => {
+                  if (selectedCategory !== category.key) {
+                    startCategoryIndicatorMoving();
+                  }
+                  onCategoryChange(category.key);
+                }}
+                ref={(node) => {
+                  categoryButtonRefs.current[category.key] = node;
+                }}
+                width={categoryButtonWidth}
+              />
+            ))}
+          </div>
         </div>
         <CategoryScrollButton direction="right" onClick={() => scrollCategories(1)} />
       </nav>
 
       <section className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
+        <div className="mb-2 flex justify-end px-1 text-[11px] font-semibold text-white/45">
+          {selectedCategoryCount}건
+        </div>
         {!configured ? (
           <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
         ) : isLoading && articles.length === 0 ? (
@@ -283,21 +295,23 @@ function CategoryScrollButton({ direction, onClick }: { direction: 'left' | 'rig
   );
 }
 
-const CategoryButton = React.forwardRef<HTMLButtonElement, { active: boolean; label: string; onClick: () => void }>(function CategoryButton({
+const CategoryButton = React.forwardRef<HTMLButtonElement, { active: boolean; label: string; onClick: () => void; width: number }>(function CategoryButton({
   active,
   label,
-  onClick
+  onClick,
+  width
 }, ref) {
   return (
     <button
-      className={`relative z-10 h-8 shrink-0 rounded-full px-3.5 text-xs font-semibold transition-colors duration-150 ${
+      className={`relative z-10 h-8 shrink-0 rounded-full px-2.5 text-[11px] font-semibold transition-colors duration-150 sm:px-3 ${
         active ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
       }`}
       onClick={onClick}
       ref={ref}
+      style={width > 0 ? { width } : undefined}
       type="button"
     >
-      {label}
+      <span className="block truncate">{label}</span>
     </button>
   );
 });
@@ -386,7 +400,7 @@ function getGovernmentBriefingCategoryLabel(category: string | null) {
     case 'fiscal':
       return '재정정책';
     case 'fx':
-      return '외환·금융시장';
+      return '외환·금융';
     case 'trade':
       return '무역·수급';
     case 'inflation':
