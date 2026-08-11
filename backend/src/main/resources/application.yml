@@ -33,6 +33,10 @@ management:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  dashboard:
+    cache:
+      enabled: ${DASHBOARD_CACHE_ENABLED:true}
+      ttl: ${DASHBOARD_CACHE_TTL:30s}
   sync:
     content:
       enabled: ${CONTENT_SYNC_ENABLED:true}
