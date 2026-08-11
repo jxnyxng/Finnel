@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import com.example.krwwatcher.config.DashboardCacheProperties;
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.example.krwwatcher.domain.DollarIndex;
 import com.example.krwwatcher.domain.ExchangeRate;
@@ -24,6 +25,7 @@ import com.example.krwwatcher.repository.DollarIndexRepository;
 import com.example.krwwatcher.repository.ExchangeRateRepository;
 import com.example.krwwatcher.repository.ForeignReserveRepository;
 import com.example.krwwatcher.repository.InterestRateRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +52,26 @@ public class DashboardService {
     private final InterestRateRepository interestRateRepository;
     private final ForeignReserveRepository foreignReserveRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final DailyDashboardCache dailyDashboardCache;
+
+    @Autowired
+    public DashboardService(
+        ExternalApiProperties properties,
+        ExchangeRateRepository exchangeRateRepository,
+        DollarIndexRepository dollarIndexRepository,
+        InterestRateRepository interestRateRepository,
+        ForeignReserveRepository foreignReserveRepository,
+        JdbcTemplate jdbcTemplate,
+        DashboardCacheProperties dashboardCacheProperties
+    ) {
+        this.properties = properties;
+        this.exchangeRateRepository = exchangeRateRepository;
+        this.dollarIndexRepository = dollarIndexRepository;
+        this.interestRateRepository = interestRateRepository;
+        this.foreignReserveRepository = foreignReserveRepository;
+        this.jdbcTemplate = jdbcTemplate;
+        this.dailyDashboardCache = new DailyDashboardCache(dashboardCacheProperties);
+    }
 
     public DashboardService(
         ExternalApiProperties properties,
@@ -59,16 +81,15 @@ public class DashboardService {
         ForeignReserveRepository foreignReserveRepository,
         JdbcTemplate jdbcTemplate
     ) {
-        this.properties = properties;
-        this.exchangeRateRepository = exchangeRateRepository;
-        this.dollarIndexRepository = dollarIndexRepository;
-        this.interestRateRepository = interestRateRepository;
-        this.foreignReserveRepository = foreignReserveRepository;
-        this.jdbcTemplate = jdbcTemplate;
+        this(properties, exchangeRateRepository, dollarIndexRepository, interestRateRepository, foreignReserveRepository, jdbcTemplate, DashboardCacheProperties.defaults());
     }
 
     @Transactional(readOnly = true)
     public DailyDashboardResponse daily() {
+        return dailyDashboardCache.get(this::buildDailyDashboardResponse);
+    }
+
+    private DailyDashboardResponse buildDailyDashboardResponse() {
         DollarIndex latestDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().dollarIndexSeriesId()).orElse(null);
         DollarIndex latestAdvancedDollarIndex = dollarIndexRepository.findTopBySeriesIdOrderByBaseDateDesc(properties.fred().advancedDollarIndexSeriesId()).orElse(null);
         InterestRate latestUsRate = interestRateRepository.findTopByCountryCodeAndRateTypeOrderByBaseDateDesc("US", "POLICY_RATE").orElse(null);
