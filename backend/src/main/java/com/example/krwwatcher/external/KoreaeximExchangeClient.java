@@ -61,6 +61,14 @@ public class KoreaeximExchangeClient {
         return List.of();
     }
 
+    public List<ExchangeRatePayload> fetchExchangeRates(LocalDate baseDate, Set<String> currencyPrefixes) {
+        if (!StringUtils.hasText(properties.koreaexim().apiKey())) {
+            return List.of();
+        }
+
+        return findCurrencies(fetchExchangeRates(baseDate), baseDate, currencyPrefixes);
+    }
+
     private KoreaeximExchangeResponse[] fetchExchangeRates(LocalDate searchDate) {
         return restClient.get()
             .uri(uriBuilder -> uriBuilder
