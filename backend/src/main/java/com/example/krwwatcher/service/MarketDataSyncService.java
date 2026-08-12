@@ -78,6 +78,7 @@ public class MarketDataSyncService {
     );
     private static final int CURRENT_EXCHANGE_RATE_BATCH_SIZE = 4;
     private static final Duration CURRENT_EXCHANGE_RATE_STALE_AFTER = Duration.ofMinutes(60);
+    private static final int MIN_NON_USD_DAILY_EXCHANGE_RATE_COUNT = 9;
     private static final Duration STALE_RUNNING_TTL = Duration.ofHours(2);
     private static final Set<String> CORE_SOURCE_NAMES = Set.of(
         "exchange",
@@ -428,7 +429,7 @@ public class MarketDataSyncService {
         SyncCounter counter = new SyncCounter();
 
         int exchangeRows = runSource(jobId, JOB_NAME, "exchange", counter, syncProperties.marketData().manualCooldown(), this::syncExchangeRates);
-        int dailyBackfillRows = runSource(jobId, JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().manualCooldown(), this::backfillMissingWeekdaysFromIntraday);
+        int dailyBackfillRows = runSource(jobId, JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().manualCooldown(), this::syncDailyExchangeRateBackfill);
         int intradayExchangeRows = 0;
         int dollarIndexRows = runSource(jobId, JOB_NAME, "dollarIndex", counter, syncProperties.marketData().manualCooldown(), this::syncDollarIndexes);
         int currencyStrengthRows = runSource(jobId, JOB_NAME, "currencyStrength", counter, syncProperties.marketData().manualCooldown(), this::syncEffectiveExchangeRates);
@@ -487,7 +488,7 @@ public class MarketDataSyncService {
         Long jobId = startJob(DAILY_BACKFILL_JOB_NAME, startedAt, trigger);
         SyncCounter counter = new SyncCounter();
 
-        int exchangeRows = runSource(jobId, DAILY_BACKFILL_JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().dailyBackfillCooldown(), this::syncUsdKrwDailyBackfill);
+        int exchangeRows = runSource(jobId, DAILY_BACKFILL_JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().dailyBackfillCooldown(), this::syncDailyExchangeRateBackfill);
 
         String status = syncStatus(counter);
         String message = "dailyBackfill=" + exchangeRows + counter.message;
@@ -578,8 +579,8 @@ public class MarketDataSyncService {
         }
     }
 
-    private int syncUsdKrwDailyBackfill() {
-        return backfillMissingWeekdaysFromIntraday();
+    private int syncDailyExchangeRateBackfill() {
+        return backfillMissingWeekdaysFromIntraday() + backfillMissingMajorExchangeRateWeekdaysFromKoreaexim();
     }
 
     private int backfillMissingWeekdaysFromIntraday() {
@@ -601,6 +602,55 @@ public class MarketDataSyncService {
         }
 
         return rows;
+    }
+
+    private int backfillMissingMajorExchangeRateWeekdaysFromKoreaexim() {
+        if (koreaeximExchangeClient == null) {
+            return 0;
+        }
+
+        LocalDate today = LocalDate.now(SEOUL_ZONE);
+        LocalDate startDate = today.minusDays(14);
+        LocalDate endDate = today.minusDays(1);
+        int rows = 0;
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            BusinessDayService.KoreanBusinessDayStatus businessDayStatus = businessDayService.koreanBusinessDayStatus(date);
+            if (businessDayStatus != BusinessDayService.KoreanBusinessDayStatus.BUSINESS_DAY || hasMajorNonUsdDailyExchangeRates(date)) {
+                continue;
+            }
+
+            rows += koreaeximExchangeClient.fetchExchangeRates(date, MAJOR_EXCHANGE_RATE_PREFIXES).stream()
+                .filter(payload -> !"USD".equals(payload.currencyCode()))
+                .mapToInt(payload -> upsertExchangeRate(payload.baseDate(), payload.currencyCode(), payload.currencyName(), payload.dealBasRate(), "KOREAEXIM"))
+                .sum();
+        }
+
+        return rows;
+    }
+
+    private boolean hasMajorNonUsdDailyExchangeRates(LocalDate baseDate) {
+        Integer count = jdbcTemplate.queryForObject(
+            """
+                SELECT COUNT(DISTINCT currency_code)
+                FROM exchange_rates
+                WHERE base_date = ?
+                  AND currency_code <> 'USD'
+                  AND (
+                      currency_code LIKE 'JPY%'
+                      OR currency_code LIKE 'EUR%'
+                      OR currency_code LIKE 'CNY%'
+                      OR currency_code LIKE 'GBP%'
+                      OR currency_code LIKE 'AUD%'
+                      OR currency_code LIKE 'CAD%'
+                      OR currency_code LIKE 'CHF%'
+                      OR currency_code LIKE 'HKD%'
+                      OR currency_code LIKE 'SGD%'
+                  )
+                """,
+            Integer.class,
+            baseDate
+        );
+        return count != null && count >= MIN_NON_USD_DAILY_EXCHANGE_RATE_COUNT;
     }
 
     private int upsertDailyUsdKrw(LocalDate baseDate, java.math.BigDecimal rate, String source) {

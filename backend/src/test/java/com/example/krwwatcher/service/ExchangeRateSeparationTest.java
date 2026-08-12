@@ -1,15 +1,20 @@
 package com.example.krwwatcher.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import com.example.krwwatcher.external.KoreaeximExchangeClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -117,6 +122,56 @@ class ExchangeRateSeparationTest {
 
         assertThat(snapshot.currentRate()).isNotNull();
         assertThat(snapshot.historicalRate()).isNull();
+    }
+
+    @Test
+    void dailyBackfillStoresMissingNonUsdExchangeRatesFromKoreaexim() {
+        LocalDate missingDate = latestWeekdayInBackfillWindow();
+        BusinessDayService businessDayService = org.mockito.Mockito.mock(BusinessDayService.class);
+        KoreaeximExchangeClient koreaeximExchangeClient = org.mockito.Mockito.mock(KoreaeximExchangeClient.class);
+        when(businessDayService.koreanBusinessDayStatus(any(LocalDate.class)))
+            .thenReturn(BusinessDayService.KoreanBusinessDayStatus.NON_BUSINESS_DAY);
+        when(businessDayService.koreanBusinessDayStatus(eq(missingDate)))
+            .thenReturn(BusinessDayService.KoreanBusinessDayStatus.BUSINESS_DAY);
+        when(koreaeximExchangeClient.fetchExchangeRates(eq(missingDate), any(Set.class)))
+            .thenReturn(List.of(
+                new KoreaeximExchangeClient.ExchangeRatePayload(missingDate, "USD", "US Dollar", new BigDecimal("1390.0000")),
+                new KoreaeximExchangeClient.ExchangeRatePayload(missingDate, "EUR", "Euro", new BigDecimal("1620.1200")),
+                new KoreaeximExchangeClient.ExchangeRatePayload(missingDate, "JPY(100)", "Japanese Yen", new BigDecimal("945.3400"))
+            ));
+        MarketDataSyncService syncService = new MarketDataSyncService(
+            null,
+            null,
+            koreaeximExchangeClient,
+            null,
+            null,
+            null,
+            null,
+            null,
+            businessDayService,
+            jdbcTemplate
+        );
+
+        Integer rows = ReflectionTestUtils.invokeMethod(syncService, "backfillMissingMajorExchangeRateWeekdaysFromKoreaexim");
+
+        assertThat(rows).isEqualTo(2);
+        Integer usdRows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM exchange_rates WHERE currency_code = 'USD'", Integer.class);
+        assertThat(usdRows).isZero();
+        BigDecimal eurRate = jdbcTemplate.queryForObject("SELECT deal_bas_rate FROM exchange_rates WHERE currency_code = 'EUR' AND base_date = ?", BigDecimal.class, missingDate);
+        assertThat(eurRate).isEqualByComparingTo("1620.1200");
+        BigDecimal jpyRate = jdbcTemplate.queryForObject("SELECT deal_bas_rate FROM exchange_rates WHERE currency_code = 'JPY(100)' AND base_date = ?", BigDecimal.class, missingDate);
+        assertThat(jpyRate).isEqualByComparingTo("945.3400");
+    }
+
+    private LocalDate latestWeekdayInBackfillWindow() {
+        LocalDate endDate = LocalDate.now().minusDays(1);
+        LocalDate startDate = LocalDate.now().minusDays(14);
+        for (LocalDate date = endDate; !date.isBefore(startDate); date = date.minusDays(1)) {
+            if (date.getDayOfWeek().getValue() <= 5) {
+                return date;
+            }
+        }
+        throw new IllegalStateException("No weekday in backfill window");
     }
 
     private DataSource dataSource() {
