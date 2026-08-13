@@ -18,6 +18,20 @@ export type TimeSeriesPoint = {
   value: number;
 };
 
+export type ChartCandlestickPoint = {
+  label: string;
+  dateValue: string;
+  x: number;
+  value: number;
+  latestValue: number | null;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  complete: boolean;
+  sourcePointCount: number;
+};
+
 export type DollarIndexStatus = {
   latestBaseDate: string | null;
   fetchedAt: string | null;
@@ -25,7 +39,21 @@ export type DollarIndexStatus = {
 
 export type IntradayTimeSeriesPoint = {
   observedAt: string;
+  open: number;
+  high: number;
+  low: number;
   value: number;
+};
+
+export type IntradayCandlestickPoint = {
+  observedAt: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  sourcePointCount: number;
+  complete: boolean;
+  fetchedAt: string;
 };
 
 export type CurrencyStrengthRank = {
@@ -130,6 +158,7 @@ export type DailyDashboardResponse = {
   metrics: MetricSnapshot[];
   usdKrwSeries: TimeSeriesPoint[];
   usdKrwIntradaySeries: IntradayTimeSeriesPoint[];
+  usdKrwIntradayCandles: IntradayCandlestickPoint[];
   dxyIndexSeries: TimeSeriesPoint[];
   dollarIndexSeries: TimeSeriesPoint[];
   advancedDollarIndexStatus: DollarIndexStatus;
