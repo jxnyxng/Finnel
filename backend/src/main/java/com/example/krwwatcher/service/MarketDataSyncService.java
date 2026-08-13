@@ -1210,15 +1210,21 @@ public class MarketDataSyncService {
     private int upsertIntradayExchangeRates(List<TwelveDataClient.IntradayExchangePayload> observations) {
         return observations.stream()
             .mapToInt(payload -> jdbcTemplate.update("""
-                    INSERT INTO intraday_exchange_rates (observed_at, currency_pair, close_rate, source, fetched_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO intraday_exchange_rates (observed_at, currency_pair, open_rate, high_rate, low_rate, close_rate, source, fetched_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
+                        open_rate = VALUES(open_rate),
+                        high_rate = VALUES(high_rate),
+                        low_rate = VALUES(low_rate),
                         close_rate = VALUES(close_rate),
                         source = VALUES(source),
                         fetched_at = VALUES(fetched_at)
                     """,
                 payload.observedAt(),
                 payload.currencyPair(),
+                payload.openRate(),
+                payload.highRate(),
+                payload.lowRate(),
                 payload.closeRate(),
                 "TWELVE_DATA",
                 Instant.now()

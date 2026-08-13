@@ -13,6 +13,7 @@ import {
 import {
   DollarIndexTooltip,
   RangeSelector,
+  UsdKrwCandlestickTooltip,
   UsdKrwTooltip
 } from './components/ChartElements';
 import { AppFooter } from './components/AppFooter';
@@ -28,9 +29,11 @@ import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
 import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
 import {
   buildVisibleDailySeries,
+  buildVisibleUsdKrwCandles,
   buildVisibleUsdKrwSeries,
   formatDailyXTick,
   formatUsdKrwXTick,
+  getCandlestickValueDomain,
   getDailyXTicks,
   getLatestIntradayDate,
   getPanelPeriodLabel,
@@ -76,6 +79,7 @@ import type {
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
+type UsdKrwChartDisplayMode = 'line' | 'candlestick';
 const dollarIndexTabs = [
   { key: 'advanced', label: '7개국' },
   { key: 'broad', label: '26개국' }
@@ -90,6 +94,7 @@ function App() {
   const dashboardLoadStateRef = React.useRef<DashboardLoadState>('idle');
   const [dashboardErrorMessage, setDashboardErrorMessage] = React.useState<string | null>(null);
   const [usdKrwRange, setUsdKrwRange] = React.useState<RangeKey>('1D');
+  const [usdKrwChartDisplayMode, setUsdKrwChartDisplayMode] = React.useState<UsdKrwChartDisplayMode>('line');
   const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [dollarIndexRange, setDollarIndexRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [showBroadDollarIndex, setShowBroadDollarIndex] = React.useState(false);
@@ -400,6 +405,7 @@ function App() {
   const dollarIndexMetric = findMetric(metrics, 'BROAD_DOLLAR_INDEX');
   const usdKrwSeries = dashboard?.usdKrwSeries ?? [];
   const usdKrwIntradaySeries = dashboard?.usdKrwIntradaySeries ?? [];
+  const usdKrwIntradayCandles = dashboard?.usdKrwIntradayCandles ?? [];
   const latestUsdKrwIntradayPoint = usdKrwIntradaySeries[usdKrwIntradaySeries.length - 1] ?? null;
   const dxyIndexSeries = dashboard?.dxyIndexSeries ?? [];
   const dollarIndexSeries = dashboard?.dollarIndexSeries ?? [];
@@ -422,9 +428,11 @@ function App() {
   const seoulTime = getSeoulTimeString(new Date(nowMs));
   const latestIntradayDate = getLatestIntradayDate(usdKrwIntradaySeries);
   const isUsdKrwIntradayActive = isCurrentIntradaySession(usdKrwIntradaySeries, seoulToday, seoulTime);
-  const visibleUsdKrwSeries = buildVisibleUsdKrwSeries(usdKrwSeries, usdKrwIntradaySeries, usdKrwRange);
+  const visibleUsdKrwCandles = usdKrwRange === '1D' ? buildVisibleUsdKrwCandles(usdKrwIntradayCandles) : [];
+  const visibleUsdKrwSeries = buildVisibleUsdKrwSeries(usdKrwSeries, usdKrwIntradaySeries, usdKrwRange, usdKrwIntradayCandles);
+  const showUsdKrwCandlesticks = usdKrwRange === '1D' && usdKrwChartDisplayMode === 'candlestick' && visibleUsdKrwCandles.length > 0;
   const latestUsdKrwPoint = visibleUsdKrwSeries[visibleUsdKrwSeries.length - 1] ?? null;
-  const usdKrwDomain = getValueDomain(visibleUsdKrwSeries, 5);
+  const usdKrwDomain = showUsdKrwCandlesticks ? getCandlestickValueDomain(visibleUsdKrwCandles, 5) : getValueDomain(visibleUsdKrwSeries, 5);
   const usdKrwXDomain = getXDomain(visibleUsdKrwSeries, usdKrwRange);
   const usdKrwXTicks = usdKrwRange === '1D' ? getUsdKrwXTicks(usdKrwRange, visibleUsdKrwSeries) : getDailyXTicks(visibleUsdKrwSeries);
   const visibleDxyIndexSeries = buildVisibleDailySeries(dxyIndexSeries, dxyRange);
@@ -513,7 +521,7 @@ function App() {
   const usdKrwStatusNode = (
     <UpdateStatusBox
       details={usdKrwRange === '1D' ? usdKrwIntradayStatusDetails : usdKrwDailyStatusDetails}
-      interval={usdKrwRange === '1D' ? '환율 1분봉 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
+      interval={usdKrwRange === '1D' ? '1분봉 수집 · 5분봉 표시 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
       statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatus.label}
       tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatus.tone}
     />
@@ -543,7 +551,7 @@ function App() {
     remainingIntradayCooldownSeconds
   );
   const usdKrwChartStatusText = usdKrwRange === '1D'
-    ? intradayStatusLabel
+    ? `${showUsdKrwCandlesticks ? '5분봉 캔들' : '5분봉 라인'} · ${intradayStatusLabel}`
     : `기준 환율 일별 · 최신 ${latestUsdKrwPoint?.dateValue.slice(0, 10) ?? '-'} · ${marketDailyStatus.label}`;
   const onePercentHigherUsdKrw = usdKrwMetric?.value === null || usdKrwMetric?.value === undefined ? null : usdKrwMetric.value * 1.01;
   const onePercentLowerUsdKrw = usdKrwMetric?.value === null || usdKrwMetric?.value === undefined ? null : usdKrwMetric.value * 0.99;
@@ -554,8 +562,22 @@ function App() {
     { label: usdKrwRange === '1D' ? '세션' : '기간', value: usdKrwRange === '1D' ? '주중 24시간 실시간 수집 환율' : `${getRangeLabel(usdKrwRange)} 일별 기준 환율` },
     { label: '의미', value: '1달러 가격' },
     { label: '해석', value: '상승하면 원화 약세' },
-    { label: '출처', value: usdKrwRange === '1D' ? 'Twelve Data 1분봉' : 'Koreaexim/FRED 일별' }
+    { label: '출처', value: usdKrwRange === '1D' ? 'Twelve Data 1분봉 집계' : 'Koreaexim/FRED 일별' }
   ];
+  const usdKrwChartDisplayControl = usdKrwRange === '1D' ? (
+    <div className="dollar-index-mode-control w-[6.75rem] shrink-0">
+      <RangeSelector
+        columns={2}
+        compact
+        onChange={setUsdKrwChartDisplayMode}
+        options={[
+          { key: 'line', label: '라인' },
+          { key: 'candlestick', label: '캔들' }
+        ]}
+        value={usdKrwChartDisplayMode}
+      />
+    </div>
+  ) : null;
   const dollarIndexPanelDetails = [
     { label: '범위', value: `${getRangeLabel(dollarIndexRange)} · 26개국 교역 상대` },
     { label: '기간', value: getPanelPeriodLabel(visibleDollarIndexSeries) },
@@ -706,12 +728,16 @@ function App() {
           <section className="page-content-enter grid gap-4">
             <MarketChartSection
               emptyText={dashboardEmptyText}
+              candlestickSeries={visibleUsdKrwCandles}
+              chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
+              headerAction={usdKrwChartDisplayControl}
+              headerActionPlacement="chartControls"
               headerStatus={usdKrwStatusNode}
               helpAriaLabel="USD/KRW 그래프 안내"
               helpContent={(
                 <>
                   <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
-                  <p className="mt-1">1일은 1분 단위 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
+                  <p className="mt-1">1일은 1분봉을 5분 단위로 집계한 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
                 </>
               )}
               helpTitle="USD/KRW 그래프"
@@ -729,13 +755,14 @@ function App() {
               rangeOptions={rangeOptions}
               referenceStroke="#0f766e"
               series={visibleUsdKrwSeries}
-              showLatestValueDot={showUsdKrwLatestValueDot}
+              showExtremaLines
+              showLatestValueDot={showUsdKrwLatestValueDot && !showUsdKrwCandlesticks}
               showLoadingOverlay={shouldCoverDashboardCharts}
               statusClassName="text-teal-700"
               statusText={usdKrwChartStatusText}
               subtitle={null}
               title="실시간 원달러 환율"
-              tooltipContent={<UsdKrwTooltip range={usdKrwRange} />}
+              tooltipContent={showUsdKrwCandlesticks ? <UsdKrwCandlestickTooltip /> : <UsdKrwTooltip range={usdKrwRange} />}
               usePointerHover
               xAxisHeight={usdKrwRange === '1D' ? intradayXAxisHeightPx : dailyXAxisHeightPx}
               xAxisPadding={{ left: 0, right: 0 }}
@@ -760,8 +787,11 @@ function App() {
               helpWidthClassName="w-80"
               hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
               lineStroke="#0f766e"
+              lineStrokeWidth={1.25}
               keepHeaderSingleLineOnMobile
               metric={activeDollarIndexMetric}
+              headerAction={activeDollarIndexHeaderAction}
+              headerActionPlacement="chartControls"
               onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
               onRangeChange={(range) => {
                 if (showBroadDollarIndex) {
@@ -778,13 +808,13 @@ function App() {
               rangeOptions={longRangeOptions}
               referenceStroke="#0f766e"
               series={activeDollarIndexSeries}
+              showExtremaLines
               showLatestValueDot={false}
               showLoadingOverlay={shouldCoverDashboardCharts}
               statusClassName="text-slate-600"
               statusText={activeDollarIndexChartStatusText}
               subtitle={null}
               title="달러인덱스"
-              titleAction={activeDollarIndexHeaderAction}
               tooltipContent={<DollarIndexTooltip title={showBroadDollarIndex ? '26개 교역 상대 달러' : '7개 통화권 달러'} />}
               usePointerHover
               xAxisHeight={dailyXAxisHeightPx}
