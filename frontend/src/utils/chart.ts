@@ -5,7 +5,7 @@ import {
   longRangeOptions,
   rangeOptions
 } from '../constants';
-import type { ChartPoint, IntradayTimeSeriesPoint, RangeKey, TimeSeriesPoint } from '../types';
+import type { ChartCandlestickPoint, ChartPoint, IntradayCandlestickPoint, IntradayTimeSeriesPoint, RangeKey, TimeSeriesPoint } from '../types';
 
 const daylightSavingSessionStartMinutes = 6 * 60;
 const standardSessionStartMinutes = 7 * 60;
@@ -45,13 +45,24 @@ export function formatCrosshairDate(value: string, range: RangeKey | Exclude<Ran
 export function buildVisibleUsdKrwSeries(
   dailySeries: TimeSeriesPoint[],
   intradaySeries: IntradayTimeSeriesPoint[],
-  range: RangeKey
+  range: RangeKey,
+  intradayCandles: IntradayCandlestickPoint[] = []
 ): ChartPoint[] {
-  if (range === '1D' && intradaySeries.length === 0) {
+  if (range === '1D' && intradaySeries.length === 0 && intradayCandles.length === 0) {
     return [];
   }
 
   if (range === '1D') {
+    if (intradayCandles.length > 0) {
+      return buildVisibleUsdKrwCandles(intradayCandles).map((point) => ({
+        label: point.label,
+        dateValue: point.dateValue,
+        x: point.x,
+        value: point.close,
+        latestValue: point.latestValue
+      }));
+    }
+
     const sessionStartDate = getIntradaySessionStartDate(intradaySeries[0].observedAt);
     const [sessionStartMinute, sessionEndMinute] = getIntradaySessionDomain(sessionStartDate);
     const points = intradaySeries.map((point) => {
@@ -84,6 +95,39 @@ export function buildVisibleUsdKrwSeries(
   }));
 }
 
+export function buildVisibleUsdKrwCandles(
+  intradayCandles: IntradayCandlestickPoint[],
+): ChartCandlestickPoint[] {
+  if (intradayCandles.length === 0) {
+    return [];
+  }
+
+  const sessionStartDate = getIntradaySessionStartDate(intradayCandles[0].observedAt);
+  const [sessionStartMinute, sessionEndMinute] = getIntradaySessionDomain(sessionStartDate);
+  const points = intradayCandles.map((point) => {
+    const displayDateTime = normalizeDateTime(point.observedAt);
+    const value = point.close;
+    return {
+      label: displayDateTime.slice(11, 16),
+      dateValue: displayDateTime,
+      x: getSessionMinute(displayDateTime, sessionStartDate),
+      value,
+      latestValue: null,
+      open: point.open,
+      high: point.high,
+      low: point.low,
+      close: point.close,
+      complete: point.complete,
+      sourcePointCount: point.sourcePointCount
+    };
+  }).filter((point) => point.x >= sessionStartMinute && point.x <= sessionEndMinute);
+
+  return points.map((point, index) => ({
+    ...point,
+    latestValue: index === points.length - 1 ? point.value : null
+  }));
+}
+
 export function buildVisibleDailySeries(series: TimeSeriesPoint[], range: Exclude<RangeKey, '1D'>): ChartPoint[] {
   const filteredSeries = filterDailySeriesByRange(series, range);
   return filteredSeries.map((point, index) => ({
@@ -102,6 +146,16 @@ export function getValueDomain(series: ChartPoint[], padding: number): [number, 
 
   const values = series.map((point) => point.value);
   return [Math.floor(Math.min(...values) - padding), Math.ceil(Math.max(...values) + padding)];
+}
+
+export function getCandlestickValueDomain(series: ChartCandlestickPoint[], padding: number): [number, number] | ['auto', 'auto'] {
+  if (series.length === 0) {
+    return ['auto', 'auto'];
+  }
+
+  const lows = series.map((point) => point.low);
+  const highs = series.map((point) => point.high);
+  return [Math.floor(Math.min(...lows) - padding), Math.ceil(Math.max(...highs) + padding)];
 }
 
 export function getLatestValueLabelTop(value: number | null, domain: [number, number] | ['auto', 'auto'], xAxisHeight: number) {
@@ -141,9 +195,7 @@ export function getUsdKrwXTicks(range: RangeKey, series: ChartPoint[] = []) {
     return undefined;
   }
 
-  const [sessionStartMinute, sessionEndMinute] = series.length > 0
-    ? getIntradaySessionDomain(getIntradaySessionStartDate(series[0].dateValue))
-    : [daylightSavingSessionStartMinutes, daylightSavingSessionStartMinutes + intradaySessionDurationMinutes];
+  const [sessionStartMinute, sessionEndMinute] = getXDomain(series, range) as [number, number];
   const ticks: number[] = [];
   for (let minute = sessionStartMinute; minute <= sessionEndMinute; minute += 120) {
     ticks.push(minute);
@@ -172,7 +224,8 @@ export function getDailyXTicks(series: ChartPoint[]) {
 
 export function formatUsdKrwXTick(value: number) {
   const hour = Math.floor((value % (24 * 60)) / 60);
-  return hour.toString().padStart(2, '0');
+  const minute = value % 60;
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
 export function formatDailyXTick(value: number, range: RangeKey | Exclude<RangeKey, '1D'>) {
@@ -365,7 +418,7 @@ function formatIntradaySessionLabel(series: ChartPoint[]) {
   const first = series[0].dateValue;
   const sessionStartDate = getIntradaySessionStartDate(first);
   const startHour = Math.floor(getUsdKrwSessionStartMinutes(sessionStartDate) / 60).toString().padStart(2, '0');
-  return `${sessionStartDate} 세션 · ${startHour}:00~익일 ${startHour}:00 · 1분`;
+  return `${sessionStartDate} 세션 · ${startHour}:00~익일 ${startHour}:00 · 5분`;
 }
 
 function getIntradaySessionDomain(sessionStartDate: string): [number, number] {

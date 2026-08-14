@@ -20,6 +20,9 @@ class DashboardJsonContractTest {
     void serializesIntradayObservedAtAsIsoInstant() throws Exception {
         DashboardService.IntradayTimeSeriesPoint point = new DashboardService.IntradayTimeSeriesPoint(
             Instant.parse("2026-07-21T00:05:00Z"),
+            new BigDecimal("1391.0000"),
+            new BigDecimal("1392.0000"),
+            new BigDecimal("1390.0000"),
             new BigDecimal("1391.2000"),
             Instant.parse("2026-07-21T00:05:30Z")
         );
@@ -27,6 +30,9 @@ class DashboardJsonContractTest {
         String json = objectMapper.writeValueAsString(point);
 
         assertThat(json).contains("\"observedAt\":\"2026-07-21T00:05:00Z\"");
+        assertThat(json).contains("\"open\":1391.0000");
+        assertThat(json).contains("\"high\":1392.0000");
+        assertThat(json).contains("\"low\":1390.0000");
         assertThat(json).contains("\"fetchedAt\":\"2026-07-21T00:05:30Z\"");
     }
 }
