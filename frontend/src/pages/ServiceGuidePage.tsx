@@ -2,9 +2,9 @@ const serviceIntroHero = '/assets/service-intro-hero.png';
 
 const slides = [
   {
-    eyebrow: 'KOREA WON MONITOR',
-    title: '원화 움직임을 한 화면에서 읽으세요.',
-    body: ['환율, 달러 지수, 관련 지표, 화폐 랭킹, 뉴스를 연결해 보여줍니다.', '원화가 왜 움직이는지 순서대로 확인할 수 있습니다.'],
+    eyebrow: 'FINNEL DATA BOARD',
+    title: '경제·금융 데이터를 한 화면에서 읽으세요.',
+    body: ['환율, 달러 지수, 관련 지표, 화폐 랭킹, 뉴스를 연결해 보여줍니다.', '흩어진 데이터를 Finnel 안에서 순서대로 확인할 수 있습니다.'],
     action: ['환율 현황에서 오늘의 USD/KRW 흐름을 먼저 확인해보세요.'],
     placement: 'items-start text-left',
     imagePosition: 'center center'

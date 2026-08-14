@@ -16,10 +16,15 @@
   --text-muted: #9ca3af;
   --border: #e5e7eb;
   --border-strong: #d1d5db;
-  --accent: #0f766e;
-  --accent-strong: #0d5f59;
-  --accent-soft: #e6f5f3;
-  --accent-muted: #ccfbf1;
+  --brand-navy: #17345f;
+  --brand-navy-deep: #0b1f3a;
+  --brand-blue: #4f7fe8;
+  --brand-blue-light: #8eaeff;
+  --teal-accent: #52d6c7;
+  --accent: #18a999;
+  --accent-strong: #0b8f82;
+  --accent-soft: #e9fbf9;
+  --accent-muted: #c7f4ee;
   --danger: #e11d48;
   --danger-soft: #fff1f2;
   --shadow-soft: 0 1px 2px rgba(17, 24, 39, 0.06), 0 10px 30px rgba(17, 24, 39, 0.06);
@@ -54,7 +59,7 @@ body {
   color: var(--text-primary);
   margin: 0;
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    "DM Sans", "Noto Sans KR", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 html,
@@ -123,8 +128,35 @@ body,
 }
 
 .glass-field:focus {
-  border-color: rgba(15, 118, 110, 0.72);
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.18);
+  border-color: rgba(24, 169, 153, 0.72);
+  box-shadow: 0 0 0 2px rgba(82, 214, 199, 0.18);
+}
+
+.brand-lockup {
+  color: var(--brand-navy);
+  letter-spacing: 0;
+}
+
+.brand-logo-mark {
+  filter: drop-shadow(0 5px 10px rgba(11, 31, 58, 0.12));
+}
+
+.brand-name-ko {
+  color: var(--brand-navy);
+  font-family:
+    "Noto Sans KR", "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 800;
+}
+
+.brand-name-en {
+  color: rgba(23, 52, 95, 0.74);
+  font-family:
+    "DM Sans", "Noto Sans KR", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 800;
+}
+
+.brand-name-en-accent {
+  color: var(--brand-blue);
 }
 
 .glass-modal {
@@ -181,8 +213,8 @@ body,
 }
 
 .exchange-guide-step-badge {
-  background: #0f766e;
-  border: 1px solid #0f766e;
+  background: var(--accent);
+  border: 1px solid var(--accent);
   border-radius: 999px;
   color: #ffffff !important;
   display: inline-flex;
@@ -640,8 +672,8 @@ body,
 
 .service-status-dot-healthy {
   animation: service-status-pulse-green 1.8s ease-out infinite;
-  background: #14b8a6;
-  box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.45);
+  background: var(--teal-accent);
+  box-shadow: 0 0 0 0 rgba(82, 214, 199, 0.42);
 }
 
 .service-status-dot-error {
@@ -670,7 +702,7 @@ body,
 }
 
 .service-status-trigger:focus-visible {
-  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.24);
+  box-shadow: 0 0 0 2px rgba(82, 214, 199, 0.24);
 }
 
 .service-status-tooltip {
@@ -719,18 +751,18 @@ body,
 }
 
 .latest-value-core {
-  fill: #0f766e;
+  fill: var(--accent);
 }
 
 .latest-value-halo {
-  fill: rgba(20, 184, 166, 0.28);
-  stroke: rgba(15, 118, 110, 0.7);
+  fill: rgba(82, 214, 199, 0.22);
+  stroke: rgba(24, 169, 153, 0.7);
   stroke-width: 1;
 }
 
 .latest-value-pulse {
   animation: latest-value-pulse 1.8s ease-out infinite;
-  fill: rgba(20, 184, 166, 0.16);
+  fill: rgba(82, 214, 199, 0.14);
   transform-box: fill-box;
   transform-origin: center;
 }
@@ -754,15 +786,15 @@ body,
 
 @keyframes service-status-pulse-green {
   0% {
-    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.45);
+    box-shadow: 0 0 0 0 rgba(82, 214, 199, 0.42);
   }
 
   70% {
-    box-shadow: 0 0 0 6px rgba(20, 184, 166, 0);
+    box-shadow: 0 0 0 6px rgba(82, 214, 199, 0);
   }
 
   100% {
-    box-shadow: 0 0 0 6px rgba(20, 184, 166, 0);
+    box-shadow: 0 0 0 6px rgba(82, 214, 199, 0);
   }
 }
 
@@ -782,9 +814,9 @@ body,
 
 .latest-value-floating-label {
   align-items: center;
-  background: #0f766e;
+  background: var(--accent);
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.24);
+  box-shadow: 0 2px 8px rgba(24, 169, 153, 0.24);
   color: white;
   display: flex;
   font-size: 10px;
@@ -803,7 +835,7 @@ body,
 
 .latest-value-floating-label::before {
   border-bottom: 5px solid transparent;
-  border-right: 6px solid #0f766e;
+  border-right: 6px solid var(--accent);
   border-top: 5px solid transparent;
   content: "";
   height: 0;
@@ -1085,8 +1117,97 @@ body,
 
 .home-deck-track {
   height: 100%;
+  position: relative;
   transition: transform 620ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
+}
+
+.home-funnel-bg {
+  height: calc(var(--home-deck-height) * 4);
+  inset: 0 auto auto 50%;
+  opacity: 0.24;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%);
+  width: min(100%, 70rem);
+  z-index: 0;
+}
+
+.home-funnel-bowl {
+  background: color-mix(in srgb, var(--brand-blue) 18%, white 82%);
+  border: 0;
+  box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, 100% 22%, 56% 100%, 44% 100%, 0 22%);
+  filter: none;
+  height: calc(var(--home-deck-height) * 0.92);
+  left: 50%;
+  overflow: hidden;
+  position: absolute;
+  top: calc(var(--home-deck-height) * 0.06);
+  transform: translateX(-50%);
+  width: clamp(28rem, 82vw, 72rem);
+}
+
+.home-funnel-stem {
+  background: color-mix(in srgb, var(--brand-blue) 18%, white 82%);
+  border: 0;
+  box-shadow: none;
+  height: calc(var(--home-deck-height) * 2.31);
+  left: 50%;
+  position: absolute;
+  top: calc(var(--home-deck-height) * 0.94);
+  transform: translateX(-50%);
+  width: clamp(6.2rem, 11.5vw, 9.4rem);
+}
+
+@media (max-width: 767px) {
+  .home-funnel-bg {
+    inset-inline-start: 50%;
+    opacity: 0.18;
+    width: 36rem;
+  }
+
+  .home-funnel-bowl {
+    width: 34rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-split-layout {
+    align-items: center;
+    display: grid;
+    gap: clamp(1rem, 2vw, 2rem);
+    grid-template-columns: minmax(0, 1fr) clamp(8.5rem, 17vw, 14rem) minmax(0, 1fr);
+    width: min(100%, 72rem);
+  }
+
+  .home-split-left {
+    grid-column: 1;
+    justify-self: end;
+    max-width: 26rem;
+    width: 100%;
+  }
+
+  .home-split-right {
+    grid-column: 3;
+    justify-self: start;
+    max-width: 26rem;
+    width: 100%;
+  }
+
+  .home-copy-offset {
+    max-width: min(48rem, calc(50vw - 3.5rem));
+  }
+
+  .home-copy-offset-left {
+    justify-self: start;
+    margin-left: clamp(1rem, 4vw, 4rem);
+  }
+
+  .home-copy-offset-right {
+    justify-self: end;
+    margin-right: clamp(1rem, 4vw, 4rem);
+  }
 }
 
 .home-copy {
@@ -1104,6 +1225,8 @@ body,
 .home-snap-section {
   backface-visibility: hidden;
   height: var(--home-deck-height);
+  position: relative;
+  z-index: 1;
 }
 
 .home-scroll-cue {
