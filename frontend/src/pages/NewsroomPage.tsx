@@ -401,7 +401,9 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
     <div className="relative grid h-28 w-full self-start place-items-center overflow-hidden bg-teal-50 text-center text-teal-800 sm:h-32 md:h-36">
       {isNew ? <NewBadge /> : null}
       <div>
-        <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white text-lg font-bold text-teal-700">₩</span>
+        <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white">
+          <img alt="" aria-hidden="true" className="h-7 w-7" src="/assets/finnel_logo_rounded_final_deepnavy.svg" />
+        </span>
         <p className="mt-1 text-[11px] font-semibold leading-4">{article.categoryName}</p>
       </div>
     </div>
