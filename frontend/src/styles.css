@@ -237,14 +237,24 @@ body,
   -webkit-line-clamp: 2;
 }
 
-.chart-help-tooltip {
+.chart-help-tooltip-left {
   left: 0;
+}
+
+.chart-help-tooltip-right {
+  right: 0;
 }
 
 .chart-grid-surface {
   background: var(--surface-muted);
   border: 1px solid var(--border);
   touch-action: none;
+}
+
+.chart-grid-surface .chart-scroll-layer,
+.chart-grid-surface .recharts-wrapper,
+.chart-grid-surface .recharts-surface {
+  cursor: crosshair;
 }
 
 .chart-scroll-layer {
@@ -314,8 +324,8 @@ body,
 .chart-surface-action {
   pointer-events: auto;
   position: absolute;
-  right: 0.65rem;
-  top: 0.6rem;
+  right: 0.45rem;
+  top: 0.45rem;
   z-index: 20;
 }
 
@@ -382,6 +392,21 @@ body,
 
 .dollar-index-mode-control {
   margin-left: 0.15rem;
+}
+
+.usd-krw-chart-mode-control {
+  margin-left: 0.05rem;
+  width: 5.7rem;
+}
+
+.usd-krw-chart-mode-control > div {
+  height: 1.55rem;
+}
+
+.usd-krw-chart-mode-control button {
+  height: 1.25rem;
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
 }
 
 .chart-price-divider {
@@ -535,8 +560,14 @@ body,
 }
 
 @media (max-width: 640px) {
-  .chart-help-tooltip {
+  .chart-help-tooltip-left {
     left: -2.5rem;
+    width: min(18rem, calc(100vw - 2rem));
+  }
+
+  .chart-help-tooltip-right {
+    left: auto;
+    right: 0;
     width: min(18rem, calc(100vw - 2rem));
   }
 }

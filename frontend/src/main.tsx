@@ -73,6 +73,7 @@ import type {
   NewsResponse,
   PageKey,
   RangeKey,
+  ServiceStatusTone,
   SyncStatus
 } from './types';
 
@@ -517,19 +518,26 @@ function App() {
           latestUpdatedAt: syncStatus?.latestEndedAt ?? null,
           syncStatus: syncStatus?.latestStatus ?? null
         });
-  const showUsdKrwLatestValueDot = usdKrwRange === '1D' && activeServiceStatus.tone !== 'idle' && isUsdKrwIntradayActive;
+  const usdKrwIntradayCardStatus = getUsdKrwIntradayCardStatus({
+    dashboard,
+    dashboardLoadState,
+    intradayStatus,
+    isCurrentSession: isUsdKrwIntradayActive,
+    latestIntradayDate
+  });
+  const showUsdKrwLatestValueDot = usdKrwRange === '1D' && usdKrwIntradayCardStatus.tone !== 'idle' && isUsdKrwIntradayActive;
   const usdKrwStatusNode = (
     <UpdateStatusBox
       details={usdKrwRange === '1D' ? usdKrwIntradayStatusDetails : usdKrwDailyStatusDetails}
-      interval={usdKrwRange === '1D' ? '1분봉 수집 · 5분봉 표시 · 5분마다 확인' : '기준 환율 일별 · 09:10/15:10'}
-      statusLabel={usdKrwRange === '1D' ? activeServiceStatus.label : marketDailyStatus.label}
-      tone={usdKrwRange === '1D' ? activeServiceStatus.tone : marketDailyStatus.tone}
+      interval={`${getRangeLabel(usdKrwRange)} 수집상태`}
+      statusLabel={usdKrwRange === '1D' ? usdKrwIntradayCardStatus.label : marketDailyStatus.label}
+      tone={usdKrwRange === '1D' ? usdKrwIntradayCardStatus.tone : marketDailyStatus.tone}
     />
   );
   const dollarIndexStatusNode = (
     <UpdateStatusBox
       details={dollarIndexStatusDetails}
-      interval="달러 지수 일별 · 09:10/15:10"
+      interval={`${getRangeLabel(showBroadDollarIndex ? dollarIndexRange : dxyRange)} 수집상태`}
       statusLabel={marketDailyStatus.label}
       tone={marketDailyStatus.tone}
     />
@@ -565,7 +573,7 @@ function App() {
     { label: '출처', value: usdKrwRange === '1D' ? 'Twelve Data 1분봉 집계' : 'Koreaexim/FRED 일별' }
   ];
   const usdKrwChartDisplayControl = usdKrwRange === '1D' ? (
-    <div className="dollar-index-mode-control w-[6.75rem] shrink-0">
+    <div className="usd-krw-chart-mode-control shrink-0">
       <RangeSelector
         columns={2}
         compact
@@ -1035,6 +1043,46 @@ function UpdateStatusBox({
       </span>
     </div>
   );
+}
+
+function getUsdKrwIntradayCardStatus({
+  dashboard,
+  dashboardLoadState,
+  intradayStatus,
+  isCurrentSession,
+  latestIntradayDate
+}: {
+  dashboard: DailyDashboardResponse | null;
+  dashboardLoadState: DashboardLoadState;
+  intradayStatus: SyncStatus | null;
+  isCurrentSession: boolean;
+  latestIntradayDate: string | null;
+}): { label: string; tone: ServiceStatusTone } {
+  if (!dashboard && dashboardLoadState === 'loading') {
+    return { label: '조회 중', tone: 'idle' };
+  }
+
+  if (!dashboard && dashboardLoadState === 'error') {
+    return { label: '조회 실패', tone: 'error' };
+  }
+
+  if (isCurrentSession) {
+    return { label: '업데이트 원활', tone: 'healthy' };
+  }
+
+  if (intradayStatus?.latestStatus === 'RUNNING') {
+    return { label: '업데이트 중', tone: 'idle' };
+  }
+
+  if (intradayStatus?.latestStatus && intradayStatus.latestStatus !== 'SUCCESS' && !intradayStatus.latestStatus.startsWith('SKIPPED')) {
+    return { label: '업데이트 점검', tone: 'error' };
+  }
+
+  if (latestIntradayDate) {
+    return { label: '업데이트 대기', tone: 'idle' };
+  }
+
+  return { label: '업데이트 대기', tone: 'idle' };
 }
 
 function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; rates: ForeignExchangeRate[] }) {
