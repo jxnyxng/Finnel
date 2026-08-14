@@ -169,6 +169,7 @@ function dashboardFixture(
     metrics: [],
     usdKrwSeries: [],
     usdKrwIntradaySeries: [],
+    usdKrwIntradayCandles: [],
     dxyIndexSeries: [],
     dollarIndexSeries: [],
     advancedDollarIndexStatus: { latestBaseDate: null, fetchedAt: null },

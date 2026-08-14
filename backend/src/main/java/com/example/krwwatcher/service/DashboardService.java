@@ -117,6 +117,7 @@ public class DashboardService {
             .toList();
 
         List<IntradayTimeSeriesPoint> usdKrwIntradaySeries = findLatestIntradaySeries();
+        List<IntradayCandlestickPoint> usdKrwIntradayCandles = buildFiveMinuteIntradayCandles(usdKrwIntradaySeries);
         List<TimeSeriesPoint> usdKrwSeries = mergeLatestIntradayPoint(usdKrwDailySeries, usdKrwIntradaySeries);
         List<CurrencyStrengthRank> currencyStrengthRanks = findCurrencyStrengthRanks();
         List<ForeignExchangeRate> foreignExchangeRates = findForeignExchangeRates();
@@ -139,6 +140,7 @@ public class DashboardService {
             ),
             usdKrwSeries,
             usdKrwIntradaySeries,
+            usdKrwIntradayCandles,
             advancedDollarIndexSeries,
             dollarIndexSeries,
             dollarIndexStatus(latestAdvancedDollarIndex),
@@ -602,7 +604,7 @@ public class DashboardService {
         LocalDateTime sessionEnd = UsdKrwIntradaySession.endDateTime(currentDisplaySessionStartDate);
         return jdbcTemplate.query(
             """
-                SELECT observed_at, close_rate, fetched_at
+                SELECT observed_at, open_rate, high_rate, low_rate, close_rate, fetched_at
                 FROM intraday_exchange_rates
                 WHERE currency_pair = ?
                   AND observed_at BETWEEN ? AND ?
@@ -610,6 +612,9 @@ public class DashboardService {
                 """,
             (rs, rowNum) -> new IntradayTimeSeriesPoint(
                 toSeoulInstant(rs.getObject("observed_at", LocalDateTime.class)),
+                rs.getBigDecimal("open_rate"),
+                rs.getBigDecimal("high_rate"),
+                rs.getBigDecimal("low_rate"),
                 rs.getBigDecimal("close_rate"),
                 rs.getTimestamp("fetched_at").toInstant()
             ),
@@ -617,6 +622,33 @@ public class DashboardService {
             sessionStart,
             sessionEnd
         );
+    }
+
+    private List<IntradayCandlestickPoint> buildFiveMinuteIntradayCandles(List<IntradayTimeSeriesPoint> series) {
+        List<IntradayCandlestickPoint> candles = new ArrayList<>();
+        FiveMinuteCandleBuilder current = null;
+
+        for (IntradayTimeSeriesPoint point : series) {
+            LocalDateTime observedAt = toSeoulDateTime(point.observedAt());
+            LocalDateTime bucketStart = observedAt
+                .withMinute((observedAt.getMinute() / 5) * 5)
+                .withSecond(0)
+                .withNano(0);
+            if (current == null || !current.bucketStart().equals(bucketStart)) {
+                if (current != null) {
+                    candles.add(current.build());
+                }
+                current = new FiveMinuteCandleBuilder(bucketStart, point);
+            } else {
+                current.add(point);
+            }
+        }
+
+        if (current != null) {
+            candles.add(current.build());
+        }
+
+        return candles;
     }
 
     private LocalDate findLatestStoredIntradaySessionStartDate() {
@@ -1625,6 +1657,7 @@ public class DashboardService {
         List<MetricSnapshot> metrics,
         List<TimeSeriesPoint> usdKrwSeries,
         List<IntradayTimeSeriesPoint> usdKrwIntradaySeries,
+        List<IntradayCandlestickPoint> usdKrwIntradayCandles,
         List<TimeSeriesPoint> dxyIndexSeries,
         List<TimeSeriesPoint> dollarIndexSeries,
         DollarIndexStatus advancedDollarIndexStatus,
@@ -1664,9 +1697,70 @@ public class DashboardService {
 
     public record IntradayTimeSeriesPoint(
         Instant observedAt,
+        BigDecimal open,
+        BigDecimal high,
+        BigDecimal low,
         BigDecimal value,
         Instant fetchedAt
     ) {
+    }
+
+    public record IntradayCandlestickPoint(
+        Instant observedAt,
+        BigDecimal open,
+        BigDecimal high,
+        BigDecimal low,
+        BigDecimal close,
+        int sourcePointCount,
+        boolean complete,
+        Instant fetchedAt
+    ) {
+    }
+
+    private static class FiveMinuteCandleBuilder {
+
+        private final LocalDateTime bucketStart;
+        private final BigDecimal open;
+        private BigDecimal high;
+        private BigDecimal low;
+        private BigDecimal close;
+        private Instant fetchedAt;
+        private int sourcePointCount;
+
+        private FiveMinuteCandleBuilder(LocalDateTime bucketStart, IntradayTimeSeriesPoint firstPoint) {
+            this.bucketStart = bucketStart;
+            this.open = firstPoint.open();
+            this.high = firstPoint.high();
+            this.low = firstPoint.low();
+            this.close = firstPoint.value();
+            this.fetchedAt = firstPoint.fetchedAt();
+            this.sourcePointCount = 1;
+        }
+
+        private LocalDateTime bucketStart() {
+            return bucketStart;
+        }
+
+        private void add(IntradayTimeSeriesPoint point) {
+            high = high.max(point.high());
+            low = low.min(point.low());
+            close = point.value();
+            fetchedAt = point.fetchedAt().isAfter(fetchedAt) ? point.fetchedAt() : fetchedAt;
+            sourcePointCount++;
+        }
+
+        private IntradayCandlestickPoint build() {
+            return new IntradayCandlestickPoint(
+                bucketStart.plusMinutes(5).atZone(SEOUL_ZONE).toInstant(),
+                open,
+                high,
+                low,
+                close,
+                sourcePointCount,
+                sourcePointCount >= 5,
+                fetchedAt
+            );
+        }
     }
 
     public record DomesticIndicatorHistoryResponse(
