@@ -661,10 +661,10 @@ function DomesticIndicatorHistoryChart({
             <Line
               type="monotone"
               dataKey="value"
-              stroke="#0f766e"
+              stroke="#18a999"
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: '#0f766e', stroke: '#ffffff', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: '#18a999', stroke: '#ffffff', strokeWidth: 2 }}
               isAnimationActive={false}
             />
           </LineChart>
