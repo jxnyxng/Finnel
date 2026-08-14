@@ -531,7 +531,7 @@ export function MarketChartSection<T extends RangeKey>({
                   {chartTopAction}
                 </div>
               ) : null}
-              <div 
+              <div
                 className={`chart-scroll-layer absolute inset-0 ${showCandlesticks ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'}`}
                 onScroll={handleChartScroll}
                 ref={chartScrollRef}
