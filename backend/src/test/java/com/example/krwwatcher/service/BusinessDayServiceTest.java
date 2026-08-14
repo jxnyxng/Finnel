@@ -137,11 +137,14 @@ class BusinessDayServiceTest {
     private void insertIntradayClose(LocalDate baseDate) {
         jdbcTemplate.update(
             """
-                INSERT INTO intraday_exchange_rates (observed_at, currency_pair, close_rate, source, fetched_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO intraday_exchange_rates (observed_at, currency_pair, open_rate, high_rate, low_rate, close_rate, source, fetched_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
             baseDate.atTime(23, 59),
             "USD/KRW",
+            new BigDecimal("1380.1200"),
+            new BigDecimal("1380.1200"),
+            new BigDecimal("1380.1200"),
             new BigDecimal("1380.1200"),
             "TWELVE_DATA",
             Instant.now()
@@ -190,6 +193,9 @@ class BusinessDayServiceTest {
                 id BIGINT NOT NULL AUTO_INCREMENT,
                 observed_at TIMESTAMP NOT NULL,
                 currency_pair VARCHAR(20) NOT NULL,
+                open_rate DECIMAL(19, 4) NOT NULL,
+                high_rate DECIMAL(19, 4) NOT NULL,
+                low_rate DECIMAL(19, 4) NOT NULL,
                 close_rate DECIMAL(19, 4) NOT NULL,
                 source VARCHAR(50) NOT NULL,
                 fetched_at TIMESTAMP NOT NULL,

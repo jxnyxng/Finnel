@@ -114,6 +114,7 @@ class DailyDashboardCacheTest {
             List.of(),
             List.of(),
             List.of(),
+            List.of(),
             null,
             null,
             List.of(),

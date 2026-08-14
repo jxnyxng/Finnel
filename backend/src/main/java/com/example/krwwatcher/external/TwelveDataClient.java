@@ -79,6 +79,9 @@ public class TwelveDataClient {
             .map(value -> new IntradayExchangePayload(
                 LocalDateTime.parse(value.datetime(), DATE_TIME_FORMATTER),
                 config.usdKrwSymbol(),
+                new BigDecimal(value.open()),
+                new BigDecimal(value.high()),
+                new BigDecimal(value.low()),
                 new BigDecimal(value.close())
             ))
             .toList();
@@ -122,6 +125,9 @@ public class TwelveDataClient {
             .map(value -> new IntradayExchangePayload(
                 LocalDateTime.parse(value.datetime(), DATE_TIME_FORMATTER),
                 config.usdKrwSymbol(),
+                new BigDecimal(value.open()),
+                new BigDecimal(value.high()),
+                new BigDecimal(value.low()),
                 new BigDecimal(value.close())
             ))
             .toList();
@@ -191,7 +197,14 @@ public class TwelveDataClient {
         }
     }
 
-    public record IntradayExchangePayload(LocalDateTime observedAt, String currencyPair, BigDecimal closeRate) {
+    public record IntradayExchangePayload(
+        LocalDateTime observedAt,
+        String currencyPair,
+        BigDecimal openRate,
+        BigDecimal highRate,
+        BigDecimal lowRate,
+        BigDecimal closeRate
+    ) {
     }
 
     @FunctionalInterface
