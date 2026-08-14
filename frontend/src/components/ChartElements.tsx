@@ -1,14 +1,14 @@
 import React from 'react';
 import { chartHeightPx } from '../constants';
 import { MovingTabIndicator, useMovingTabIndicator } from './MovingTabs';
-import type { ChartHoverState, ChartPoint, RangeKey } from '../types';
+import type { ChartCandlestickPoint, ChartHoverState, ChartPoint, RangeKey } from '../types';
 import { formatCrosshairDate } from '../utils/chart';
 import { formatValue } from '../utils/format';
 
 const firstPointHoverTolerancePx = 24;
 
 type ChartTooltipPayload = {
-  payload?: ChartPoint;
+  payload?: ChartPoint | ChartCandlestickPoint;
   value?: number | string;
 };
 
@@ -94,6 +94,27 @@ export function UsdKrwTooltip({ active, payload, range }: ChartTooltipProps & { 
   );
 }
 
+export function UsdKrwCandlestickTooltip({ active, payload }: ChartTooltipProps) {
+  const point = payload?.[0]?.payload as ChartCandlestickPoint | undefined;
+  if (!active || !point) {
+    return null;
+  }
+
+  return (
+    <div className="chart-hover-tooltip w-48 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 shadow-lg shadow-zinc-950/10">
+      <p className="font-semibold text-zinc-950">원/달러 5분봉</p>
+      <dl className="mt-2 grid gap-1.5">
+        <TooltipRow label="시점" value={formatTooltipDate(point.dateValue, '1D')} />
+        <TooltipRow label="시가" value={`${formatValue(point.open)}원`} />
+        <TooltipRow label="고가" value={`${formatValue(point.high)}원`} />
+        <TooltipRow label="저가" value={`${formatValue(point.low)}원`} />
+        <TooltipRow label="종가" value={`${formatValue(point.close)}원`} />
+        <TooltipRow label="상태" value={point.complete ? '완성' : '진행 중'} />
+      </dl>
+    </div>
+  );
+}
+
 type DollarIndexTooltipPayload = {
   payload?: ChartPoint;
 };
@@ -140,11 +161,13 @@ export function LatestValueDot({ cx, cy }: { cx?: number; cy?: number }) {
 export function ChartHelpTooltip({
   ariaLabel,
   children,
+  placement = 'left',
   title,
   widthClassName = 'w-72'
 }: {
   ariaLabel: string;
   children: React.ReactNode;
+  placement?: 'left' | 'right';
   title: string;
   widthClassName?: string;
 }) {
@@ -157,7 +180,7 @@ export function ChartHelpTooltip({
       >
         i
       </button>
-      <div className={`chart-help-tooltip pointer-events-none absolute top-7 z-20 hidden ${widthClassName} rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block`}>
+      <div className={`chart-help-tooltip chart-help-tooltip-${placement} pointer-events-none absolute top-7 z-40 hidden ${placement === 'right' ? 'right-0' : 'left-0'} ${widthClassName} rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block`}>
         <p className="font-semibold text-zinc-900">{title}</p>
         {children}
       </div>
@@ -297,7 +320,7 @@ export function ChartCrosshairOverlay({
   const fallbackY = hover?.y ?? top;
 
   return (
-    <div className="chart-crosshair-layer">
+    <div className="chart-crosshair-layer z-[18]">
       <div
         className="chart-crosshair-x"
         style={{
@@ -314,7 +337,13 @@ export function ChartCrosshairOverlay({
           transform: `translate3d(0, var(--chart-crosshair-y, ${fallbackY}px), 0) translateY(-50%)`
         }}
       />
-      <div className="chart-axis-value-label" style={{ transform: `translate3d(0, var(--chart-axis-label-y, ${getAxisValueLabelTopForChart(fallbackY, chartHeight)}px), 0) translateY(-50%)` }}>
+      <div
+        className="chart-axis-value-label"
+        style={{
+          right: 'var(--chart-axis-value-right, 0px)',
+          transform: `translate3d(0, var(--chart-axis-label-y, ${getAxisValueLabelTopForChart(fallbackY, chartHeight)}px), 0) translateY(-50%)`
+        }}
+      >
         <span>{displayValue === null ? '' : formatValue(displayValue)}</span>
       </div>
       <div className="chart-axis-time-label" style={{ transform: `translate3d(var(--chart-axis-time-x, ${fallbackX}px), 0, 0) translateX(-50%)` }}>
