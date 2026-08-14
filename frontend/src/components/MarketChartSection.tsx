@@ -187,6 +187,9 @@ export function MarketChartSection<T extends RangeKey>({
     ?? null;
   const showOhlcSummary = range === '1D' && candlestickSeries.length > 0;
   const ohlcItems = visibleOhlcPoint ? getOhlcSummaryItems(visibleOhlcPoint, range) : [];
+  const effectiveXTicks = chartViewportWidth > 0 && chartViewportWidth < 520 && xTicks && xTicks.length > 8
+    ? xTicks.filter((_, index) => index % 2 === 0)
+    : xTicks;
 
   useLayoutEffect(() => {
     const element = chartSurfaceRef.current;
@@ -643,7 +646,7 @@ export function MarketChartSection<T extends RangeKey>({
                           domain={xDomain}
                           height={xAxisHeight}
                           padding={xAxisPadding}
-                          ticks={xTicks}
+                          ticks={effectiveXTicks}
                           tickFormatter={(value) => xTickFormatter(value)}
                           tick={{ fontSize: 10, fill: 'rgba(75,85,99,0.82)' }}
                           tickLine={false}

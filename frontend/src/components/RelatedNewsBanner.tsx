@@ -294,9 +294,11 @@ function DefaultNewsImage() {
         <div className="absolute -bottom-10 left-10 h-28 w-28 rounded-full border border-teal-100" />
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="grid place-items-center text-center text-teal-800">
-            <span className="grid h-12 w-12 place-items-center rounded-md bg-white text-2xl font-bold text-teal-700 shadow-sm ring-1 ring-teal-100">₩</span>
-            <span className="mt-2 text-sm font-semibold tracking-normal">코리아원</span>
-            <span className="mt-0.5 text-[10px] font-medium text-teal-700/70">환율 모니터링 서비스</span>
+            <span className="grid h-12 w-12 place-items-center rounded-md bg-white shadow-sm ring-1 ring-teal-100">
+              <img alt="" aria-hidden="true" className="h-9 w-9" src="/assets/finnel_logo_rounded_final_deepnavy.svg" />
+            </span>
+            <span className="mt-2 text-sm font-semibold tracking-normal">Finnel</span>
+            <span className="mt-0.5 text-[10px] font-medium text-teal-700/70">경제·금융 데이터 보드</span>
           </div>
         </div>
       </div>
