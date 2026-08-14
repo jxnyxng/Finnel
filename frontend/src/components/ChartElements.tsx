@@ -161,11 +161,13 @@ export function LatestValueDot({ cx, cy }: { cx?: number; cy?: number }) {
 export function ChartHelpTooltip({
   ariaLabel,
   children,
+  placement = 'left',
   title,
   widthClassName = 'w-72'
 }: {
   ariaLabel: string;
   children: React.ReactNode;
+  placement?: 'left' | 'right';
   title: string;
   widthClassName?: string;
 }) {
@@ -178,7 +180,7 @@ export function ChartHelpTooltip({
       >
         i
       </button>
-      <div className={`chart-help-tooltip pointer-events-none absolute top-7 z-20 hidden ${widthClassName} rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block`}>
+      <div className={`chart-help-tooltip chart-help-tooltip-${placement} pointer-events-none absolute top-7 z-40 hidden ${placement === 'right' ? 'right-0' : 'left-0'} ${widthClassName} rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block`}>
         <p className="font-semibold text-zinc-900">{title}</p>
         {children}
       </div>

@@ -139,6 +139,11 @@ export function MarketChartSection<T extends RangeKey>({
   const pointerTooltipRef = useRef<HTMLDivElement | null>(null);
   const pointerTooltipTimeRef = useRef<HTMLElement | null>(null);
   const pointerTooltipValueRef = useRef<HTMLElement | null>(null);
+  const ohlcTimeValueRef = useRef<HTMLElement | null>(null);
+  const ohlcOpenValueRef = useRef<HTMLElement | null>(null);
+  const ohlcHighValueRef = useRef<HTMLElement | null>(null);
+  const ohlcLowValueRef = useRef<HTMLElement | null>(null);
+  const ohlcCloseValueRef = useRef<HTMLElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
   const latestVibratedPointKeyRef = useRef<string | null>(null);
   const latestVibrationAtRef = useRef(0);
@@ -147,6 +152,8 @@ export function MarketChartSection<T extends RangeKey>({
   const committedHoverKeyRef = useRef<string | null>(null);
   const tooltipSideRef = useRef<TooltipSide>('right');
   const lastAutoCenteredPointKeyRef = useRef<string | null>(null);
+  const hasUserScrolledCandlesRef = useRef(false);
+  const ignoreNextChartScrollRef = useRef(false);
   const [chartPixelHeight, setChartPixelHeight] = useState(chartHeightPx);
   const [chartViewportWidth, setChartViewportWidth] = useState(0);
   const [chartScrollLeft, setChartScrollLeft] = useState(0);
@@ -163,6 +170,7 @@ export function MarketChartSection<T extends RangeKey>({
   const chartContentStyle = showCandlesticks
     ? { width: chartPixelWidth, minWidth: '100%' }
     : undefined;
+  const xDomainKey = `${xDomain[0]}:${xDomain[1]}`;
   const chartTopAction = headerActionPlacement === 'chartControls' ? headerAction : null;
   const chartPlotTop = chartTopMarginPx + (chartTopAction ? 38 : 0);
   const effectiveYDomain = getExtremaPaddedYDomain({
@@ -174,6 +182,11 @@ export function MarketChartSection<T extends RangeKey>({
     && chartViewportWidth > 0
     && chartPixelWidth > chartViewportWidth
     && chartScrollLeft + chartViewportWidth >= chartPixelWidth - axisWidth;
+  const visibleOhlcPoint = getDisplayOhlcPoint(hover?.point ?? null, candlestickSeries)
+    ?? candlestickSeries[candlestickSeries.length - 1]
+    ?? null;
+  const showOhlcSummary = range === '1D' && candlestickSeries.length > 0;
+  const ohlcItems = visibleOhlcPoint ? getOhlcSummaryItems(visibleOhlcPoint, range) : [];
 
   useLayoutEffect(() => {
     const element = chartSurfaceRef.current;
@@ -241,12 +254,20 @@ export function MarketChartSection<T extends RangeKey>({
       scrollElement.scrollLeft = 0;
       setChartScrollLeft(0);
       lastAutoCenteredPointKeyRef.current = null;
+      hasUserScrolledCandlesRef.current = false;
+      ignoreNextChartScrollRef.current = false;
     }
   }, [showCandlesticks]);
 
   useLayoutEffect(() => {
+    hasUserScrolledCandlesRef.current = false;
+    ignoreNextChartScrollRef.current = false;
+    lastAutoCenteredPointKeyRef.current = null;
+  }, [range, showCandlesticks, xDomainKey]);
+
+  useLayoutEffect(() => {
     const scrollElement = chartScrollRef.current;
-    if (!showCandlesticks || !scrollElement || !latestPoint || chartViewportWidth <= 0 || chartPixelWidth <= chartViewportWidth) {
+    if (!showCandlesticks || hasUserScrolledCandlesRef.current || !scrollElement || !latestPoint || chartViewportWidth <= 0 || chartPixelWidth <= chartViewportWidth) {
       return;
     }
 
@@ -267,6 +288,7 @@ export function MarketChartSection<T extends RangeKey>({
 
     const maxScrollLeft = Math.max(0, chartPixelWidth - chartViewportWidth);
     const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, latestPointX - chartViewportWidth / 2));
+    ignoreNextChartScrollRef.current = true;
     scrollElement.scrollLeft = nextScrollLeft;
     setChartScrollLeft(nextScrollLeft);
     lastAutoCenteredPointKeyRef.current = latestPointKey;
@@ -377,6 +399,7 @@ export function MarketChartSection<T extends RangeKey>({
         if (pointerTooltipValueRef.current?.isConnected) {
           pointerTooltipValueRef.current.textContent = `${formatValue(point.value)}원`;
         }
+        updateOhlcSummaryRefs(getDisplayOhlcPoint(point, candlestickSeries));
         const nextHover = { point, value: axisValue, x: snappedX, y: clampedY };
         scheduleHoverChange(nextHover, { positionOnly: true });
         vibrateForTouchPoint(event, point);
@@ -388,11 +411,17 @@ export function MarketChartSection<T extends RangeKey>({
     chartSurfaceRef.current?.classList.remove('chart-crosshair-active');
     activePointerIdRef.current = null;
     latestVibratedPointKeyRef.current = null;
+    updateOhlcSummaryRefs(candlestickSeries[candlestickSeries.length - 1] ?? null);
     scheduleHoverChange(null);
   };
 
   const handleChartScroll = () => {
     setChartScrollLeft(chartScrollRef.current?.scrollLeft ?? 0);
+    if (ignoreNextChartScrollRef.current) {
+      ignoreNextChartScrollRef.current = false;
+    } else if (showCandlesticks) {
+      hasUserScrolledCandlesRef.current = true;
+    }
     hideCrosshair();
   };
 
@@ -421,6 +450,26 @@ export function MarketChartSection<T extends RangeKey>({
     }
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     activePointerIdRef.current = null;
+  };
+
+  const updateOhlcSummaryRefs = (point: ChartCandlestickPoint | null) => {
+    const items = point ? getOhlcSummaryItems(point, range) : [];
+    const valuesByKey = new Map(items.map((item) => [item.key, item.value]));
+    if (ohlcTimeValueRef.current?.isConnected) {
+      ohlcTimeValueRef.current.textContent = valuesByKey.get('time') ?? '-';
+    }
+    if (ohlcOpenValueRef.current?.isConnected) {
+      ohlcOpenValueRef.current.textContent = valuesByKey.get('open') ?? '-';
+    }
+    if (ohlcHighValueRef.current?.isConnected) {
+      ohlcHighValueRef.current.textContent = valuesByKey.get('high') ?? '-';
+    }
+    if (ohlcLowValueRef.current?.isConnected) {
+      ohlcLowValueRef.current.textContent = valuesByKey.get('low') ?? '-';
+    }
+    if (ohlcCloseValueRef.current?.isConnected) {
+      ohlcCloseValueRef.current.textContent = valuesByKey.get('close') ?? '-';
+    }
   };
 
   const vibrateForTouchPoint = (event: PointerEvent<HTMLDivElement>, point: ChartPoint) => {
@@ -453,27 +502,26 @@ export function MarketChartSection<T extends RangeKey>({
     sectionLabel,
     showCandlesticks
   });
-  const collectionStatusPrimary = collectionStatusSummary.filter((item) => item.label === '수집');
-  const collectionStatusDetails = collectionStatusSummary.filter((item) => item.label !== '수집');
+  const collectionStatusDetails = collectionStatusSummary.filter((item) => item.label !== '수집' && item.label !== '점검');
   const compactPanelDetails = getCompactPanelDetails(panelDetails);
   const panelInfoDetails = [...collectionStatusDetails, ...compactPanelDetails];
+  const renderAdSlot = () => (
+    <div className="chart-ad-slot grid min-h-24 flex-1 place-items-center rounded-2xl border border-dashed border-white/20 bg-white/[0.04] px-3 py-4 text-[10px] font-semibold uppercase tracking-normal text-white/35">
+      광고
+    </div>
+  );
   const collectionStatusCard = (
     <div className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-1.5">
-      <p className="text-[11px] font-semibold uppercase tracking-normal text-white/45">수집 상태</p>
-      {statusText ? (
-        <div className="mt-1 rounded-lg bg-black/15 px-2.5 py-1.5">
+      {headerStatus ? (
+        <div className="rounded-lg bg-black/15 px-2.5 py-1.5">
+          {headerStatus}
+        </div>
+      ) : statusText ? (
+        <div className="rounded-lg bg-black/15 px-2.5 py-1.5">
           <p className="text-[11px] font-medium leading-4 text-white/45">업데이트</p>
           <p className="mt-0.5 text-xs font-semibold leading-4 text-white/85">{statusText}</p>
         </div>
       ) : null}
-      <dl className="mt-1 grid gap-1 text-xs leading-4">
-        {collectionStatusPrimary.map((item) => (
-          <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-2" key={item.label}>
-            <dt className="text-white/45">{item.label}</dt>
-            <dd className="min-w-0 text-right font-medium text-white/75">{item.value}</dd>
-          </div>
-        ))}
-      </dl>
     </div>
   );
 
@@ -483,15 +531,17 @@ export function MarketChartSection<T extends RangeKey>({
         <div className="grid gap-4 p-3.5 sm:gap-5 sm:p-4">
           <div className="relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 px-1">
             <div className="grid min-w-0 gap-1">
-              <p className="text-xs font-semibold leading-none text-white/45">{sectionLabel}</p>
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <p className="text-xs font-semibold leading-none text-white/45">{sectionLabel}</p>
+                <ChartHelpTooltip ariaLabel={helpAriaLabel} placement="right" title={helpTitle} widthClassName={helpWidthClassName}>
+                  {helpContent}
+                </ChartHelpTooltip>
+              </div>
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 <h2 className={`min-w-0 break-words text-[1.85rem] font-semibold leading-none tracking-normal text-white sm:text-4xl ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>
                   {metric ? formatMetricValue(metric) : '-'}
                 </h2>
                 <span className="shrink-0 self-end pb-1 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
-                <ChartHelpTooltip ariaLabel={helpAriaLabel} title={helpTitle} widthClassName={helpWidthClassName}>
-                  {helpContent}
-                </ChartHelpTooltip>
                 {titleAction}
               </div>
             </div>
@@ -502,7 +552,6 @@ export function MarketChartSection<T extends RangeKey>({
                   {subtitle}
                 </p>
               ) : null}
-              {headerStatus}
               {headerActionPlacement === 'header' ? headerAction : null}
             </div>
           </div>
@@ -530,6 +579,32 @@ export function MarketChartSection<T extends RangeKey>({
                 >
                   {chartTopAction}
                 </div>
+              ) : null}
+              {showOhlcSummary ? (
+                <dl className="chart-ohlc-summary pointer-events-none absolute left-3 top-3 z-20 flex max-w-[calc(100%-7.25rem)] flex-wrap gap-x-3 gap-y-1 text-left text-[11px] font-semibold leading-none text-zinc-500 sm:left-4 sm:gap-x-4">
+                  {ohlcItems.map((item) => (
+                    <div
+                      className="inline-flex min-w-0 items-baseline gap-1.5 whitespace-nowrap"
+                      key={item.label}
+                    >
+                      <dt className="shrink-0 text-zinc-400">{item.label}:</dt>
+                      <dd
+                        className="min-w-0 whitespace-nowrap text-zinc-700"
+                        ref={item.key === 'time'
+                          ? ohlcTimeValueRef
+                          : item.key === 'open'
+                            ? ohlcOpenValueRef
+                            : item.key === 'high'
+                              ? ohlcHighValueRef
+                              : item.key === 'low'
+                                ? ohlcLowValueRef
+                                : ohlcCloseValueRef}
+                      >
+                        {item.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
               ) : null}
               <div
                 className={`chart-scroll-layer absolute inset-0 ${showCandlesticks ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'}`}
@@ -725,11 +800,11 @@ export function MarketChartSection<T extends RangeKey>({
               ) : null}
             </div>
 
-            <aside className="order-2 hidden min-w-0 flex-col gap-1 lg:flex lg:min-h-96">
+            <aside className="order-2 hidden min-w-0 flex-col gap-2 lg:flex lg:min-h-96">
               <div className="px-0 pb-0 pt-0.5">
                 {chartControls}
               </div>
-              <div className="glass-subcard flex min-w-0 flex-1 flex-col rounded-2xl p-3">
+              <div className="glass-subcard flex min-w-0 flex-none flex-col rounded-2xl p-2.5">
                 {headerActionPlacement === 'panel' && headerAction ? (
                   <div className="panel-action-row">
                     {headerAction}
@@ -742,22 +817,23 @@ export function MarketChartSection<T extends RangeKey>({
                     </div>
                   ) : null}
                 </div>
-                <div className={statusNode || headerActionPlacement === 'panel' && headerAction ? 'mt-1.5' : ''}>
+                <div className={statusNode || headerActionPlacement === 'panel' && headerAction ? 'mt-1' : ''}>
                   {collectionStatusCard}
                 </div>
-                <dl className="mt-2.5 flex flex-1 flex-col justify-evenly gap-2.5 text-xs">
+                <dl className="mx-1.5 mb-1 mt-2 divide-y divide-white/10 text-xs">
                   {panelInfoDetails.map((item) => (
-                    <div key={item.label} className="flex items-start justify-between gap-3">
+                    <div key={item.label} className="flex items-start justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
                       <dt className="shrink-0 text-white/55">{item.label}</dt>
-                      <dd className="min-w-0 text-right font-medium leading-5 text-white/85">{item.value}</dd>
+                      <dd className="min-w-0 text-right font-medium leading-4 text-white/85">{item.value}</dd>
                     </div>
                   ))}
                 </dl>
                 {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
               </div>
+              {renderAdSlot()}
             </aside>
 
-            <div className="glass-subcard order-3 min-w-0 rounded-2xl px-3 py-4 lg:hidden">
+            <div className="glass-subcard order-3 min-w-0 rounded-2xl p-2.5 lg:hidden">
               {headerActionPlacement === 'panel' && headerAction ? (
                 <div className="panel-action-row">
                   {headerAction}
@@ -768,18 +844,21 @@ export function MarketChartSection<T extends RangeKey>({
                   {statusNode}
                 </div>
               ) : null}
-              <div className={statusNode || headerActionPlacement === 'panel' && headerAction ? 'mt-2' : ''}>
+              <div className={statusNode || headerActionPlacement === 'panel' && headerAction ? 'mt-1' : ''}>
                 {collectionStatusCard}
               </div>
-              <dl className="mt-2.5 flex flex-col gap-3 text-xs">
+              <dl className="mx-1.5 mb-1 mt-2 divide-y divide-white/10 text-xs">
                 {panelInfoDetails.map((item) => (
-                  <div key={item.label} className="flex items-start justify-between gap-3">
+                  <div key={item.label} className="flex items-start justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
                     <dt className="shrink-0 text-white/55">{item.label}</dt>
-                    <dd className="min-w-0 text-right font-medium leading-5 text-white/85">{item.value}</dd>
+                    <dd className="min-w-0 text-right font-medium leading-4 text-white/85">{item.value}</dd>
                   </div>
                 ))}
               </dl>
               {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
+            </div>
+            <div className="order-4 lg:hidden">
+              {renderAdSlot()}
             </div>
           </div>
         </div>
@@ -880,7 +959,7 @@ function getCollectionStatusSummary({
 }
 
 function getCompactPanelDetails(panelDetails: Array<{ label: string; value: string }>) {
-  const duplicatedLabels = new Set(['범위', '기간', '관측값', '최신 기준일', '세션', '출처', '구성']);
+  const duplicatedLabels = new Set(['범위', '기간', '관측값', '최신 기준일', '세션', '출처', '구성', '해석']);
   return panelDetails.filter((item) => !duplicatedLabels.has(item.label));
 }
 
@@ -909,6 +988,58 @@ function getPointXPosition({
 
 function hoverStateKey(hover: ChartHoverState | null) {
   return hover ? `${hover.point.dateValue}|${hover.point.value}` : null;
+}
+
+function getDisplayOhlcPoint(point: ChartPoint | null, candles: ChartCandlestickPoint[]) {
+  if (point && isCandlestickPoint(point)) {
+    return point;
+  }
+
+  if (!point) {
+    return null;
+  }
+
+  return candles.find((candle) => candle.dateValue === point.dateValue) ?? null;
+}
+
+function isCandlestickPoint(point: ChartPoint): point is ChartCandlestickPoint {
+  return 'open' in point && 'high' in point && 'low' in point && 'close' in point;
+}
+
+function getOhlcSummaryItems(point: ChartCandlestickPoint, range: RangeKey) {
+  return [
+    { key: 'time', label: '시간', value: formatOhlcTimeRange(point.dateValue, range) },
+    { key: 'open', label: '시가', value: formatOhlcValue(point.open) },
+    { key: 'high', label: '고가', value: formatOhlcValue(point.high) },
+    { key: 'low', label: '저가', value: formatOhlcValue(point.low) },
+    { key: 'close', label: '종가', value: formatOhlcValue(point.close) }
+  ] as const;
+}
+
+function formatOhlcValue(value: number) {
+  return `${formatValue(value)}원`;
+}
+
+function formatOhlcTimeRange(dateValue: string, range: RangeKey) {
+  if (range !== '1D') {
+    return formatCrosshairDate(dateValue, range);
+  }
+
+  const hour = Number(dateValue.slice(11, 13));
+  const minute = Number(dateValue.slice(14, 16));
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return formatCrosshairDate(dateValue, range);
+  }
+
+  const endMinuteOfDay = hour * 60 + minute;
+  const startMinuteOfDay = (endMinuteOfDay - 5 + 24 * 60) % (24 * 60);
+  return `${formatMinuteOfDay(startMinuteOfDay)} ~ ${formatMinuteOfDay(endMinuteOfDay)}`;
+}
+
+function formatMinuteOfDay(minuteOfDay: number) {
+  const hour = Math.floor(minuteOfDay / 60);
+  const minute = minuteOfDay % 60;
+  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
 function getChartExtrema(series: Array<ChartPoint | ChartCandlestickPoint>, useCandlestickRange: boolean) {
