@@ -1,5 +1,4 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { ChartHelpTooltip } from '../components/ChartElements';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
@@ -7,24 +6,24 @@ import type { ExchangeRateCalculatorMeta, ExchangeRateSnapshotResponse, ForeignE
 
 const servicePoints = [
   {
-    emoji: '💸',
-    title: '환차익 확인',
-    body: '예전에 바꾼 외화가 지금 원화로 얼마나 달라졌는지 바로 확인합니다.'
-  },
-  {
-    emoji: '📈',
-    title: '원화 기준 비교',
-    body: '달러, 엔, 유로처럼 자주 보는 통화를 원화 기준으로 나란히 비교합니다.'
-  },
-  {
     emoji: '🧭',
-    title: '흩어진 지표 정리',
-    body: '달러 지수, 금리, 물가처럼 환율을 볼 때 필요한 숫자를 한곳에 모읍니다.'
+    title: '놓치지 않는 수집',
+    body: '환율, 금리, 달러 지수처럼 흩어진 신호를 한곳에 모아 매일 확인할 흐름으로 정리합니다.'
   },
   {
-    emoji: '📰',
-    title: '정책·뉴스 감지',
-    body: '투자자가 민감하게 봐야 할 정부 브리핑과 최신 뉴스를 빠르게 확인합니다.'
+    emoji: '🏛️',
+    title: '정책 맥락 확인',
+    body: '정부 브리핑과 정책 뉴스를 함께 보며 시장이 어떤 재료에 반응하는지 따라갑니다.'
+  },
+  {
+    emoji: '📊',
+    title: '장기 흐름 학습',
+    body: '오늘의 값만 보지 않고 3개월, 1년, 5년 흐름 속에서 지금의 위치를 차분히 확인합니다.'
+  },
+  {
+    emoji: '💬',
+    title: '비전공자 기준 설명',
+    body: '경제·금융 용어를 처음 접하는 사람도 출처, 기준일, 의미를 함께 보며 이해를 쌓을 수 있게 정리합니다.'
   }
 ];
 
@@ -32,32 +31,32 @@ const tabHints = [
   {
     emoji: '📊',
     title: '환율 현황',
-    body: '원/달러 환율과 달러 지수로 오늘의 위치를 봅니다.'
+    body: '원/달러 환율과 달러 지수로 외화와 원화 흐름의 출발점을 봅니다.'
   },
   {
     emoji: '🏦',
     title: '관련 지표',
-    body: '금리, 물가, 무역수지처럼 원화 뒤의 숫자를 확인합니다.'
+    body: '금리, 물가, 무역수지처럼 경제 뉴스를 이해할 때 필요한 배경 지표를 확인합니다.'
   },
   {
     emoji: '📰',
     title: '정부 정책',
-    body: '매일 업데이트되는 발표로 외환 정책 흐름을 놓치지 않습니다.'
+    body: '정부 발표와 정책 브리핑을 통해 시장이 참고하는 공식 자료를 따라갑니다.'
   },
   {
     emoji: '⚡',
     title: '최신 뉴스',
-    body: '환율 이슈를 모아 보고 시장의 설명을 빠르게 확인합니다.'
+    body: '경제, 금융, 외화 관련 뉴스를 모아 보고 지표 변화의 배경을 찾습니다.'
   },
   {
-    emoji: '🌏',
-    title: '화폐 랭킹',
-    body: '원화가 주요 통화 사이에서 어느 위치인지 비교합니다.'
+    emoji: '📈',
+    title: '시장 비교',
+    body: '외화, 주식시장, 정책 재료를 함께 보며 금융 데이터의 연결을 익힙니다.'
   }
 ];
 
-const finalTitleWords = ['판단의', '재료들을', '확인해보세요.'];
-const finalBodyWords = ['정부정책과', '최신', '뉴스까지', '함께', '확인하며', '환율을', '움직이는', '맥락을', '따라갑니다.'];
+const finalTitleWords = ['경제를', '이해하는', '기준을', '쌓아보세요.'];
+const finalBodyWords = ['Finnel은', '놓치기', '쉬운', '경제·금융', '신호를', '모아', '흐름을', '따라갈', '수', '있게', '돕습니다.'];
 
 type HomePageProps = {
   calculatorMeta?: ExchangeRateCalculatorMeta | null;
@@ -65,9 +64,8 @@ type HomePageProps = {
   onGoDashboard?: () => void;
 };
 
-export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePageProps) {
+export function HomePage({ onGoDashboard }: HomePageProps) {
   const [activeSection, setActiveSection] = React.useState(0);
-  const [isCalculatorModalOpen, setIsCalculatorModalOpen] = React.useState(false);
   const [ctaHighlightKey, setCtaHighlightKey] = React.useState(0);
   const lastMoveAtRef = React.useRef(0);
   const previousSectionRef = React.useRef(0);
@@ -92,12 +90,6 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePage
   }, [moveSection]);
 
   const handleKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLElement>) => {
-    if (isCalculatorModalOpen) {
-      if (event.key === 'Escape') {
-        setIsCalculatorModalOpen(false);
-      }
-      return;
-    }
     if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
       event.preventDefault();
       moveSection(1);
@@ -106,19 +98,13 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePage
       event.preventDefault();
       moveSection(-1);
     }
-  }, [isCalculatorModalOpen, moveSection]);
+  }, [moveSection]);
 
   const handleTouchStart = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
-    if (isCalculatorModalOpen) {
-      return;
-    }
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
-  }, [isCalculatorModalOpen]);
+  }, []);
 
   const handleTouchEnd = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
-    if (isCalculatorModalOpen) {
-      return;
-    }
     const startY = touchStartYRef.current;
     const endY = event.changedTouches[0]?.clientY;
     touchStartYRef.current = null;
@@ -126,7 +112,7 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePage
       return;
     }
     moveSection(startY > endY ? 1 : -1);
-  }, [isCalculatorModalOpen, moveSection]);
+  }, [moveSection]);
 
   React.useEffect(() => {
     if (activeSection === sectionCount - 1 && previousSectionRef.current !== activeSection) {
@@ -137,72 +123,74 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePage
 
   return (
     <section
-      aria-label="코리아원 서비스 소개"
-      className="home-deck page-content-enter relative -mx-3 -mb-2 -mt-2 overflow-hidden px-3 text-zinc-950 sm:-mx-5 sm:-mb-3 sm:-mt-3 sm:px-5"
+      aria-label="Finnel 서비스 소개"
+      className="home-deck page-content-enter relative -mx-3 -mb-2 mt-0 overflow-hidden px-3 text-zinc-950 sm:-mx-5 sm:-mb-3 sm:mt-0 sm:px-5"
       onKeyDown={handleKeyDown}
       onTouchEnd={handleTouchEnd}
       onTouchStart={handleTouchStart}
-      onWheel={isCalculatorModalOpen ? undefined : handleWheel}
+      onWheel={handleWheel}
       tabIndex={0}
     >
       <div
         className="home-deck-track"
       style={{ transform: `translate3d(0, -${activeSection * 100}%, 0)` }}
       >
-      <section className="home-snap-section home-copy relative mx-auto grid max-w-6xl content-center justify-items-center py-4 text-center sm:py-6 xl:justify-items-stretch xl:text-left">
-        <div className="grid w-full min-w-0 -translate-y-8 gap-4 sm:-translate-y-7 sm:gap-5 xl:-translate-y-8 xl:grid-cols-[minmax(0,0.86fr)_minmax(340px,0.58fr)] xl:items-center xl:gap-x-7 xl:gap-y-2">
-          <div className="min-w-0 xl:-translate-y-12">
-            <div className="text-2xl leading-none sm:text-3xl md:text-5xl" aria-hidden="true">₩</div>
-            <p className="mt-2 text-xs font-bold tracking-[0.18em] text-teal-700 sm:mt-3 sm:text-sm sm:tracking-[0.22em]">KOREA WON MONITOR</p>
-            <h1 className="mx-auto mt-2 max-w-[760px] text-3xl font-extrabold leading-[1.16] tracking-normal sm:text-4xl md:text-5xl md:leading-[1.1] xl:mx-0">
-              그때 환전한 돈, 지금은 얼마일까요?
+      <div className="home-funnel-bg" aria-hidden="true">
+        <div className="home-funnel-bowl" />
+        <div className="home-funnel-stem" />
+      </div>
+      <section className="home-snap-section home-copy relative mx-auto grid max-w-6xl content-center justify-items-center py-4 text-center sm:py-6">
+        <div className="grid w-full min-w-0 -translate-y-6 gap-4 sm:-translate-y-5 sm:gap-5 xl:-translate-y-6">
+          <div className="mx-auto min-w-0 max-w-4xl">
+            <p className="mt-2 text-xs font-bold tracking-[0.18em] text-teal-700 sm:mt-3 sm:text-sm sm:tracking-[0.22em]">FINNEL DATA BOARD</p>
+            <h1 className="mx-auto mt-2 max-w-[760px] text-3xl font-extrabold leading-[1.16] tracking-normal sm:text-4xl md:text-5xl md:leading-[1.1]">
+              흩어진 경제 신호를 놓치지 않게
             </h1>
-            <div className="mt-5 hidden items-center gap-4 text-teal-700 xl:flex" aria-hidden="true">
-              <span className="h-px w-[31rem] max-w-full bg-gradient-to-r from-teal-100 via-teal-300 to-teal-700" />
+            <div className="mx-auto mt-5 hidden max-w-2xl items-center justify-center gap-4 text-teal-700 sm:flex" aria-hidden="true">
+              <span className="h-px flex-1 bg-gradient-to-r from-transparent via-teal-300 to-teal-700" />
+              <span className="text-[10px] font-black tracking-[0.28em] text-zinc-400">FINANCE + FUNNEL</span>
+              <span className="h-px flex-1 bg-gradient-to-r from-teal-700 via-teal-300 to-transparent" />
             </div>
-            <p className="mx-auto mt-3 max-w-2xl text-sm font-medium leading-6 text-zinc-600 sm:text-base sm:leading-7 xl:mx-0">
-              과거 환전 시점의 환율과 현재 환율을 비교해
-              <br />
-              환차익과 환차손을 바로 계산합니다.
+            <p className="mx-auto mt-3 max-w-2xl text-balance text-center text-sm font-medium leading-6 text-zinc-600 sm:text-base sm:leading-7">
+              Finnel은 환율, 정책, 뉴스, 과거 지표를 깔때기처럼 모아 경제와 금융을 공부하는 사람에게 필요한 맥락을 제공합니다.
             </p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-3 xl:justify-start">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
               <button
                 className="inline-flex h-10 items-center justify-center rounded-full border border-zinc-950 bg-zinc-950 px-4 text-sm font-extrabold text-white shadow-sm transition-colors duration-150 hover:bg-zinc-800 xl:hidden"
-                onClick={() => setIsCalculatorModalOpen(true)}
+                onClick={onGoDashboard}
                 type="button"
               >
-                환차익 계산하기
+                데이터 보드 보기
               </button>
             </div>
           </div>
-          <div className="hidden justify-self-end xl:block xl:w-[430px] xl:translate-y-10">
-            <ExchangeProfitCalculator calculatorMeta={calculatorMeta} rates={rates} />
-          </div>
-          <p className="inline-flex w-full max-w-md flex-col items-center justify-center gap-1 justify-self-center px-4 text-center text-sm font-semibold leading-6 text-teal-700 sm:text-base sm:leading-7 xl:col-start-1 xl:row-start-2 xl:w-fit xl:max-w-2xl xl:translate-y-1 xl:justify-self-start xl:px-0">
+          <p className="inline-flex w-full max-w-md flex-col items-center justify-center gap-1 justify-self-center px-4 text-center text-sm font-semibold leading-6 text-teal-700 sm:text-base sm:leading-7">
             <span>스크롤해서 더 많은 기능을 알아보세요</span>
             <span className="home-scroll-cue" aria-hidden="true">⌄</span>
           </p>
         </div>
       </section>
 
-      <section className="home-snap-section home-copy mx-auto grid max-w-5xl content-center justify-items-center py-6 text-center sm:py-10 xl:justify-items-stretch xl:text-left">
-        <div className="grid justify-items-center gap-6 xl:grid-cols-[0.95fr_1fr] xl:items-center xl:justify-items-stretch xl:gap-8">
-          <div>
-            <p className="mb-3 text-xs font-bold tracking-[0.22em] text-teal-700 sm:mb-4">ABOUT KOREAWON</p>
+      <section className="home-snap-section home-copy mx-auto grid max-w-6xl content-center justify-items-center py-6 text-center sm:py-10 lg:text-left">
+        <div className="home-split-layout">
+          <div className="home-split-left">
+            <p className="mb-3 text-xs font-bold tracking-[0.22em] text-teal-700 sm:mb-4">ABOUT FINNEL</p>
             <h2 className="mx-auto max-w-[680px] text-xl font-extrabold leading-[1.25] tracking-normal sm:text-2xl md:text-4xl md:leading-[1.18] xl:mx-0">
-              원화 환율은 시장 변화를 읽는 출발점입니다.
+              작은 신호를{' '}
+              <span className="mx-1 inline-block text-[1.16em] text-[var(--brand-blue)]">놓치지 않고</span>
+              <span className="inline-block text-[1.08em] text-[var(--accent)]">경제 흐름</span>으로 바꿉니다.
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm font-medium leading-7 text-zinc-600 sm:mt-6 sm:text-base md:text-lg xl:mx-0">
-              환율이 움직이면 수출입 기업의 실적, 수입 물가, 원자재 비용, 달러 자산의 원화 가치가 함께 달라집니다.
+              하루 만에 모든 것을 설명하기보다, <strong className="font-extrabold text-[var(--brand-navy)]">자주 봐야 할 데이터</strong>를 놓치지 않게 모아 장기적으로 판단의 기준을 쌓게 돕습니다.
             </p>
           </div>
-          <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-3 xl:mx-0 xl:max-w-none xl:grid-cols-1 xl:gap-6">
+          <div className="home-split-right grid w-full max-w-md grid-cols-2 gap-3 lg:max-w-none lg:grid-cols-1 lg:gap-4">
             {servicePoints.map((point) => (
-              <section className="grid justify-items-center gap-1.5 rounded-xl bg-white px-2.5 py-3 text-center shadow-sm ring-1 ring-zinc-200 xl:grid-cols-[3.5rem_1fr] xl:justify-items-start xl:gap-5 xl:bg-transparent xl:p-0 xl:text-left xl:shadow-none xl:ring-0" key={point.title}>
-                <span className="text-2xl leading-none sm:text-4xl md:text-5xl" aria-hidden="true">{point.emoji}</span>
+              <section className="grid justify-items-center gap-1.5 rounded-xl bg-white px-2.5 py-3 text-center shadow-sm ring-1 ring-zinc-200 lg:grid-cols-[2.75rem_1fr] lg:justify-items-start lg:gap-3 lg:bg-white/75 lg:px-3 lg:py-3 lg:text-left" key={point.title}>
+                <span className="text-2xl leading-none sm:text-4xl lg:text-3xl" aria-hidden="true">{point.emoji}</span>
                 <span>
-                  <h3 className="text-sm font-extrabold tracking-normal text-zinc-950 sm:text-lg md:text-xl">{point.title}</h3>
-                  <p className="hidden mt-1 max-w-sm text-xs font-medium leading-5 text-zinc-600 min-[430px]:block sm:mt-2 sm:max-w-xl sm:text-sm sm:leading-7 md:text-base xl:text-left">{point.body}</p>
+                  <h3 className="text-sm font-extrabold tracking-normal text-[var(--brand-navy)] sm:text-lg lg:text-base">{point.title}</h3>
+                  <p className="hidden mt-1 max-w-sm text-xs font-medium leading-5 text-zinc-600 min-[430px]:block sm:mt-2 sm:max-w-xl sm:text-sm sm:leading-6 lg:text-left">{point.body}</p>
                 </span>
               </section>
             ))}
@@ -210,25 +198,29 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePage
         </div>
       </section>
 
-      <section className="home-snap-section home-copy mx-auto grid max-w-5xl content-center justify-items-center py-6 text-center sm:py-10">
-        <div className="grid max-w-4xl justify-items-center">
-          <h2 className="max-w-[760px] text-xl font-extrabold leading-[1.25] tracking-normal sm:text-2xl md:text-4xl md:leading-[1.18]">
-            투자시장의 반응을 이해하기 위한 기초입니다.
-          </h2>
-          <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-zinc-600 sm:mt-5 sm:text-base sm:leading-8 md:text-lg">
-            금리와 물가, 무역 흐름, 정부 정책을 함께 보면 기업이 투자를 늘리거나 줄이는 이유와
-            <br />
-            금융시장의 반응을 더 차분하게 따라갈 수 있습니다.
-          </p>
-        </div>
-        <div className="mt-6 grid w-full max-w-md grid-cols-2 gap-3 sm:mt-10 sm:max-w-none sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
-          {tabHints.map((hint) => (
-            <section className="grid justify-items-center gap-1.5 rounded-xl bg-white px-2.5 py-3 text-center shadow-sm ring-1 ring-zinc-200 sm:bg-transparent sm:p-0 sm:shadow-none sm:ring-0" key={hint.title}>
-              <span className="text-2xl leading-none sm:text-5xl" aria-hidden="true">{hint.emoji}</span>
-              <h3 className="text-sm font-extrabold tracking-normal text-teal-700 sm:text-lg md:text-xl">{hint.title}</h3>
-              <p className="hidden max-w-lg text-sm font-medium leading-6 text-zinc-600 sm:block sm:leading-7">{hint.body}</p>
-            </section>
-          ))}
+      <section className="home-snap-section home-copy mx-auto grid max-w-6xl content-center justify-items-center py-6 text-center sm:py-10 lg:text-left">
+        <div className="home-split-layout">
+          <div className="home-split-right lg:col-start-3 lg:row-start-1">
+            <h2 className="max-w-[760px] text-xl font-extrabold leading-[1.25] tracking-normal sm:text-2xl md:text-4xl md:leading-[1.18]">
+              <span className="text-[1.08em] text-[var(--brand-blue)]">숫자</span>와{' '}
+              <span className="mx-1 text-[1.08em] text-[var(--accent)]">배경</span>을
+              {' '}<span className="inline-block text-[1.16em] text-[var(--brand-navy)]">한 흐름</span>으로 모읍니다.
+            </h2>
+            <p className="mt-4 max-w-3xl text-sm font-medium leading-7 text-zinc-600 sm:mt-5 sm:text-base sm:leading-8 md:text-lg">
+              환율과 지표는 그래프로 보고, 배경은 뉴스와 정책에서 확인합니다.
+              <br />
+              Finnel은 <strong className="font-extrabold text-[var(--brand-navy)]">반복해서 볼수록</strong> 경제를 읽는 기준이 남도록 데이터를 정리합니다.
+            </p>
+          </div>
+          <div className="home-split-left mt-6 grid w-full max-w-md grid-cols-2 gap-3 sm:mt-10 sm:max-w-none sm:grid-cols-2 sm:gap-4 lg:col-start-1 lg:row-start-1 lg:mt-0">
+            {tabHints.map((hint) => (
+              <section className="grid justify-items-center gap-1.5 rounded-xl bg-white px-2.5 py-3 text-center shadow-sm ring-1 ring-zinc-200 lg:bg-white/75 lg:p-3" key={hint.title}>
+                <span className="text-2xl leading-none sm:text-4xl" aria-hidden="true">{hint.emoji}</span>
+                <h3 className="text-sm font-extrabold tracking-normal text-teal-700 sm:text-lg lg:text-base">{hint.title}</h3>
+                <p className="hidden max-w-lg text-xs font-medium leading-5 text-zinc-600 sm:block sm:leading-6">{hint.body}</p>
+              </section>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -265,31 +257,11 @@ export function HomePage({ calculatorMeta, rates = [], onGoDashboard }: HomePage
             onClick={onGoDashboard}
             type="button"
           >
-            환율현황 보러가기
+            데이터 보드 시작하기
           </button>
         </div>
       </section>
       </div>
-      {isCalculatorModalOpen && typeof document !== 'undefined' ? createPortal((
-        <div
-          aria-modal="true"
-          className="modal-overlay responsive-modal-overlay fixed inset-0 z-[1000] isolate flex bg-zinc-950/35 xl:hidden"
-          onClick={() => setIsCalculatorModalOpen(false)}
-          onTouchEnd={(event) => event.stopPropagation()}
-          onTouchStart={(event) => event.stopPropagation()}
-          onWheel={(event) => event.stopPropagation()}
-          role="dialog"
-        >
-          <div
-            className="modal-panel glass-modal responsive-modal-panel responsive-calculator-modal overflow-hidden rounded-2xl shadow-xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="modal-scroll-area responsive-modal-scroll">
-              <ExchangeProfitCalculator calculatorMeta={calculatorMeta} onClose={() => setIsCalculatorModalOpen(false)} rates={rates} />
-            </div>
-          </div>
-        </div>
-      ), document.body) : null}
     </section>
   );
 }

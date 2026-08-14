@@ -662,17 +662,27 @@ function App() {
     <main className="app-shell min-h-screen bg-transparent text-zinc-950">
       <header className="py-1.5 sm:pb-0 sm:pt-2">
         <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-3 sm:px-4 sm:pr-5 xl:min-h-[48px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-x-3">
-            <button
-              className="col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-start gap-2 py-0.5 text-zinc-950 xl:gap-2.5"
-              onClick={() => {
-                setActiveMainTabKey(null);
-                setActivePage('home');
-              }}
-              type="button"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-950 text-lg font-black text-white shadow-sm lg:h-9 lg:w-9 lg:text-xl">₩</span>
-              <span className="truncate text-lg font-extrabold tracking-normal lg:text-xl">코리아원</span>
-            </button>
+          <button
+            className="brand-lockup col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-start gap-0.5 py-0.5 xl:gap-1"
+            onClick={() => {
+              setActiveMainTabKey(null);
+              setActivePage('home');
+            }}
+            type="button"
+          >
+            <img
+              alt=""
+              aria-hidden="true"
+              className="brand-logo-mark h-[2.95rem] w-[2.95rem] shrink-0 lg:h-[3.5rem] lg:w-[3.5rem]"
+              src="/assets/finnel_logo_rounded_final_deepnavy.svg"
+            />
+            <span className="flex min-w-0 items-baseline gap-1.5">
+              <span className="brand-name-ko truncate text-[1.18rem] leading-none lg:text-[1.32rem]">핀넬</span>
+              <span className="brand-name-en text-[1.18rem] leading-none lg:text-[1.32rem]">
+                <span className="brand-name-en-accent">fin</span>nel.kr
+              </span>
+            </span>
+          </button>
           {isMainAppPage ? (
             <div className="col-start-2 row-start-1 flex justify-end xl:col-start-3">
               <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} />
@@ -750,7 +760,7 @@ function App() {
               )}
               helpTitle="USD/KRW 그래프"
               hover={activeUsdKrwHover}
-              lineStroke="#0f766e"
+              lineStroke="#18a999"
               lineStrokeWidth={1.25}
               metric={usdKrwMetric}
               onHoverChange={setActiveUsdKrwHover}
@@ -761,7 +771,7 @@ function App() {
               range={usdKrwRange}
               rangeColumns={4}
               rangeOptions={rangeOptions}
-              referenceStroke="#0f766e"
+              referenceStroke="#18a999"
               series={visibleUsdKrwSeries}
               showExtremaLines
               showLatestValueDot={showUsdKrwLatestValueDot && !showUsdKrwCandlesticks}
@@ -794,7 +804,7 @@ function App() {
               helpTitle="달러인덱스"
               helpWidthClassName="w-80"
               hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
-              lineStroke="#0f766e"
+              lineStroke="#18a999"
               lineStrokeWidth={1.25}
               keepHeaderSingleLineOnMobile
               metric={activeDollarIndexMetric}
@@ -814,7 +824,7 @@ function App() {
               range={activeDollarIndexRange}
               rangeColumns={3}
               rangeOptions={longRangeOptions}
-              referenceStroke="#0f766e"
+              referenceStroke="#18a999"
               series={activeDollarIndexSeries}
               showExtremaLines
               showLatestValueDot={false}
