@@ -22,6 +22,7 @@ export const dailyXAxisHeightPx = 30;
 export const koreanRegionNames = new Intl.DisplayNames(['ko'], { type: 'region' });
 
 export const specialAreaDisplays: Record<string, { name: string; flag: string }> = {
+  CNH: { name: '역외 위안', flag: '🇨🇳' },
   XM: { name: '유로지역', flag: '🇪🇺' }
 };
 
