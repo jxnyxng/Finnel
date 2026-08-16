@@ -690,7 +690,7 @@ function App() {
           ) : null}
         </div>
       </header>
-      <section className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-3 pb-2 pt-0 sm:gap-2 sm:px-5 sm:pb-3 sm:pt-0">
+      <section className={`mx-auto flex w-full max-w-6xl flex-col px-3 pb-2 pt-0 sm:px-5 sm:pb-3 sm:pt-0 ${activePage === 'home' ? 'gap-0' : 'gap-1 sm:gap-2'}`}>
         {isMainAppPage ? (
           <nav
             className="scrollbar-none relative flex w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 pb-1 pt-1.5 sm:pt-2"
@@ -719,6 +719,7 @@ function App() {
         {activePage === 'home' ? (
           <HomePageView
             calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
+            currencyStrengthRanks={currencyStrengthRanks}
             rates={foreignExchangeRates}
             onGoDashboard={goDashboard}
           />
@@ -1374,6 +1375,7 @@ function getCurrencyFlag(code: string) {
     AUD: '🇦🇺',
     CAD: '🇨🇦',
     CHF: '🇨🇭',
+    CNH: '🇨🇳',
     CNY: '🇨🇳',
     EUR: '🇪🇺',
     GBP: '🇬🇧',
@@ -1391,6 +1393,7 @@ function getCurrencyShortLabel(code: string) {
     AUD: '호주 달러',
     CAD: '캐나다 달러',
     CHF: '스위스 프랑',
+    CNH: '역외 위안',
     CNY: '위안화',
     EUR: '유로',
     GBP: '파운드',
