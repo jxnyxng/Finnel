@@ -46,6 +46,7 @@ export function CurrencyStrengthPage({
     <>
       <p className="mt-2">BIS broad NEER 기준입니다. NEER가 높을수록 교역상대국 대비 통화가 강하고, 낮을수록 약한 상태로 해석합니다.</p>
       <p className="mt-2">2020=100 기준선보다 낮으면 상대적 약세로 해석합니다. 순위와 점수 변동은 직전 NEER 기준일 대비이며, 앱은 금요일 USD/KRW 세션 종료 후 토요일 오전에 자동 확인합니다.</p>
+      <p className="mt-2">이 순위는 국가 경제나 통화의 절대 우위를 뜻하지 않습니다. 특정 시점의 교역 상대국 대비 명목 통화가치 지표이며, 물가를 반영한 구매력은 REER와 함께 봐야 합니다.</p>
       <p className="mt-2 font-medium text-zinc-700">매주 토요일 아침 갱신됩니다</p>
       <p className="mt-2 font-semibold text-zinc-800">NEER {latestDate ?? '-'} · REER {latestReerDate ?? '-'}</p>
       <p className="mt-2 text-zinc-700">NEER가 높을수록 교역상대국 대비 통화가 강한 상태입니다. 범위 {formatValue(minNeer, 2)} ~ {formatValue(maxNeer, 2)} · 기준선 100</p>
@@ -58,7 +59,11 @@ export function CurrencyStrengthPage({
         <div className="min-w-0">
           <p className="page-tab-eyebrow">CURRENCY RANKING</p>
           <h2 className="page-tab-title mt-0">화폐 랭킹</h2>
-          <p className="page-tab-description">주요 통화의 상대 강도를 BIS broad NEER 기준으로 비교합니다.</p>
+          <p className="page-tab-description">
+            주요 통화의 상대 강도를 BIS broad NEER 기준으로 비교합니다.
+            <br />
+            <strong className="font-extrabold text-zinc-800">국가 경제의 절대 순위가 아니라 교역 상대국 대비 명목 통화가치 지표입니다.</strong>
+          </p>
         </div>
         <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
           <div className="page-tab-meta">
