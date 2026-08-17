@@ -29,6 +29,7 @@ import { ExchangeProfitCalculator, HomePage as HomePageView } from './pages/Home
 import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
 import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
 import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
+import { TodayFlowPage as TodayFlowPageView } from './pages/TodayFlowPage';
 import {
   buildVisibleDailySeries,
   buildVisibleUsdKrwCandles,
@@ -99,7 +100,8 @@ const tabAdSlots = {
   governmentBriefings: import.meta.env.VITE_ADSENSE_SLOT_TAB_POLICY_BRIEFINGS,
   koreaStatus: import.meta.env.VITE_ADSENSE_SLOT_TAB_KOREA_STATUS,
   newsroom: import.meta.env.VITE_ADSENSE_SLOT_TAB_NEWSROOM,
-  ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING
+  ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING,
+  todayFlow: import.meta.env.VITE_ADSENSE_SLOT_TAB_TODAY_FLOW
 } satisfies Record<MainTabKey, string | undefined>;
 const dollarIndexTabs = [
   { key: 'advanced', label: '7개국' },
@@ -442,6 +444,23 @@ function App() {
   }, [activePage, loadNews, newsArticles.length, newsFilters, selectedNewsCategory]);
 
   React.useEffect(() => {
+    if (activePage !== 'todayFlow') {
+      return undefined;
+    }
+
+    loadDashboard(false);
+    loadNews('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+    loadGovernmentBriefings('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+
+    const contentTimer = window.setInterval(() => {
+      loadNews('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+      loadGovernmentBriefings('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+    }, 600_000);
+
+    return () => window.clearInterval(contentTimer);
+  }, [activePage, loadDashboard, loadGovernmentBriefings, loadNews]);
+
+  React.useEffect(() => {
     if (activePage !== 'governmentBriefings') {
       return undefined;
     }
@@ -714,7 +733,7 @@ function App() {
   return (
     <main className="app-shell min-h-screen bg-transparent text-zinc-950">
       <header className="py-1.5 sm:pb-0 sm:pt-2">
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-3 sm:px-4 sm:pr-5 xl:min-h-[48px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-x-3">
+        <div className="mx-auto grid w-full max-w-[82rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-3 sm:px-4 xl:min-h-[48px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-x-3">
           <button
             className="brand-lockup col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-start gap-0.5 py-0.5 xl:gap-1"
             onClick={() => navigatePage('home')}
@@ -740,7 +759,7 @@ function App() {
           ) : null}
         </div>
       </header>
-      <section className={`mx-auto flex w-full max-w-6xl flex-col px-3 pb-2 pt-0 sm:px-5 sm:pb-3 sm:pt-0 ${activePage === 'home' ? 'gap-0' : 'gap-1 sm:gap-2'}`}>
+      <section className={`mx-auto flex w-full max-w-[82rem] flex-col px-3 pb-2 pt-0 sm:px-4 sm:pb-3 sm:pt-0 ${activePage === 'home' ? 'gap-0' : 'gap-1 sm:gap-2'}`}>
         {isMainAppPage ? (
           <nav
             className="scrollbar-none relative flex w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 pb-1 pt-1.5 sm:pt-2"
@@ -777,6 +796,23 @@ function App() {
 
         {activePage === 'dashboard' ? <RelatedNewsBanner topic="exchange" /> : null}
         {activePage === 'koreaStatus' ? <RelatedNewsBanner topic="indicators" /> : null}
+
+        {activePage === 'todayFlow' ? (
+          <div className="page-content-enter">
+            <TodayFlowPageView
+              dashboard={dashboard}
+              dashboardEmptyText={dashboardEmptyText}
+              dashboardLoadState={dashboardLoadState}
+              governmentBriefings={governmentBriefings}
+              governmentBriefingsConfigured={!hasGovernmentBriefingsLoaded || isGovernmentBriefingsConfigured}
+              governmentBriefingsSyncStatus={governmentBriefingsSyncStatus}
+              newsArticles={newsArticles}
+              newsConfigured={!hasNewsLoaded || isNewsConfigured}
+              newsSyncStatus={newsSyncStatus}
+              statusNode={activeStatusNode}
+            />
+          </div>
+        ) : null}
 
         {activePage === 'dashboard' ? (
           <header className="page-tab-header page-tab-header-after-news page-tab-header-no-divider page-content-enter">
@@ -1108,8 +1144,8 @@ function UpdateStatusBox({
         className="service-status-trigger inline-flex min-w-0 shrink-0 items-center gap-1"
         tabIndex={0}
       >
-        <span className={`service-status-dot service-status-dot-${tone} shrink-0`} aria-hidden="true" />
         <span className="truncate">{statusLabel}</span>
+        <span className={`service-status-dot service-status-dot-${tone} shrink-0`} aria-hidden="true" />
         <span className="service-status-tooltip" role="tooltip">
           {tooltipLines.map((line) => (
             <span key={line}>{line}</span>

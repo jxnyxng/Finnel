@@ -140,7 +140,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
   return (
     <section
       aria-label="Finnel 서비스 소개"
-      className="home-deck page-content-enter relative -mx-3 -mb-2 mt-0 overflow-hidden px-3 text-zinc-950 sm:-mx-5 sm:-mb-3 sm:mt-0 sm:px-5"
+      className="home-deck page-content-enter relative -mx-3 -mb-2 mt-0 overflow-hidden px-3 text-zinc-950 sm:-mx-4 sm:-mb-3 sm:mt-0 sm:px-4"
       onKeyDown={handleKeyDown}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
@@ -156,7 +156,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
         <div className="home-funnel-bowl" />
         <div className="home-funnel-stem" />
       </div>
-      <section className="home-snap-section home-copy relative mx-auto grid max-w-6xl content-center justify-items-center py-4 text-center sm:py-6">
+      <section className="home-snap-section home-copy relative mx-auto grid max-w-[82rem] content-center justify-items-center py-4 text-center sm:py-6">
         <div className="grid w-full min-w-0 -translate-y-6 gap-4 sm:-translate-y-5 sm:gap-5 xl:-translate-y-6">
           <div className="mx-auto min-w-0 max-w-4xl">
             <p className="mt-2 text-xs font-bold tracking-[0.18em] text-teal-700 sm:mt-3 sm:text-sm sm:tracking-[0.22em]">FINNEL DATA BOARD</p>
@@ -183,7 +183,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
       </section>
 
       {featureSections.map((section, index) => (
-        <section className="home-snap-section home-copy mx-auto grid max-w-6xl content-center justify-items-center py-5 text-center sm:py-8 lg:text-left" key={section.title}>
+        <section className="home-snap-section home-copy mx-auto grid max-w-[82rem] content-center justify-items-center py-5 text-center sm:py-8 lg:text-left" key={section.title}>
           <div className={`home-feature-layout home-feature-layout-${section.preview} ${index % 2 === 1 ? 'home-feature-layout-reversed' : ''}`}>
             <div className="home-feature-copy">
               <p className="mb-3 text-xs font-bold tracking-[0.22em] text-teal-700 sm:mb-4">{section.eyebrow}</p>
@@ -199,11 +199,11 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
         </section>
       ))}
 
-      <section className="home-snap-section home-copy mx-auto grid max-w-6xl content-center justify-items-center py-5 text-center sm:py-8 lg:text-left">
+      <section className="home-snap-section home-copy mx-auto grid max-w-[82rem] content-center justify-items-center py-5 text-center sm:py-8 lg:text-left">
         <ExchangeToolsSection currencyStrengthRanks={currencyStrengthRanks} />
       </section>
 
-      <section className="home-snap-section home-copy home-final-section mx-auto grid max-w-5xl content-center justify-items-center py-6 text-center sm:py-10">
+      <section className="home-snap-section home-copy home-final-section mx-auto grid max-w-[72rem] content-center justify-items-center py-6 text-center sm:py-10">
         <div className="grid max-w-4xl justify-items-center">
           <h2 className="max-w-[760px] text-2xl font-extrabold leading-[1.22] tracking-normal sm:text-3xl md:text-5xl md:leading-[1.14]">
             <span
