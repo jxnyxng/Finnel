@@ -1,7 +1,7 @@
 export function AppFooter() {
   return (
     <footer className="mt-6 border-t border-zinc-200 bg-white">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-6 text-xs text-zinc-500 md:flex-row md:items-start md:justify-between">
+      <div className="mx-auto flex w-full max-w-[82rem] flex-col gap-4 px-3 py-6 text-xs text-zinc-500 sm:px-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-zinc-950">Finnel</p>
           <p className="mt-1 leading-5">Finance와 Funnel을 결합한 경제·금융 데이터 보드입니다. 제공 데이터는 정보 확인용이며 투자 조언이 아닙니다.</p>
