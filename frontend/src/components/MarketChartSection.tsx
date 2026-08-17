@@ -17,6 +17,7 @@ import {
   RangeSelector,
   getActiveChartHover
 } from './ChartElements';
+import { GoogleAdSlot } from './AdSlot';
 
 type RangeSelectorOption<T extends RangeKey> = {
   key: T;
@@ -78,6 +79,8 @@ type MarketChartSectionProps<T extends RangeKey> = {
   showLatestValueDot?: boolean;
   showExtremaLines?: boolean;
   showLoadingOverlay?: boolean;
+  desktopAdSlot?: string;
+  mobileAdSlot?: string;
 };
 
 export function MarketChartSection<T extends RangeKey>({
@@ -101,6 +104,8 @@ export function MarketChartSection<T extends RangeKey>({
   showLatestValueDot = false,
   showExtremaLines = false,
   showLoadingOverlay = false,
+  desktopAdSlot,
+  mobileAdSlot,
   plotLeft,
   plotRight,
   range,
@@ -509,9 +514,10 @@ export function MarketChartSection<T extends RangeKey>({
   const compactPanelDetails = getCompactPanelDetails(panelDetails);
   const panelInfoDetails = [...collectionStatusDetails, ...compactPanelDetails];
   const renderAdSlot = () => (
-    <div className="chart-ad-slot grid min-h-24 flex-1 place-items-center rounded-2xl border border-dashed border-white/20 bg-white/[0.04] px-3 py-4 text-[10px] font-semibold uppercase tracking-normal text-white/35">
-      광고
-    </div>
+    <GoogleAdSlot minHeightClassName="min-h-24" slot={desktopAdSlot} />
+  );
+  const renderMobileAdSlot = () => (
+    <GoogleAdSlot minHeightClassName="min-h-28" slot={mobileAdSlot ?? desktopAdSlot} />
   );
   const collectionStatusCard = (
     <div className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-1.5">
@@ -861,7 +867,7 @@ export function MarketChartSection<T extends RangeKey>({
               {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
             </div>
             <div className="order-4 lg:hidden">
-              {renderAdSlot()}
+              {renderMobileAdSlot()}
             </div>
           </div>
         </div>
