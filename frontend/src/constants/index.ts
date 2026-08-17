@@ -1,4 +1,4 @@
-import type { MainTabKey, RangeKey } from '../types';
+import type { MainTabKey, PageKey, RangeKey } from '../types';
 
 export const rangeOptions: Array<{ key: RangeKey; label: string }> = [
   { key: '1D', label: '1일' },
@@ -36,3 +36,16 @@ export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
   { key: 'dataSources', label: '데이터 출처' },
   { key: 'exchangeGuide', label: '환율이란' }
 ];
+
+export const pageRoutes: Record<PageKey, string> = {
+  home: '/',
+  dashboard: '/exchange-rate',
+  koreaStatus: '/indicators',
+  governmentBriefings: '/policy-briefings',
+  newsroom: '/news',
+  ranking: '/currency-ranking',
+  calculator: '/calculator',
+  dataSources: '/data-sources',
+  exchangeGuide: '/exchange-guide',
+  serviceGuide: '/service-guide'
+};

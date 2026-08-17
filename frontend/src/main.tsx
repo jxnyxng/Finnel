@@ -8,6 +8,7 @@ import {
   intradayXAxisHeightPx,
   longRangeOptions,
   mainTabs,
+  pageRoutes,
   rangeOptions,
 } from './constants';
 import {
@@ -16,6 +17,7 @@ import {
   UsdKrwCandlestickTooltip,
   UsdKrwTooltip
 } from './components/ChartElements';
+import { GoogleAdSlot } from './components/AdSlot';
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
@@ -81,11 +83,43 @@ axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
 type UsdKrwChartDisplayMode = 'line' | 'candlestick';
+const pageRouteEntries = Object.entries(pageRoutes) as Array<[PageKey, string]>;
+const mainTabKeys = new Set<MainTabKey>(mainTabs.map((tab) => tab.key));
+const chartAdSlots = {
+  dollarIndexDesktop: import.meta.env.VITE_ADSENSE_SLOT_DOLLAR_INDEX_DESKTOP,
+  dollarIndexMobile: import.meta.env.VITE_ADSENSE_SLOT_DOLLAR_INDEX_MOBILE,
+  usdKrwDesktop: import.meta.env.VITE_ADSENSE_SLOT_USD_KRW_DESKTOP,
+  usdKrwMobile: import.meta.env.VITE_ADSENSE_SLOT_USD_KRW_MOBILE
+} satisfies Record<string, string | undefined>;
+const tabAdSlots = {
+  calculator: import.meta.env.VITE_ADSENSE_SLOT_TAB_CALCULATOR,
+  dashboard: import.meta.env.VITE_ADSENSE_SLOT_TAB_DASHBOARD,
+  dataSources: import.meta.env.VITE_ADSENSE_SLOT_TAB_DATA_SOURCES,
+  exchangeGuide: import.meta.env.VITE_ADSENSE_SLOT_TAB_EXCHANGE_GUIDE,
+  governmentBriefings: import.meta.env.VITE_ADSENSE_SLOT_TAB_POLICY_BRIEFINGS,
+  koreaStatus: import.meta.env.VITE_ADSENSE_SLOT_TAB_KOREA_STATUS,
+  newsroom: import.meta.env.VITE_ADSENSE_SLOT_TAB_NEWSROOM,
+  ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING
+} satisfies Record<MainTabKey, string | undefined>;
 const dollarIndexTabs = [
   { key: 'advanced', label: '7개국' },
   { key: 'broad', label: '26개국' }
 ] as const;
 type DollarIndexTabKey = (typeof dollarIndexTabs)[number]['key'];
+
+function getPageFromPath(pathname: string): PageKey {
+  const normalizedPath = normalizePath(pathname);
+  return pageRouteEntries.find(([, route]) => route === normalizedPath)?.[0] ?? 'home';
+}
+
+function normalizePath(pathname: string) {
+  const normalizedPath = pathname.replace(/\/+$/, '');
+  return normalizedPath === '' ? '/' : normalizedPath;
+}
+
+function getMainTabKey(page: PageKey): MainTabKey | null {
+  return mainTabKeys.has(page as MainTabKey) ? page as MainTabKey : null;
+}
 
 function App() {
   const [dashboard, setDashboard] = React.useState<DailyDashboardResponse | null>(null);
@@ -99,9 +133,11 @@ function App() {
   const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [dollarIndexRange, setDollarIndexRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
   const [showBroadDollarIndex, setShowBroadDollarIndex] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<MainTabKey>('dashboard');
-  const [activeMainTabKey, setActiveMainTabKey] = React.useState<MainTabKey | null>(null);
-  const [activePage, setActivePage] = React.useState<PageKey>('home');
+  const initialPage = getPageFromPath(window.location.pathname);
+  const initialMainTabKey = getMainTabKey(initialPage);
+  const [activeTab, setActiveTab] = React.useState<MainTabKey>(initialMainTabKey ?? 'dashboard');
+  const [activeMainTabKey, setActiveMainTabKey] = React.useState<MainTabKey | null>(initialMainTabKey);
+  const [activePage, setActivePage] = React.useState<PageKey>(initialPage);
   const [activeUsdKrwHover, setActiveUsdKrwHover] = React.useState<ChartHoverState | null>(null);
   const [activeAdvancedDollarHover, setActiveAdvancedDollarHover] = React.useState<ChartHoverState | null>(null);
   const [activeBroadDollarHover, setActiveBroadDollarHover] = React.useState<ChartHoverState | null>(null);
@@ -136,24 +172,41 @@ function App() {
   const mainTabNavRef = React.useRef<HTMLElement | null>(null);
   const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
   const activeDollarIndexTabKey: DollarIndexTabKey = showBroadDollarIndex ? 'broad' : 'advanced';
-  const goDashboard = React.useCallback(() => {
+  const navigatePage = React.useCallback((page: PageKey, options: { replace?: boolean; scroll?: boolean } = {}) => {
+    const mainTabKey = getMainTabKey(page);
     flushSync(() => {
-      setActiveTab('dashboard');
-      setActiveMainTabKey('dashboard');
+      if (mainTabKey) {
+        setActiveTab(mainTabKey);
+      }
+      setActiveMainTabKey(mainTabKey);
     });
     React.startTransition(() => {
-      setActivePage('dashboard');
+      setActivePage(page);
     });
+    const nextPath = pageRoutes[page];
+    if (window.location.pathname !== nextPath) {
+      const historyState = { page };
+      if (options.replace) {
+        window.history.replaceState(historyState, '', nextPath);
+      } else {
+        window.history.pushState(historyState, '', nextPath);
+      }
+    }
+    if (options.scroll !== false) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }, []);
-  const navigateMainTab = React.useCallback((tabKey: MainTabKey) => {
-    flushSync(() => {
-      setActiveTab(tabKey);
-      setActiveMainTabKey(tabKey);
-    });
-    React.startTransition(() => {
-      setActivePage(tabKey);
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const goDashboard = React.useCallback(() => navigatePage('dashboard'), [navigatePage]);
+  const navigateMainTab = React.useCallback((tabKey: MainTabKey) => navigatePage(tabKey), [navigatePage]);
+  React.useEffect(() => {
+    window.history.replaceState({ page: activePage }, '', pageRoutes[activePage]);
+
+    const handlePopState = () => {
+      navigatePage(getPageFromPath(window.location.pathname), { replace: true, scroll: false });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   React.useEffect(() => {
     if (mainTabs.some((tab) => tab.key === activePage)) {
@@ -664,10 +717,7 @@ function App() {
         <div className="mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-3 sm:px-4 sm:pr-5 xl:min-h-[48px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-x-3">
           <button
             className="brand-lockup col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-start gap-0.5 py-0.5 xl:gap-1"
-            onClick={() => {
-              setActiveMainTabKey(null);
-              setActivePage('home');
-            }}
+            onClick={() => navigatePage('home')}
             type="button"
           >
             <img
@@ -749,6 +799,7 @@ function App() {
               emptyText={dashboardEmptyText}
               candlestickSeries={visibleUsdKrwCandles}
               chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
+              desktopAdSlot={chartAdSlots.usdKrwDesktop}
               headerAction={usdKrwChartDisplayControl}
               headerActionPlacement="chartControls"
               headerStatus={usdKrwStatusNode}
@@ -764,6 +815,7 @@ function App() {
               lineStroke="#18a999"
               lineStrokeWidth={1.25}
               metric={usdKrwMetric}
+              mobileAdSlot={chartAdSlots.usdKrwMobile}
               onHoverChange={setActiveUsdKrwHover}
               onRangeChange={setUsdKrwRange}
               panelDetails={usdKrwPanelDetails}
@@ -793,6 +845,7 @@ function App() {
 
             <MarketChartSection
               emptyText={dashboardEmptyText}
+              desktopAdSlot={chartAdSlots.dollarIndexDesktop}
               headerStatus={dollarIndexStatusNode}
               helpAriaLabel="달러인덱스 안내"
               helpContent={(
@@ -809,6 +862,7 @@ function App() {
               lineStrokeWidth={1.25}
               keepHeaderSingleLineOnMobile
               metric={activeDollarIndexMetric}
+              mobileAdSlot={chartAdSlots.dollarIndexMobile}
               headerAction={activeDollarIndexHeaderAction}
               headerActionPlacement="chartControls"
               onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
@@ -933,6 +987,16 @@ function App() {
             calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
             rates={foreignExchangeRates}
           />
+        ) : null}
+
+        {activeMainTabKey ? (
+          <section className="page-content-enter">
+            <GoogleAdSlot
+              className="w-full"
+              minHeightClassName="min-h-28 sm:min-h-32"
+              slot={tabAdSlots[activeMainTabKey] ?? import.meta.env.VITE_ADSENSE_SLOT_TAB_DEFAULT}
+            />
+          </section>
         ) : null}
 
       </section>
