@@ -2011,7 +2011,7 @@ body,
     height: auto;
     min-height: auto;
     overflow: visible;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
   }
@@ -2042,7 +2042,7 @@ body,
   }
 
   .home-snap-section:first-of-type {
-    min-height: calc(100dvh - 104px);
+    min-height: calc(100svh - 104px);
     padding-bottom: 7rem;
   }
 
@@ -2051,14 +2051,14 @@ body,
   }
 
   .home-final-section {
-    min-height: calc(74dvh - 80px);
+    min-height: calc(74svh - 80px);
     padding-bottom: 3.25rem;
     padding-top: 3.25rem;
   }
 
   .home-final-section > div {
     align-content: center;
-    min-height: min(20rem, calc(74dvh - 9rem));
+    min-height: min(20rem, calc(74svh - 9rem));
   }
 
   .home-copy h2 {
