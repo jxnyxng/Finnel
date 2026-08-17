@@ -36,12 +36,14 @@ type HomePageProps = {
 export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePageProps) {
   const [activeSection, setActiveSection] = React.useState(0);
   const [ctaHighlightKey, setCtaHighlightKey] = React.useState(0);
+  const [isDesktopDeck, setIsDesktopDeck] = React.useState(() => (
+    typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1024px)').matches
+  ));
   const lastMoveAtRef = React.useRef(0);
   const previousSectionRef = React.useRef(0);
   const touchStartYRef = React.useRef<number | null>(null);
   const touchCurrentYRef = React.useRef<number | null>(null);
   const sectionCount = featureSections.length + 3;
-  const isMobileDeck = () => window.matchMedia('(max-width: 1023px)').matches;
 
   const moveSection = React.useCallback((direction: 1 | -1) => {
     const now = window.performance.now();
@@ -53,7 +55,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
   }, []);
 
   const handleWheel = React.useCallback((event: React.WheelEvent<HTMLElement>) => {
-    if (isMobileDeck()) {
+    if (!isDesktopDeck) {
       return;
     }
     if (Math.abs(event.deltaY) < 18) {
@@ -61,10 +63,10 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
     }
     event.preventDefault();
     moveSection(event.deltaY > 0 ? 1 : -1);
-  }, [moveSection]);
+  }, [isDesktopDeck, moveSection]);
 
   const handleKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLElement>) => {
-    if (isMobileDeck()) {
+    if (!isDesktopDeck) {
       return;
     }
     if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
@@ -75,18 +77,18 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
       event.preventDefault();
       moveSection(-1);
     }
-  }, [moveSection]);
+  }, [isDesktopDeck, moveSection]);
 
   const handleTouchStart = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
-    if (isMobileDeck()) {
+    if (!isDesktopDeck) {
       return;
     }
     touchStartYRef.current = event.touches[0]?.clientY ?? null;
     touchCurrentYRef.current = touchStartYRef.current;
-  }, []);
+  }, [isDesktopDeck]);
 
   const handleTouchMove = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
-    if (isMobileDeck()) {
+    if (!isDesktopDeck) {
       return;
     }
     touchCurrentYRef.current = event.touches[0]?.clientY ?? touchCurrentYRef.current;
@@ -96,10 +98,10 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
     if (Math.abs(touchStartYRef.current - touchCurrentYRef.current) > 8) {
       event.preventDefault();
     }
-  }, []);
+  }, [isDesktopDeck]);
 
   const handleTouchEnd = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
-    if (isMobileDeck()) {
+    if (!isDesktopDeck) {
       return;
     }
     const startY = touchStartYRef.current;
@@ -110,7 +112,23 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
       return;
     }
     moveSection(startY > endY ? 1 : -1);
-  }, [moveSection]);
+  }, [isDesktopDeck, moveSection]);
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const updateLayoutMode = () => {
+      setIsDesktopDeck(mediaQuery.matches);
+      if (!mediaQuery.matches) {
+        setActiveSection(0);
+        touchStartYRef.current = null;
+        touchCurrentYRef.current = null;
+      }
+    };
+
+    updateLayoutMode();
+    mediaQuery.addEventListener('change', updateLayoutMode);
+    return () => mediaQuery.removeEventListener('change', updateLayoutMode);
+  }, []);
 
   React.useEffect(() => {
     if (activeSection === sectionCount - 1 && previousSectionRef.current !== activeSection) {
@@ -132,7 +150,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
     >
       <div
         className="home-deck-track"
-        style={{ transform: `translate3d(0, -${activeSection * 100}%, 0)` }}
+        style={isDesktopDeck ? { transform: `translate3d(0, -${activeSection * 100}%, 0)` } : undefined}
       >
       <div className="home-funnel-bg" aria-hidden="true">
         <div className="home-funnel-bowl" />
