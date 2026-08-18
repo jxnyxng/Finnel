@@ -27,18 +27,20 @@ export const specialAreaDisplays: Record<string, { name: string; flag: string }>
 };
 
 export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
+  { key: 'todayFlow', label: '오늘 흐름' },
   { key: 'dashboard', label: '환율 현황' },
-  { key: 'koreaStatus', label: '관련 지표' },
-  { key: 'governmentBriefings', label: '정부 정책' },
-  { key: 'newsroom', label: '뉴스 검색' },
-  { key: 'ranking', label: '화폐 랭킹' },
   { key: 'calculator', label: '환전 계산' },
-  { key: 'dataSources', label: '데이터 출처' },
-  { key: 'exchangeGuide', label: '환율이란' }
+  { key: 'exchangeGuide', label: '환율이란' },
+  { key: 'koreaStatus', label: '관련 지표' },
+  { key: 'newsroom', label: '뉴스 검색' },
+  { key: 'governmentBriefings', label: '정부 정책' },
+  { key: 'ranking', label: '화폐 랭킹' },
+  { key: 'dataSources', label: '데이터 출처' }
 ];
 
 export const pageRoutes: Record<PageKey, string> = {
   home: '/',
+  todayFlow: '/today-flow',
   dashboard: '/exchange-rate',
   koreaStatus: '/indicators',
   governmentBriefings: '/policy-briefings',
