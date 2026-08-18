@@ -323,6 +323,12 @@ export type GovernmentBriefingResponse = {
   latestSyncEndedAt?: string | null;
 };
 
+export type TodayFlowResponse = {
+  dashboard: DailyDashboardResponse;
+  news: NewsResponse;
+  governmentBriefings: GovernmentBriefingResponse;
+};
+
 export type ContentSyncStatus = {
   freshnessStatus?: FreshnessStatus | null;
   lastSuccessfulFetchedAt?: string | null;

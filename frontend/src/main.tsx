@@ -77,7 +77,8 @@ import type {
     PageKey,
     RangeKey,
     ServiceStatusTone,
-    SyncStatus
+    SyncStatus,
+    TodayFlowResponse
 } from './types';
 import { FadeIn } from './components/FadeIn';
 
@@ -276,6 +277,42 @@ function App() {
         }
     }, []);
 
+    const applyNewsResponse = React.useCallback((response: NewsResponse) => {
+        setNewsArticles(response.articles);
+        setNewsCategories(response.categories);
+        setIsNewsConfigured(response.configured);
+        setNewsPage(response.page);
+        setNewsTotalCount(response.totalCount);
+        setNewsTotalPages(response.totalPages);
+        setLatestNewsFetchedAt(response.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.articles));
+        setNewsSyncStatus({
+            freshnessStatus: response.freshnessStatus ?? null,
+            lastSuccessfulFetchedAt: response.lastSuccessfulFetchedAt ?? null,
+            latestSyncEndedAt: response.latestSyncEndedAt ?? null,
+            latestSyncStartedAt: response.latestSyncStartedAt ?? null,
+            latestSyncStatus: response.latestSyncStatus ?? null
+        });
+        setHasNewsLoaded(true);
+    }, []);
+
+    const applyGovernmentBriefingResponse = React.useCallback((response: GovernmentBriefingResponse) => {
+        setGovernmentBriefings(response.articles);
+        setGovernmentBriefingCategories(response.categories);
+        setIsGovernmentBriefingsConfigured(response.configured);
+        setGovernmentBriefingsPage(response.page);
+        setGovernmentBriefingsTotalCount(response.totalCount);
+        setGovernmentBriefingsTotalPages(response.totalPages);
+        setLatestGovernmentBriefingFetchedAt(response.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.articles));
+        setGovernmentBriefingsSyncStatus({
+            freshnessStatus: response.freshnessStatus ?? null,
+            lastSuccessfulFetchedAt: response.lastSuccessfulFetchedAt ?? null,
+            latestSyncEndedAt: response.latestSyncEndedAt ?? null,
+            latestSyncStartedAt: response.latestSyncStartedAt ?? null,
+            latestSyncStatus: response.latestSyncStatus ?? null
+        });
+        setHasGovernmentBriefingsLoaded(true);
+    }, []);
+
     const loadNews = React.useCallback(async (
         category = selectedNewsCategory,
         page = newsPage,
@@ -298,11 +335,12 @@ function App() {
                     to: filters.toDate || undefined
                 }
             });
-            setNewsArticles((current) => {
-                if (mode === 'replace') {
-                    return response.data.articles;
-                }
+            if (mode === 'replace') {
+                applyNewsResponse(response.data);
+                return;
+            }
 
+            setNewsArticles((current) => {
                 const seen = new Set(current.map((article) => `${article.categoryCode}-${article.link || article.originLink || article.title}`));
                 const nextArticles = response.data.articles.filter((article) => {
                     const key = `${article.categoryCode}-${article.link || article.originLink || article.title}`;
@@ -339,7 +377,7 @@ function App() {
                 setIsNewsLoading(false);
             }
         }
-    }, [newsFilters, newsPage, selectedNewsCategory]);
+    }, [applyNewsResponse, newsFilters, newsPage, selectedNewsCategory]);
 
     const loadGovernmentBriefings = React.useCallback(async (
         category = selectedGovernmentBriefingCategory,
@@ -363,11 +401,12 @@ function App() {
                     to: filters.toDate || undefined
                 }
             });
-            setGovernmentBriefings((current) => {
-                if (mode === 'replace') {
-                    return response.data.articles;
-                }
+            if (mode === 'replace') {
+                applyGovernmentBriefingResponse(response.data);
+                return;
+            }
 
+            setGovernmentBriefings((current) => {
                 const seen = new Set(current.map((article) => article.originalUrl || `${article.title}-${article.publishedAt ?? ''}`));
                 const nextArticles = response.data.articles.filter((article) => {
                     const key = article.originalUrl || `${article.title}-${article.publishedAt ?? ''}`;
@@ -404,7 +443,22 @@ function App() {
                 setIsGovernmentBriefingsLoading(false);
             }
         }
-    }, [governmentBriefingFilters, governmentBriefingsPage, selectedGovernmentBriefingCategory]);
+    }, [applyGovernmentBriefingResponse, governmentBriefingFilters, governmentBriefingsPage, selectedGovernmentBriefingCategory]);
+
+    const loadTodayFlow = React.useCallback(async () => {
+        try {
+            const response = await axios.get<TodayFlowResponse>('/api/v1/today-flow');
+            setDashboard(response.data.dashboard);
+            setDashboardLoadState('ready');
+            setDashboardErrorMessage(null);
+            applyNewsResponse(response.data.news);
+            applyGovernmentBriefingResponse(response.data.governmentBriefings);
+        } catch {
+            loadDashboard(false);
+            loadNews('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+            loadGovernmentBriefings('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+        }
+    }, [applyGovernmentBriefingResponse, applyNewsResponse, loadDashboard, loadGovernmentBriefings, loadNews]);
 
     React.useEffect(() => {
         dashboardLoadStateRef.current = dashboardLoadState;
@@ -454,17 +508,14 @@ function App() {
             return undefined;
         }
 
-        loadDashboard(false);
-        loadNews('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
-        loadGovernmentBriefings('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+        loadTodayFlow();
 
         const contentTimer = window.setInterval(() => {
-            loadNews('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
-            loadGovernmentBriefings('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
+            loadTodayFlow();
         }, 600_000);
 
         return () => window.clearInterval(contentTimer);
-    }, [activePage, loadDashboard, loadGovernmentBriefings, loadNews]);
+    }, [activePage, loadTodayFlow]);
 
     React.useEffect(() => {
         if (activePage !== 'governmentBriefings') {
