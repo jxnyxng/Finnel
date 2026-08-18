@@ -130,9 +130,9 @@ public class DashboardService {
         return new DailyDashboardResponse(
             baseDate,
             List.of(
-                metric("USD/KRW", "원/달러 환율", latestUsdKrw == null ? null : latestUsdKrw.value(), "KRW"),
-                metric("ADVANCED_DOLLAR_INDEX", "주요 7개 통화권 달러인덱스", latestAdvancedDollarIndex == null ? null : latestAdvancedDollarIndex.getValue(), "INDEX"),
-                metric("BROAD_DOLLAR_INDEX", "26개 교역 상대 달러인덱스", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX"),
+                metric("USD/KRW", "원/달러 환율", latestUsdKrw == null ? null : latestUsdKrw.value(), "KRW", changeRate(usdKrwSeries)),
+                metric("ADVANCED_DOLLAR_INDEX", "주요 7개 통화권 달러인덱스", latestAdvancedDollarIndex == null ? null : latestAdvancedDollarIndex.getValue(), "INDEX", changeRate(advancedDollarIndexSeries)),
+                metric("BROAD_DOLLAR_INDEX", "26개 교역 상대 달러인덱스", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX", changeRate(dollarIndexSeries)),
                 metric("US_POLICY_RATE", "미국 기준금리", latestUsRate == null ? null : latestUsRate.getRateValue(), "PERCENT"),
                 metric("KR_POLICY_RATE", "한국 기준금리", latestKrRate == null ? null : latestKrRate.getRateValue(), "PERCENT"),
                 metric("KR_US_RATE_GAP", "한미 기준금리차", rateGap(latestUsRate, latestKrRate), "PERCENT_POINT"),
@@ -670,6 +670,27 @@ public class DashboardService {
 
     private MetricSnapshot metric(String code, String label, BigDecimal value, String unit) {
         return new MetricSnapshot(code, label, value, unit, null);
+    }
+
+    private MetricSnapshot metric(String code, String label, BigDecimal value, String unit, BigDecimal changeRate) {
+        return new MetricSnapshot(code, label, value, unit, changeRate);
+    }
+
+    private BigDecimal changeRate(List<TimeSeriesPoint> series) {
+        if (series == null || series.size() < 2) {
+            return null;
+        }
+
+        TimeSeriesPoint latest = series.get(series.size() - 1);
+        TimeSeriesPoint previous = series.get(series.size() - 2);
+        if (latest.value() == null || previous.value() == null || BigDecimal.ZERO.compareTo(previous.value()) == 0) {
+            return null;
+        }
+
+        return latest.value()
+            .subtract(previous.value())
+            .multiply(BigDecimal.valueOf(100))
+            .divide(previous.value(), 6, RoundingMode.HALF_UP);
     }
 
     private String statusLabel(FreshnessInfo freshness) {
