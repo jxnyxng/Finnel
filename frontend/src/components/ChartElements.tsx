@@ -171,19 +171,59 @@ export function ChartHelpTooltip({
   title: string;
   widthClassName?: string;
 }) {
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
+  const [tooltipStyle, setTooltipStyle] = React.useState<React.CSSProperties | null>(null);
+
+  const showTooltip = React.useCallback(() => {
+    const button = buttonRef.current;
+    if (!button) {
+      return;
+    }
+
+    const rect = button.getBoundingClientRect();
+    const viewportPadding = 16;
+    const preferredWidth = widthClassName.includes('w-80') ? 320 : widthClassName.includes('w-72') ? 288 : 320;
+    const width = Math.min(preferredWidth, window.innerWidth - (viewportPadding * 2));
+    const preferredLeft = placement === 'right' ? rect.right - width : rect.left;
+    const left = Math.min(window.innerWidth - width - viewportPadding, Math.max(viewportPadding, preferredLeft));
+    const top = Math.min(window.innerHeight - viewportPadding, rect.bottom + 8);
+
+    setTooltipStyle({
+      left,
+      maxHeight: `calc(100vh - ${top + viewportPadding}px)`,
+      top,
+      width
+    });
+  }, [placement, widthClassName]);
+
+  const hideTooltip = React.useCallback(() => {
+    setTooltipStyle(null);
+  }, []);
+
   return (
-    <div className="group relative">
+    <div className="relative">
       <button
         aria-label={ariaLabel}
         className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
+        onBlur={hideTooltip}
+        onFocus={showTooltip}
+        onMouseEnter={showTooltip}
+        onMouseLeave={hideTooltip}
+        ref={buttonRef}
         type="button"
       >
         i
       </button>
-      <div className={`chart-help-tooltip chart-help-tooltip-${placement} pointer-events-none absolute top-7 z-40 hidden ${placement === 'right' ? 'right-0' : 'left-0'} ${widthClassName} rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg group-hover:block`}>
-        <p className="font-semibold text-zinc-900">{title}</p>
-        {children}
-      </div>
+      {tooltipStyle ? (
+        <div
+          className={`chart-help-tooltip pointer-events-none fixed z-50 overflow-y-auto rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg ${widthClassName}`}
+          style={tooltipStyle}
+          role="tooltip"
+        >
+          <p className="font-semibold text-zinc-900">{title}</p>
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }
