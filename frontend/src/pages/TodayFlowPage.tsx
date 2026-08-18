@@ -110,7 +110,7 @@ export function TodayFlowPage({
 
             <section className="grid min-w-0 gap-3 xl:min-h-[31rem] xl:grid-cols-[19rem_minmax(24rem,1.16fr)_minmax(0,0.84fr)]">
                 {/* 1열: 주요 지표 */}
-                <section className="grid min-w-0 gap-3" style={fadeUpStyle('0.1')}>
+                <section className="grid min-w-0 content-start gap-2.5" style={fadeUpStyle('0.1')}>
                     <MetricTile
                         helper={getMetricCurrentValue(usdKrwMetric)}
                         label="원/달러 환율"
@@ -126,8 +126,8 @@ export function TodayFlowPage({
                     <section className="glass-card rounded-2xl p-4 border border-zinc-100 shadow-sm">
                         <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Indicators</p>
-                                <h3 className="mt-1 text-base font-bold text-zinc-950">숫자 지표</h3>
+                                <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Trade Indicators</p>
+                                <h3 className="mt-1 text-base font-bold text-zinc-950">수출입지표</h3>
                             </div>
                         </div>
                         <div className="grid gap-2">
@@ -202,16 +202,16 @@ export function TodayFlowPage({
 
 function MetricTile({ helper, label, tone, value }: { helper: string; label: string; tone: Direction; value: string }) {
     return (
-        <article className="glass-card min-w-0 rounded-2xl border border-zinc-100 p-3.5 shadow-sm transition-all hover:shadow-md">
+        <article className="glass-card min-w-0 rounded-2xl border border-zinc-100 px-3 py-2.5 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-start justify-between gap-2">
                 <p className="truncate text-xs font-bold text-zinc-500">{label}</p>
                 <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${getDirectionBadgeClass(tone)}`}>
           {getDirectionLabel(tone)}
         </span>
             </div>
-            <div className="mt-2.5">
-                <p className="truncate text-lg font-extrabold tracking-tight text-zinc-950">{value}</p>
-                <p className="mt-1 text-clamp-1 text-xs font-medium text-zinc-500">{helper}</p>
+            <div className="mt-1.5">
+                <p className="truncate text-base font-extrabold tracking-tight text-zinc-950">{value}</p>
+                <p className="mt-0.5 text-clamp-1 text-[11px] font-medium text-zinc-500">{helper}</p>
             </div>
         </article>
     );
@@ -446,33 +446,33 @@ function buildBrief({
 }) {
     const lines: string[] = [];
     if (usdKrwDirection === 'up' && dollarDirection === 'up') {
-        lines.push('원/달러 환율과 달러지수가 함께 상승했습니다. 원화만의 움직임이라기보다 달러 강세 흐름을 함께 확인할 필요가 있습니다.');
+        lines.push('원/달러 환율과 달러지수가 함께 상승했습니다. 원화 흐름에는 글로벌 달러 강세 영향이 함께 반영된 상태입니다.');
     } else if (usdKrwDirection === 'up' && dollarDirection === 'down') {
-        lines.push('원/달러 환율은 상승했지만 달러지수는 하락했습니다. 달러 전체 흐름보다 원화 관련 요인이나 국내 지표를 함께 살펴볼 필요가 있습니다.');
+        lines.push('원/달러 환율은 상승했고 달러지수는 하락했습니다. 달러 전체 흐름보다 원화 관련 요인의 비중이 커진 구간입니다.');
     } else if (usdKrwDirection === 'down' && dollarDirection === 'down') {
-        lines.push('원/달러 환율과 달러지수가 함께 하락했습니다. 달러 약세 흐름과 원화 수급 배경을 나란히 확인해보세요.');
+        lines.push('원/달러 환율과 달러지수가 함께 하락했습니다. 달러 약세 흐름과 원화 수급 개선이 같은 방향으로 나타난 상태입니다.');
     } else if (usdKrwDirection === 'down' && dollarDirection === 'up') {
-        lines.push('달러지수는 올랐지만 원/달러 환율은 하락했습니다. 달러 강세와 다른 방향의 원화 흐름이 나타났는지 관련 지표를 함께 보는 것이 좋습니다.');
+        lines.push('달러지수는 상승했고 원/달러 환율은 하락했습니다. 글로벌 달러 강세와 다른 방향의 원화 흐름이 나타난 구간입니다.');
     } else {
-        lines.push('원/달러 환율과 달러지수 변화가 크지 않거나 일부 값이 아직 확인되지 않았습니다. 숫자의 방향보다 기준 시각과 최근 범위를 함께 확인해주세요.');
+        lines.push('원/달러 환율과 달러지수 변화가 제한적이거나 일부 값이 아직 확인되지 않았습니다. 현재 요약은 기준 시각과 최근 범위에 따라 구성됩니다.');
     }
 
     if (usdKrwPosition === 'top') {
-        lines.push('현재 원/달러 환율은 최근 흐름에서 높은 구간에 있습니다. 단기 변동뿐 아니라 과거 평균과 현재 위치를 함께 확인하는 것이 좋습니다.');
+        lines.push('현재 원/달러 환율은 최근 흐름에서 높은 구간에 있습니다. 단기 변동과 과거 평균 대비 위치가 모두 높은 쪽에 놓여 있습니다.');
     } else if (usdKrwPosition === 'bottom') {
-        lines.push('현재 원/달러 환율은 최근 흐름에서 낮은 구간에 있습니다. 하락 배경이 달러 약세인지 국내 요인인지 나누어 확인해보세요.');
+        lines.push('현재 원/달러 환율은 최근 흐름에서 낮은 구간에 있습니다. 최근 범위 안에서는 원화 부담이 낮아진 쪽에 가깝습니다.');
     }
 
     if (recentIndicators.length > 0) {
-        lines.push(`국내 지표 중 ${recentIndicators[0].title} 등 최근 발표값과 직전값을 비교할 수 있는 항목이 있습니다. 환율 숫자의 배경으로 함께 살펴볼 수 있습니다.`);
+        lines.push(`국내 지표 중 ${recentIndicators[0].title} 등 최근 발표값과 직전값을 비교할 수 있는 항목이 있습니다. 환율 숫자의 배경 데이터로 함께 집계됐습니다.`);
     }
 
     if (hasTodayNews || hasTodayBriefing) {
-        lines.push('Finnel이 최근 수집한 뉴스와 정책 자료에서 환율 또는 금융시장 관련 이슈가 확인됩니다. 숫자의 변화만 보기보다 관련 배경을 함께 확인해보세요.');
+        lines.push('최근 수집된 뉴스와 정책 자료에 환율 또는 금융시장 관련 이슈가 포함되어 있습니다. 오늘 흐름 요약에 해당 배경 신호가 반영됐습니다.');
     }
 
     if (staleSignals.length > 0) {
-        lines.push('일부 데이터가 아직 오늘 기준으로 업데이트되지 않았습니다. 현재 표시되는 값의 기준일과 수집 상태를 함께 확인해주세요.');
+        lines.push('일부 데이터가 아직 오늘 기준으로 업데이트되지 않았습니다. 현재 요약에는 표시값의 기준일과 수집 상태 차이가 반영됩니다.');
     }
 
     return lines.slice(0, 5);
