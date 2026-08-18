@@ -138,25 +138,26 @@ const accordionItems = [
     }
 ];
 
-export function ExchangeRateGuidePage() {
+export function ExchangeRateGuidePage({ showHeader = true }: { showHeader?: boolean }) {
     const [openIndex, setOpenIndex] = React.useState(0);
 
     return (
         <section className="grid min-w-0 gap-4">
-            {/* 1. 헤더: 0초 등장 */}
-            <FadeIn as="header" className="page-tab-header" delay={0}>
-                <div className="min-w-0">
-                    <p className="page-tab-eyebrow">EXCHANGE BASICS</p>
-                    <h2 className="page-tab-title">환율이란</h2>
-                    <p className="page-tab-description">
-                        환율은 외국 돈의 가격입니다. 숫자 하나가 여행 경비, 수입물가, 기업 실적, 투자 심리까지 연결됩니다.
-                    </p>
-                </div>
-                <div className="page-tab-meta">
-                    <span>예시 USD/KRW 1,300</span>
-                    <span>1달러 = 1,300원</span>
-                </div>
-            </FadeIn>
+            {showHeader ? (
+                <FadeIn as="header" className="page-tab-header" delay={0}>
+                    <div className="min-w-0">
+                        <p className="page-tab-eyebrow">EXCHANGE BASICS</p>
+                        <h2 className="page-tab-title">환율이란</h2>
+                        <p className="page-tab-description">
+                            환율은 외국 돈의 가격입니다. 숫자 하나가 여행 경비, 수입물가, 기업 실적, 투자 심리까지 연결됩니다.
+                        </p>
+                    </div>
+                    <div className="page-tab-meta">
+                        <span>예시 USD/KRW 1,300</span>
+                        <span>1달러 = 1,300원</span>
+                    </div>
+                </FadeIn>
+            ) : null}
 
             {/* 2. 개념 카드 3종: 0.1초부터 0.05초 간격 등장 */}
             <div className="grid min-w-0 gap-3 md:grid-cols-3">
