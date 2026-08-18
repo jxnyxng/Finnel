@@ -171,53 +171,28 @@ export function ChartHelpTooltip({
   title: string;
   widthClassName?: string;
 }) {
-  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
-  const [tooltipStyle, setTooltipStyle] = React.useState<React.CSSProperties | null>(null);
-
-  const showTooltip = React.useCallback(() => {
-    const button = buttonRef.current;
-    if (!button) {
-      return;
-    }
-
-    const rect = button.getBoundingClientRect();
-    const viewportPadding = 16;
-    const preferredWidth = widthClassName.includes('w-80') ? 320 : widthClassName.includes('w-72') ? 288 : 320;
-    const width = Math.min(preferredWidth, window.innerWidth - (viewportPadding * 2));
-    const preferredLeft = placement === 'right' ? rect.right - width : rect.left;
-    const left = Math.min(window.innerWidth - width - viewportPadding, Math.max(viewportPadding, preferredLeft));
-    const top = Math.min(window.innerHeight - viewportPadding, rect.bottom + 8);
-
-    setTooltipStyle({
-      left,
-      maxHeight: `calc(100vh - ${top + viewportPadding}px)`,
-      top,
-      width
-    });
-  }, [placement, widthClassName]);
+  const [isTooltipOpen, setIsTooltipOpen] = React.useState(false);
 
   const hideTooltip = React.useCallback(() => {
-    setTooltipStyle(null);
+    setIsTooltipOpen(false);
   }, []);
 
   return (
-    <div className="relative">
+    <div className="relative inline-flex">
       <button
         aria-label={ariaLabel}
         className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
         onBlur={hideTooltip}
-        onFocus={showTooltip}
-        onMouseEnter={showTooltip}
+        onFocus={() => setIsTooltipOpen(true)}
+        onMouseEnter={() => setIsTooltipOpen(true)}
         onMouseLeave={hideTooltip}
-        ref={buttonRef}
         type="button"
       >
         i
       </button>
-      {tooltipStyle ? (
+      {isTooltipOpen ? (
         <div
-          className={`chart-help-tooltip pointer-events-none fixed z-50 overflow-y-auto rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg ${widthClassName}`}
-          style={tooltipStyle}
+          className={`chart-help-tooltip chart-help-tooltip-${placement} pointer-events-none absolute top-full z-50 mt-2 max-h-[min(22rem,calc(100vh-8rem))] overflow-y-auto rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg ${widthClassName}`}
           role="tooltip"
         >
           <p className="font-semibold text-zinc-900">{title}</p>
