@@ -30,7 +30,6 @@ export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
   { key: 'todayFlow', label: '오늘 흐름' },
   { key: 'dashboard', label: '환율 현황' },
   { key: 'calculator', label: '환전 계산' },
-  { key: 'exchangeGuide', label: '환율이란' },
   { key: 'koreaStatus', label: '관련 지표' },
   { key: 'newsroom', label: '뉴스 검색' },
   { key: 'governmentBriefings', label: '정부 정책' },
@@ -48,6 +47,5 @@ export const pageRoutes: Record<PageKey, string> = {
   ranking: '/currency-ranking',
   calculator: '/calculator',
   dataSources: '/data-sources',
-  exchangeGuide: '/exchange-guide',
   serviceGuide: '/service-guide'
 };

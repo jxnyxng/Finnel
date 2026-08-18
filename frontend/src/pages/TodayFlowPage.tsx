@@ -202,16 +202,16 @@ export function TodayFlowPage({
 
 function MetricTile({ helper, label, tone, value }: { helper: string; label: string; tone: Direction; value: string }) {
     return (
-        <article className="glass-card min-w-0 rounded-2xl p-5 shadow-sm transition-all hover:shadow-md border border-zinc-100">
+        <article className="glass-card min-w-0 rounded-2xl border border-zinc-100 p-3.5 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-start justify-between gap-2">
-                <p className="truncate text-sm font-bold text-zinc-500">{label}</p>
-                <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${getDirectionBadgeClass(tone)}`}>
+                <p className="truncate text-xs font-bold text-zinc-500">{label}</p>
+                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${getDirectionBadgeClass(tone)}`}>
           {getDirectionLabel(tone)}
         </span>
             </div>
-            <div className="mt-4">
-                <p className="truncate text-2xl font-extrabold tracking-tight text-zinc-950">{value}</p>
-                <p className="mt-1.5 text-clamp-1 text-sm font-medium text-zinc-500">{helper}</p>
+            <div className="mt-2.5">
+                <p className="truncate text-lg font-extrabold tracking-tight text-zinc-950">{value}</p>
+                <p className="mt-1 text-clamp-1 text-xs font-medium text-zinc-500">{helper}</p>
             </div>
         </article>
     );
