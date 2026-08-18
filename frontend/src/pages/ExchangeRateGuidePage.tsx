@@ -1,5 +1,5 @@
 import React from 'react';
-import { FadeIn } from '../components/FadeIn'; // 👈 공통 컴포넌트 불러오기
+import { FadeIn } from '../components/FadeIn';
 
 const conceptCards = [
     {

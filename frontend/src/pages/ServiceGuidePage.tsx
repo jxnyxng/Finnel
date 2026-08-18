@@ -1,5 +1,5 @@
 import React from 'react';
-import { FadeIn } from '../components/FadeIn'; // 👈 공통 애니메이션 컴포넌트 불러오기
+import { FadeIn } from '../components/FadeIn';
 
 const serviceIntroHero = '/assets/service-intro-hero.png';
 
