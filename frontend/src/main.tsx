@@ -1,5 +1,5 @@
 import React from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
 import './styles.css';
@@ -98,7 +98,6 @@ const tabAdSlots = {
     calculator: import.meta.env.VITE_ADSENSE_SLOT_TAB_CALCULATOR,
     dashboard: import.meta.env.VITE_ADSENSE_SLOT_TAB_DASHBOARD,
     dataSources: import.meta.env.VITE_ADSENSE_SLOT_TAB_DATA_SOURCES,
-    exchangeGuide: import.meta.env.VITE_ADSENSE_SLOT_TAB_EXCHANGE_GUIDE,
     governmentBriefings: import.meta.env.VITE_ADSENSE_SLOT_TAB_POLICY_BRIEFINGS,
     koreaStatus: import.meta.env.VITE_ADSENSE_SLOT_TAB_KOREA_STATUS,
     newsroom: import.meta.env.VITE_ADSENSE_SLOT_TAB_NEWSROOM,
@@ -172,6 +171,7 @@ function App() {
     const [latestGovernmentBriefingFetchedAt, setLatestGovernmentBriefingFetchedAt] = React.useState<string | null>(null);
     const [governmentBriefingsSyncStatus, setGovernmentBriefingsSyncStatus] = React.useState<ContentSyncStatus | null>(null);
     const [nowMs, setNowMs] = React.useState(() => Date.now());
+    const [isExchangeGuideOpen, setIsExchangeGuideOpen] = React.useState(false);
     const isMainAppPage = activePage === 'home' || mainTabs.some((tab) => tab.key === activePage);
     const mainTabNavRef = React.useRef<HTMLElement | null>(null);
     const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
@@ -671,7 +671,7 @@ function App() {
             tone={marketDailyStatus.tone}
         />
     );
-    const showPageStatus = activePage !== 'dashboard' && activePage !== 'exchangeGuide' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator';
+    const showPageStatus = activePage !== 'dashboard' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator';
     const activeStatusNode = showPageStatus ? (
         <UpdateStatusBox
             details={activeStatusDetails}
@@ -690,6 +690,15 @@ function App() {
     const usdKrwChartStatusText = usdKrwRange === '1D'
         ? `${showUsdKrwCandlesticks ? '5분봉 캔들' : '5분봉 라인'} · ${intradayStatusLabel}`
         : `기준 환율 일별 · 최신 ${latestUsdKrwPoint?.dateValue.slice(0, 10) ?? '-'} · ${marketDailyStatus.label}`;
+    const exchangeGuideButton = (
+        <button
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+            onClick={() => setIsExchangeGuideOpen(true)}
+            type="button"
+        >
+            환율이란?
+        </button>
+    );
     const onePercentHigherUsdKrw = usdKrwMetric?.value === null || usdKrwMetric?.value === undefined ? null : usdKrwMetric.value * 1.01;
     const onePercentLowerUsdKrw = usdKrwMetric?.value === null || usdKrwMetric?.value === undefined ? null : usdKrwMetric.value * 0.99;
     const usdKrwPanelDetails = [
@@ -913,8 +922,9 @@ function App() {
                             candlestickSeries={visibleUsdKrwCandles}
                             chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
                             desktopAdSlot={chartAdSlots.usdKrwDesktop}
-                            headerAction={usdKrwChartDisplayControl}
-                            headerActionPlacement="chartControls"
+                            headerAction={exchangeGuideButton}
+                            titleAction={usdKrwChartDisplayControl}
+                            headerActionPlacement="header"
                             headerStatus={usdKrwStatusNode}
                             helpAriaLabel="USD/KRW 그래프 안내"
                             helpContent={(
@@ -1013,12 +1023,6 @@ function App() {
                     </FadeIn>
                 ) : null}
 
-                {activePage === 'exchangeGuide' ? (
-                    <FadeIn className="page-content-enter">
-                        <ExchangeRateGuidePageView />
-                    </FadeIn>
-                ) : null}
-
                 {activePage === 'koreaStatus' ? (
                     <FadeIn className="page-content-enter">
                         <KoreaStatusPageView
@@ -1114,6 +1118,7 @@ function App() {
 
             </section>
             {activePage !== 'home' ? <AppFooter /> : null}
+            {isExchangeGuideOpen ? <ExchangeRateGuideModal onClose={() => setIsExchangeGuideOpen(false)} /> : null}
         </main>
     );
 }
@@ -1683,4 +1688,39 @@ function formatCalculatorNumber(value: number | null, fractionDigits: number) {
     return new Intl.NumberFormat('ko-KR', {
         maximumFractionDigits: fractionDigits
     }).format(value);
+}
+
+function ExchangeRateGuideModal({ onClose }: { onClose: () => void }) {
+    return createPortal(
+        <div className="modal-overlay responsive-modal-overlay fixed inset-0 z-[100] flex bg-zinc-950/35" onClick={onClose}>
+            <div
+                aria-modal="true"
+                className="modal-panel glass-modal responsive-modal-panel overflow-hidden rounded-2xl text-sm shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+            >
+                <div className="modal-scroll-area responsive-modal-scroll p-4 sm:p-5 md:p-6">
+                    <div className="mb-4 flex min-w-0 items-start justify-between gap-3 border-b border-zinc-200 pb-4">
+                        <div className="min-w-0">
+                            <p className="text-xs font-semibold text-teal-700">EXCHANGE BASICS</p>
+                            <h2 className="mt-1 text-xl font-semibold text-zinc-950">환율이란?</h2>
+                            <p className="mt-2 text-sm leading-6 text-zinc-600">
+                                환율은 외국 돈의 가격입니다. 숫자 하나가 여행 경비, 수입물가, 기업 실적, 투자 심리까지 연결됩니다.
+                            </p>
+                        </div>
+                        <button
+                            aria-label="환율 안내 닫기"
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-zinc-200 bg-white text-lg font-semibold leading-none text-zinc-500 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-950"
+                            onClick={onClose}
+                            type="button"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <ExchangeRateGuidePageView showHeader={false} />
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
 }
