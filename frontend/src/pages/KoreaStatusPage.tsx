@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import { Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { FadeIn } from '../components/FadeIn'; // 👈 공통 애니메이션 컴포넌트 불러오기
+import { FadeIn } from '../components/FadeIn';
 import { ChartEmptyState, ChartHelpTooltip } from '../components/ChartElements';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
