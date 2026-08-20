@@ -110,12 +110,12 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
             <FadeIn as="header" delay={0} className="page-tab-header page-tab-header-after-news">
                 <div className="min-w-0">
                     <p className="page-tab-eyebrow">KOREA INDICATORS</p>
-                    <h2 className="page-tab-title">원화 관련 정책·거시 지표</h2>
+                    <h2 className="page-tab-title">경제지표</h2>
                     <p className="page-tab-description">금리, 물가, 무역수지, 외환보유액처럼 원화 흐름을 해석할 때 함께 보는 지표를 정리합니다.</p>
                 </div>
                 <div className="flex w-full min-w-0 items-center justify-end gap-3">
                     <div className="flex min-w-0 items-center gap-1.5">
-                        <ChartHelpTooltip ariaLabel="관련 지표 수집 정보" title="관련 지표 수집 정보" widthClassName="w-80">
+                        <ChartHelpTooltip ariaLabel="경제지표 수집 정보" title="경제지표 수집 정보" widthClassName="w-80">
                             <p className="mt-1">수집 지표 {collectedIndicators.length}개</p>
                             <p className="mt-1">{cleanLatestSyncLabel}</p>
                         </ChartHelpTooltip>
