@@ -74,6 +74,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   panelFooterText?: string;
   statusNode?: ReactNode;
   headerAction?: ReactNode;
+  chartAction?: ReactNode;
   headerActionPlacement?: 'header' | 'chartControls' | 'panel';
   headerStatus?: ReactNode;
   showLatestValueDot?: boolean;
@@ -99,6 +100,7 @@ export function MarketChartSection<T extends RangeKey>({
   panelDetails = [],
   panelFooterText,
   headerAction,
+  chartAction,
   headerActionPlacement = 'header',
   headerStatus,
   showLatestValueDot = false,
@@ -176,7 +178,7 @@ export function MarketChartSection<T extends RangeKey>({
     ? { width: chartPixelWidth, minWidth: '100%' }
     : undefined;
   const xDomainKey = `${xDomain[0]}:${xDomain[1]}`;
-  const chartTopAction = headerActionPlacement === 'chartControls' ? headerAction : null;
+  const chartTopAction = chartAction ?? (headerActionPlacement === 'chartControls' ? headerAction : null);
   const chartPlotTop = chartTopMarginPx + (chartTopAction ? 38 : 0);
   const effectiveYDomain = getExtremaPaddedYDomain({
     enabled: showExtremaLines,

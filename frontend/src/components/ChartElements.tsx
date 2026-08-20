@@ -151,9 +151,9 @@ export function LatestValueDot({ cx, cy }: { cx?: number; cy?: number }) {
 
   return (
     <g>
-      <circle className="latest-value-pulse" cx={cx} cy={cy} r={9} />
-      <circle className="latest-value-halo" cx={cx} cy={cy} r={5} />
-      <circle className="latest-value-core" cx={cx} cy={cy} r={3} />
+      <circle className="latest-value-pulse" cx={cx} cy={cy} r={13} />
+      <circle className="latest-value-halo" cx={cx} cy={cy} r={6.5} />
+      <circle className="latest-value-core" cx={cx} cy={cy} r={3.5} />
     </g>
   );
 }

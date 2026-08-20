@@ -1,15 +1,30 @@
 import React from 'react';
 import axios from 'axios';
-import type { NewsArticle } from '../types';
-
 type RelatedNewsBannerProps = {
-  topic: 'exchange' | 'indicators';
+  topic?: 'exchange' | 'indicators';
   actionSlot?: React.ReactNode;
+  articles?: RelatedBannerArticle[];
+  configured?: boolean;
+  desktopGroupSize?: 1 | 2 | 3;
+  label?: string;
 };
 
 type RelatedNewsResponse = {
   configured: boolean;
-  articles: NewsArticle[];
+  articles: RelatedBannerArticle[];
+};
+
+export type RelatedBannerArticle = {
+  title: string;
+  description?: string | null;
+  originLink?: string | null;
+  link?: string | null;
+  publisher?: string | null;
+  publishedAt?: string | null;
+  aiSummary?: string | null;
+  fetchedAt?: string | null;
+  imageUrl?: string | null;
+  categoryName?: string | null;
 };
 
 const topicLabels = {
@@ -23,10 +38,10 @@ const slideDurationMs = 420;
 const relatedNewsDisplayCount = 9;
 const relatedNewsRequestLimit = 30;
 const relatedNewsDesktopMediaQuery = '(min-width: 768px)';
-const relatedNewsCache = new Map<RelatedNewsBannerProps['topic'], RelatedNewsResponse>();
-const relatedNewsRequestCache = new Map<RelatedNewsBannerProps['topic'], Promise<RelatedNewsResponse>>();
+const relatedNewsCache = new Map<NonNullable<RelatedNewsBannerProps['topic']>, RelatedNewsResponse>();
+const relatedNewsRequestCache = new Map<NonNullable<RelatedNewsBannerProps['topic']>, Promise<RelatedNewsResponse>>();
 
-export function prefetchRelatedNews(topic: RelatedNewsBannerProps['topic']) {
+export function prefetchRelatedNews(topic: NonNullable<RelatedNewsBannerProps['topic']>) {
   const cached = relatedNewsCache.get(topic);
   if (cached) {
     return Promise.resolve(cached);
@@ -56,32 +71,33 @@ export function prefetchRelatedNews(topic: RelatedNewsBannerProps['topic']) {
   return request;
 }
 
-export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps) {
-  const cachedResponse = relatedNewsCache.get(topic);
-  const [articles, setArticles] = React.useState<NewsArticle[]>(cachedResponse?.articles ?? []);
-  const [isConfigured, setIsConfigured] = React.useState(cachedResponse?.configured ?? true);
+export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, configured, desktopGroupSize = 3, label, topic }: RelatedNewsBannerProps) {
+  const cachedResponse = topic ? relatedNewsCache.get(topic) : undefined;
+  const isControlled = controlledArticles !== undefined;
+  const [articles, setArticles] = React.useState<RelatedBannerArticle[]>(() => normalizeRelatedArticles(controlledArticles ?? cachedResponse?.articles ?? []));
+  const [isConfigured, setIsConfigured] = React.useState(configured ?? cachedResponse?.configured ?? true);
   const [activeGroup, setActiveGroup] = React.useState(0);
   const [previousGroup, setPreviousGroup] = React.useState<number | null>(null);
   const [slideDirection, setSlideDirection] = React.useState<SlideDirection>('next');
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isAutoPaused, setIsAutoPaused] = React.useState(false);
-  const [groupSize, setGroupSize] = React.useState(() => getResponsiveGroupSize());
+  const [groupSize, setGroupSize] = React.useState(() => getResponsiveGroupSize(desktopGroupSize));
   const manualPauseUntilRef = React.useRef(0);
   const animationTimerRef = React.useRef<number | null>(null);
-  const groupCount = Math.max(1, Math.floor(articles.length / groupSize));
+  const groupCount = Math.max(1, Math.ceil(articles.length / groupSize));
   const visibleArticles = getArticleGroup(articles, activeGroup, groupSize);
   const previousArticles = previousGroup === null ? [] : getArticleGroup(articles, previousGroup, groupSize);
 
   React.useEffect(() => {
     const mediaQuery = window.matchMedia(relatedNewsDesktopMediaQuery);
     const updateGroupSize = () => {
-      setGroupSize(mediaQuery.matches ? 3 : 1);
+      setGroupSize(mediaQuery.matches ? desktopGroupSize : 1);
     };
 
     updateGroupSize();
     mediaQuery.addEventListener('change', updateGroupSize);
     return () => mediaQuery.removeEventListener('change', updateGroupSize);
-  }, []);
+  }, [desktopGroupSize]);
 
   React.useEffect(() => {
     setActiveGroup((current) => Math.min(current, Math.max(0, groupCount - 1)));
@@ -90,6 +106,17 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
   }, [groupCount, groupSize]);
 
   React.useEffect(() => {
+    if (isControlled) {
+      setArticles(normalizeRelatedArticles(controlledArticles ?? []).slice(0, relatedNewsDisplayCount));
+      setIsConfigured(configured ?? true);
+      return;
+    }
+    if (!topic) {
+      setArticles([]);
+      setIsConfigured(configured ?? true);
+      return;
+    }
+
     let isMounted = true;
     const cached = relatedNewsCache.get(topic);
 
@@ -122,7 +149,7 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
     return () => {
       isMounted = false;
     };
-  }, [topic]);
+  }, [configured, controlledArticles, isControlled, topic]);
 
   React.useEffect(() => {
     if (groupCount <= 1) {
@@ -183,61 +210,59 @@ export function RelatedNewsBanner({ actionSlot, topic }: RelatedNewsBannerProps)
   };
 
   return (
-    <section className="related-news-banner mx-auto w-full" aria-label={topicLabels[topic]}>
+    <section className="related-news-banner mx-auto w-full" aria-label={label ?? (topic ? topicLabels[topic] : '관련 소식')}>
       <div className="relative">
         <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-200">
           {isAnimating && previousGroup !== null ? (
             <div className={`related-news-slide related-news-slide-exit related-news-slide-exit-${slideDirection}`}>
-              <RelatedNewsGroup articles={previousArticles} />
+              <RelatedNewsGroup articles={previousArticles} columns={groupSize} />
             </div>
           ) : null}
           <div className={isAnimating ? `related-news-slide related-news-slide-enter related-news-slide-enter-${slideDirection}` : undefined}>
-            <RelatedNewsGroup articles={visibleArticles} />
+            <RelatedNewsGroup articles={visibleArticles} columns={groupSize} />
           </div>
+          {groupCount > 1 ? (
+            <div className="related-news-controls absolute right-2 top-2 z-20 inline-flex rounded-full border border-zinc-200 bg-white/95 p-px text-zinc-700 shadow-sm backdrop-blur">
+              <button
+                aria-label="이전 뉴스"
+                className="grid h-6 w-6 place-items-center rounded-full text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={isAnimating}
+                onClick={() => moveGroup(-1, 'manual')}
+                type="button"
+              >
+                ‹
+              </button>
+              <button
+                aria-label={isAutoPaused ? '뉴스 자동 넘김 재개' : '뉴스 자동 넘김 일시정지'}
+                className="grid h-6 min-w-6 place-items-center rounded-full px-1 text-[10px] font-bold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+                onClick={() => setIsAutoPaused((current) => !current)}
+                type="button"
+              >
+                {isAutoPaused ? '▶' : 'Ⅱ'}
+              </button>
+              <button
+                aria-label="다음 뉴스"
+                className="grid h-6 w-6 place-items-center rounded-full text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={isAnimating}
+                onClick={() => moveGroup(1, 'manual')}
+                type="button"
+              >
+                ›
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
-      <div className="mt-2 flex min-h-6 items-center justify-between gap-3">
-        <div className="min-w-0">{actionSlot}</div>
-        {groupCount > 1 ? (
-          <div className="related-news-controls inline-flex rounded-full border border-zinc-200 bg-white p-px text-zinc-700 shadow-sm">
-            <button
-              aria-label="이전 뉴스"
-              className="grid h-6 w-6 place-items-center rounded-full text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-45"
-              disabled={isAnimating}
-              onClick={() => moveGroup(-1, 'manual')}
-              type="button"
-            >
-              ‹
-            </button>
-            <button
-              aria-label={isAutoPaused ? '뉴스 자동 넘김 재개' : '뉴스 자동 넘김 일시정지'}
-              className="grid h-6 min-w-6 place-items-center rounded-full px-1 text-[10px] font-bold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
-              onClick={() => setIsAutoPaused((current) => !current)}
-              type="button"
-            >
-              {isAutoPaused ? '▶' : 'Ⅱ'}
-            </button>
-            <button
-              aria-label="다음 뉴스"
-              className="grid h-6 w-6 place-items-center rounded-full text-sm font-semibold text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-45"
-              disabled={isAnimating}
-              onClick={() => moveGroup(1, 'manual')}
-              type="button"
-            >
-              ›
-            </button>
-          </div>
-        ) : <div />}
-      </div>
+      {actionSlot ? <div className="mt-2 min-w-0">{actionSlot}</div> : null}
     </section>
   );
 }
 
 type SlideDirection = 'next' | 'previous';
 
-function RelatedNewsGroup({ articles }: { articles: NewsArticle[] }) {
+function RelatedNewsGroup({ articles, columns }: { articles: RelatedBannerArticle[]; columns: number }) {
   return (
-    <div className="grid md:grid-cols-3">
+    <div className={columns >= 3 ? 'grid md:grid-cols-3' : columns === 2 ? 'grid md:grid-cols-2' : 'grid'}>
       {articles.map((article) => (
         <RelatedNewsCard article={article} key={getArticleIdentity(article)} />
       ))}
@@ -245,7 +270,7 @@ function RelatedNewsGroup({ articles }: { articles: NewsArticle[] }) {
   );
 }
 
-function RelatedNewsCard({ article }: { article: NewsArticle }) {
+function RelatedNewsCard({ article }: { article: RelatedBannerArticle }) {
   const articleUrl = article.link || article.originLink || '#';
   const summary = article.aiSummary || article.description || article.categoryName;
   const [hasImageError, setHasImageError] = React.useState(false);
@@ -275,7 +300,7 @@ function RelatedNewsCard({ article }: { article: NewsArticle }) {
       <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/85 via-zinc-950/45 to-zinc-950/10" />
       <div className="relative flex h-full flex-col justify-end p-3 text-white">
         <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold text-white/75">
-          <span className="rounded bg-white/15 px-1.5 py-0.5">{article.categoryName}</span>
+          <span className="rounded bg-white/15 px-1.5 py-0.5">{article.categoryName ?? article.publisher ?? '소식'}</span>
           <span>{formatCompactNewsDate(article.publishedAt)}</span>
         </div>
         <h2 className="line-clamp-2 text-sm font-semibold leading-5">{article.title}</h2>
@@ -306,7 +331,7 @@ function DefaultNewsImage() {
   );
 }
 
-function getArticleGroup(articles: NewsArticle[], group: number, groupSize: number) {
+function getArticleGroup(articles: RelatedBannerArticle[], group: number, groupSize: number) {
   return articles.slice(group * groupSize, group * groupSize + groupSize);
 }
 
@@ -317,9 +342,9 @@ function normalizeRelatedNewsResponse(response: RelatedNewsResponse): RelatedNew
   };
 }
 
-function normalizeRelatedArticles(articles: NewsArticle[]) {
+function normalizeRelatedArticles(articles: RelatedBannerArticle[]) {
   const seen = new Set<string>();
-  const normalizedArticles: NewsArticle[] = [];
+  const normalizedArticles: RelatedBannerArticle[] = [];
   for (const article of articles) {
     const url = canonicalizeArticleUrl(article.link || article.originLink || '');
     if (url && seen.has(url)) {
@@ -334,7 +359,7 @@ function normalizeRelatedArticles(articles: NewsArticle[]) {
   return normalizedArticles;
 }
 
-function getArticleIdentity(article: NewsArticle) {
+function getArticleIdentity(article: RelatedBannerArticle) {
   const url = canonicalizeArticleUrl(article.link || article.originLink || '');
   if (url) {
     return `url:${url}`;
@@ -370,7 +395,7 @@ function normalizeArticleTitle(value: string) {
     .toLowerCase();
 }
 
-function formatArticleDate(value: string | null) {
+function formatArticleDate(value?: string | null) {
   if (!value) {
     return '';
   }
@@ -378,15 +403,15 @@ function formatArticleDate(value: string | null) {
   return value.slice(0, 10);
 }
 
-function getResponsiveGroupSize() {
+function getResponsiveGroupSize(desktopGroupSize = 3) {
   if (typeof window === 'undefined') {
-    return 3;
+    return desktopGroupSize;
   }
 
-  return window.matchMedia(relatedNewsDesktopMediaQuery).matches ? 3 : 1;
+  return window.matchMedia(relatedNewsDesktopMediaQuery).matches ? desktopGroupSize : 1;
 }
 
-function formatCompactNewsDate(value: string | null) {
+function formatCompactNewsDate(value?: string | null) {
   if (!value) {
     return '-';
   }
