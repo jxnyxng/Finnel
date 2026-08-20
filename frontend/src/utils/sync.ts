@@ -193,7 +193,7 @@ export function getServiceUpdateInterval(activeTab: MainTabKey) {
   }
 
   if (activeTab === 'governmentBriefings') {
-    return '정부 정책 10분';
+    return '정책뉴스 10분';
   }
 
   return '뉴스 10분';

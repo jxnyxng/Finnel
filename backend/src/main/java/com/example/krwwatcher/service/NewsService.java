@@ -35,6 +35,7 @@ public class NewsService {
     private static final int NEWS_RETENTION_YEARS = 5;
     private static final int NEWS_PAGE_SIZE = 10;
     private static final int MIN_BACKFILL_ARTICLES = 250;
+    private static final int MAX_SEARCH_KEYWORD_LENGTH = 80;
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private static final List<NewsCategory> CATEGORIES = List.of(
@@ -173,7 +174,8 @@ public class NewsService {
     }
 
     public NewsResponse latest(String categoryCode, LocalDate fromDate, LocalDate toDate, String keyword, int page, int pageSize) {
-        NewsArticleSearchCriteria criteria = new NewsArticleSearchCriteria(categoryCode, fromDate, toDate, keyword);
+        String normalizedKeyword = normalizeSearchKeyword(keyword);
+        NewsArticleSearchCriteria criteria = new NewsArticleSearchCriteria(categoryCode, fromDate, toDate, normalizedKeyword);
         int normalizedPage = Math.max(1, page);
         int normalizedPageSize = Math.max(1, Math.min(pageSize, NEWS_PAGE_SIZE));
         int offset = (normalizedPage - 1) * normalizedPageSize;
@@ -202,7 +204,7 @@ public class NewsService {
         FreshnessInfo freshness = contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt);
         return new NewsResponse(
             naverNewsClient.isConfigured(),
-            categories(fromDate, toDate, keyword),
+            categories(fromDate, toDate, normalizedKeyword),
             articles,
             normalizedPage,
             normalizedPageSize,
@@ -570,8 +572,8 @@ public class NewsService {
             params.add(criteria.toDate().plusDays(1).atStartOfDay(SEOUL_ZONE).toInstant());
         }
         if (StringUtils.hasText(criteria.keyword())) {
-            String keywordPattern = "%" + criteria.keyword().trim() + "%";
-            conditions.add("(title LIKE ? OR description LIKE ?)");
+            String keywordPattern = "%" + escapeLikePattern(criteria.keyword()) + "%";
+            conditions.add("(title LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!')");
             params.add(keywordPattern);
             params.add(keywordPattern);
         }
@@ -599,6 +601,24 @@ public class NewsService {
             rs.getTimestamp("fetched_at").toInstant(),
             rs.getString("image_url")
         );
+    }
+
+    private String normalizeSearchKeyword(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        String normalized = keyword.trim();
+        if (normalized.length() <= MAX_SEARCH_KEYWORD_LENGTH) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_SEARCH_KEYWORD_LENGTH);
+    }
+
+    private String escapeLikePattern(String value) {
+        return value
+            .replace("!", "!!")
+            .replace("%", "!%")
+            .replace("_", "!_");
     }
 
     private void pruneNewsBefore(Instant cutoff) {
