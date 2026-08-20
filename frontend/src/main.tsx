@@ -21,7 +21,7 @@ import { GoogleAdSlot } from './components/AdSlot';
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
-import { RelatedNewsBanner, prefetchRelatedNews } from './components/RelatedNewsBanner';
+import { prefetchRelatedNews } from './components/RelatedNewsBanner';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
 import { GovernmentBriefingsPage as GovernmentBriefingsPageView } from './pages/GovernmentBriefingsPage';
@@ -172,9 +172,11 @@ function App() {
     const [governmentBriefingsSyncStatus, setGovernmentBriefingsSyncStatus] = React.useState<ContentSyncStatus | null>(null);
     const [nowMs, setNowMs] = React.useState(() => Date.now());
     const [isExchangeGuideOpen, setIsExchangeGuideOpen] = React.useState(false);
+    const [homeResetKey, setHomeResetKey] = React.useState(0);
     const isMainAppPage = activePage === 'home' || mainTabs.some((tab) => tab.key === activePage);
     const mainTabNavRef = React.useRef<HTMLElement | null>(null);
     const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
+    const tabSwipeStartRef = React.useRef<{ x: number; y: number } | null>(null);
     const activeDollarIndexTabKey: DollarIndexTabKey = showBroadDollarIndex ? 'broad' : 'advanced';
 
     const navigatePage = React.useCallback((page: PageKey, options: { replace?: boolean; scroll?: boolean } = {}) => {
@@ -202,9 +204,49 @@ function App() {
         }
     }, []);
 
-    const goDashboard = React.useCallback(() => navigatePage('dashboard'), [navigatePage]);
-    const navigateMainTab = React.useCallback((tabKey: MainTabKey) => navigatePage(tabKey), [navigatePage]);
+    const handleBrandClick = React.useCallback(() => {
+        navigatePage('home', { replace: window.location.pathname === pageRoutes.home, scroll: false });
+        setHomeResetKey((current) => current + 1);
+        window.scrollTo({ top: 0, behavior: 'auto' });
+    }, [navigatePage]);
 
+    const goDashboard = React.useCallback(() => navigatePage('todayFlow'), [navigatePage]);
+    const navigateMainTab = React.useCallback((tabKey: MainTabKey) => navigatePage(tabKey), [navigatePage]);
+    const navigateAdjacentMainTab = React.useCallback((direction: -1 | 1) => {
+        const activeKey = getMainTabKey(activePage);
+        if (!activeKey) {
+            return;
+        }
+        const currentIndex = mainTabs.findIndex((tab) => tab.key === activeKey);
+        const nextTab = mainTabs[currentIndex + direction];
+        if (nextTab) {
+            navigateMainTab(nextTab.key);
+        }
+    }, [activePage, navigateMainTab]);
+
+    const handleTabSwipeStart = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
+        if (!isMainAppPage || shouldIgnoreTabSwipe(event.target)) {
+            tabSwipeStartRef.current = null;
+            return;
+        }
+        const touch = event.touches[0];
+        tabSwipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+    }, [isMainAppPage]);
+
+    const handleTabSwipeEnd = React.useCallback((event: React.TouchEvent<HTMLElement>) => {
+        const start = tabSwipeStartRef.current;
+        tabSwipeStartRef.current = null;
+        if (!start || !isMainAppPage || shouldIgnoreTabSwipe(event.target)) {
+            return;
+        }
+        const touch = event.changedTouches[0];
+        const deltaX = touch.clientX - start.x;
+        const deltaY = touch.clientY - start.y;
+        if (Math.abs(deltaX) < 72 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) {
+            return;
+        }
+        navigateAdjacentMainTab(deltaX < 0 ? 1 : -1);
+    }, [isMainAppPage, navigateAdjacentMainTab]);
     React.useEffect(() => {
         window.history.replaceState({ page: activePage }, '', pageRoutes[activePage]);
 
@@ -692,7 +734,7 @@ function App() {
         : `기준 환율 일별 · 최신 ${latestUsdKrwPoint?.dateValue.slice(0, 10) ?? '-'} · ${marketDailyStatus.label}`;
     const exchangeGuideButton = (
         <button
-            className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+            className="inline-flex h-7 shrink-0 items-center justify-center border border-transparent px-1.5 text-[12px] font-bold leading-none text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
             onClick={() => setIsExchangeGuideOpen(true)}
             type="button"
         >
@@ -806,37 +848,35 @@ function App() {
         }
       `}</style>
 
-            <header className="py-1.5 sm:pb-0 sm:pt-2">
-                <div className="mx-auto grid w-full max-w-[82rem] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-3 sm:px-4 xl:min-h-[48px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:gap-x-3">
+            <header className="py-1.5 sm:pb-1 sm:pt-2">
+                <div className="mx-auto grid w-full max-w-[82rem] grid-cols-1 items-center justify-items-center gap-x-2 gap-y-1 px-3 sm:px-4 xl:min-h-[48px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:justify-items-stretch xl:gap-x-3">
                     <button
-                        className="brand-lockup col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-start gap-0.5 py-0.5 xl:gap-1"
-                        onClick={() => navigatePage('home')}
+                        className="brand-lockup col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-center gap-2 py-0.5 xl:justify-start xl:gap-2.5"
+                        onClick={handleBrandClick}
                         type="button"
                     >
                         <img
                             alt=""
                             aria-hidden="true"
-                            className="brand-logo-mark h-[2.95rem] w-[2.95rem] shrink-0 lg:h-[3.5rem] lg:w-[3.5rem]"
-                            src="/assets/finnel_logo_rounded_final_deepnavy.svg"
+                            className="brand-logo-mark h-[2.05rem] w-[2.05rem] shrink-0 lg:h-[2.35rem] lg:w-[2.35rem]"
+                            src="/assets/finnel_logo_rounded_final_deepnavy_withBG.svg"
                         />
-                        <span className="flex min-w-0 items-baseline gap-1.5">
-              <span className="brand-name-ko truncate text-[1.18rem] leading-none lg:text-[1.32rem]">핀넬</span>
-              <span className="brand-name-en text-[1.18rem] leading-none lg:text-[1.32rem]">
+                        <span className="flex min-w-0 items-center">
+              <span className="brand-name-en text-[1.22rem] leading-none lg:text-[1.38rem]">
                 <span className="brand-name-en-accent">fin</span>nel.kr
               </span>
             </span>
                     </button>
-                    {isMainAppPage ? (
-                        <div className="col-start-2 row-start-1 flex justify-end xl:col-start-3">
-                            <ForeignExchangeTicker emptyMessage={dashboardEmptyText} rates={foreignExchangeRates} />
-                        </div>
-                    ) : null}
                 </div>
             </header>
-            <section className={`mx-auto flex w-full max-w-[82rem] flex-col px-3 pb-2 pt-0 sm:px-4 sm:pb-3 sm:pt-0 ${activePage === 'home' ? 'gap-0' : 'gap-1 sm:gap-2'}`}>
+            <section
+                className={`mx-auto flex w-full max-w-[82rem] flex-col px-3 pb-2 pt-0 sm:px-4 sm:pb-3 sm:pt-0 ${activePage === 'home' ? 'gap-0' : 'gap-1 sm:gap-2'}`}
+                onTouchEnd={handleTabSwipeEnd}
+                onTouchStart={handleTabSwipeStart}
+            >
                 {isMainAppPage ? (
                     <nav
-                        className="scrollbar-none relative flex w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 pb-1 pt-1.5 sm:pt-2"
+                        className="scrollbar-none relative flex w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 pb-2 pt-1.5 sm:pb-2.5 sm:pt-2"
                         aria-label="주요 화면"
                         ref={mainTabNavRef}
                     >
@@ -863,23 +903,12 @@ function App() {
                 {activePage === 'home' ? (
                     <FadeIn>
                         <HomePageView
+                            key={homeResetKey}
                             calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
                             currencyStrengthRanks={currencyStrengthRanks}
                             rates={foreignExchangeRates}
                             onGoDashboard={goDashboard}
                         />
-                    </FadeIn>
-                ) : null}
-
-                {activePage === 'dashboard' ? (
-                    <FadeIn delay={0}>
-                        <RelatedNewsBanner topic="exchange" />
-                    </FadeIn>
-                ) : null}
-
-                {activePage === 'koreaStatus' ? (
-                    <FadeIn delay={0}>
-                        <RelatedNewsBanner topic="indicators" />
                     </FadeIn>
                 ) : null}
 
@@ -895,17 +924,21 @@ function App() {
                             newsArticles={newsArticles}
                             newsConfigured={!hasNewsLoaded || isNewsConfigured}
                             newsSyncStatus={newsSyncStatus}
+                            foreignExchangeRates={foreignExchangeRates}
                             statusNode={activeStatusNode}
                         />
                     </FadeIn>
                 ) : null}
 
                 {activePage === 'dashboard' ? (
-                    <FadeIn as="header" className="page-tab-header page-tab-header-after-news page-tab-header-no-divider page-content-enter">
-                        <div className="min-w-0">
+                    <FadeIn as="header" className="page-tab-header page-tab-header-no-divider page-content-enter">
+                        <div className="min-w-0 md:col-span-2">
                             <p className="page-tab-eyebrow">FX DASHBOARD</p>
-                            <h2 className="page-tab-title">환율 현황</h2>
-                            <p className="page-tab-description">원/달러 환율과 달러 지수를 함께 보며 오늘 원화 흐름의 위치와 달러 강도를 확인합니다.</p>
+                            <h2 className="page-tab-title">환율현황</h2>
+                            <div className="mt-1 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="page-tab-description m-0 max-w-none">원/달러 환율과 달러지수의 차트, 기준값, 기간별 변동 정보를 제공합니다.</p>
+                                {exchangeGuideButton}
+                            </div>
                         </div>
                         {activeStatusNode ? (
                             <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
@@ -920,11 +953,9 @@ function App() {
                         <MarketChartSection
                             emptyText={dashboardEmptyText}
                             candlestickSeries={visibleUsdKrwCandles}
+                            chartAction={usdKrwChartDisplayControl}
                             chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
                             desktopAdSlot={chartAdSlots.usdKrwDesktop}
-                            headerAction={exchangeGuideButton}
-                            titleAction={usdKrwChartDisplayControl}
-                            headerActionPlacement="header"
                             headerStatus={usdKrwStatusNode}
                             helpAriaLabel="USD/KRW 그래프 안내"
                             helpContent={(
@@ -936,7 +967,7 @@ function App() {
                             helpTitle="USD/KRW 그래프"
                             hover={activeUsdKrwHover}
                             lineStroke="#18a999"
-                            lineStrokeWidth={1.25}
+                            lineStrokeWidth={1.75}
                             metric={usdKrwMetric}
                             mobileAdSlot={chartAdSlots.usdKrwMobile}
                             onHoverChange={setActiveUsdKrwHover}
@@ -982,7 +1013,7 @@ function App() {
                             helpWidthClassName="w-80"
                             hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
                             lineStroke="#18a999"
-                            lineStrokeWidth={1.25}
+                            lineStrokeWidth={1.75}
                             keepHeaderSingleLineOnMobile
                             metric={activeDollarIndexMetric}
                             mobileAdSlot={chartAdSlots.dollarIndexMobile}
@@ -1129,6 +1160,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </React.StrictMode>
 );
 
+function shouldIgnoreTabSwipe(target: EventTarget | null) {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+    return Boolean(target.closest(
+        'a, button, input, select, textarea, [role="button"], .chart-grid-surface, .related-news-banner, .calculator-tab-layout'
+    ));
+}
+
 function CalculatorPage({
                             calculatorMeta,
                             rates
@@ -1141,7 +1181,7 @@ function CalculatorPage({
             <header className="page-tab-header">
                 <div className="min-w-0">
                     <p className="page-tab-eyebrow">CALCULATORS</p>
-                    <h2 className="page-tab-title">환전 계산</h2>
+                    <h2 className="page-tab-title">환전계산기</h2>
                     <p className="page-tab-description">
                         수수료와 은행별 스프레드를 제외한 기준 환율로 환전 금액과 환차익을 계산합니다.
                     </p>
@@ -1479,11 +1519,11 @@ function ExchangeRateConversionCalculator({
         <>
             <div className="calculator-card-header flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3">
                 <div className="min-w-0">
-                    <h2 className="calculator-card-title">환전 계산기</h2>
+                    <h2 className="calculator-card-title">환전계산기</h2>
                     <p className="calculator-card-description">현재 기준 환율로 환전 금액을 계산합니다.</p>
                 </div>
                 {onClose ? <button
-                    aria-label="환전 계산기 닫기"
+                    aria-label="환전계산기 닫기"
                     className="grid h-7 w-7 shrink-0 place-items-center rounded border border-zinc-200 bg-zinc-50 text-sm font-semibold text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
                     onClick={onClose}
                     type="button"

@@ -117,7 +117,7 @@ export function NewsroomPage({
             <FadeIn as="header" delay={0} className="page-tab-header">
                 <div className="min-w-0">
                     <p className="page-tab-eyebrow">NEWSROOM</p>
-                    <h2 className="page-tab-title">뉴스 검색</h2>
+                    <h2 className="page-tab-title">뉴스룸</h2>
                     <p className="page-tab-description">네이버 뉴스 검색 API에서 환율·원화 관련 기사를 수집해 최신 시장 이슈를 확인합니다.</p>
                 </div>
                 <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">

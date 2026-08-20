@@ -45,6 +45,7 @@ public class GovernmentBriefingService {
         .map(BriefingCategoryRule::code)
         .toList();
     private static final int MIN_BODY_LENGTH = 300;
+    private static final int MAX_SEARCH_KEYWORD_LENGTH = 80;
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private final PolicyBriefingClient policyBriefingClient;
@@ -259,8 +260,8 @@ public class GovernmentBriefingService {
             params.add(toDate.plusDays(1).atStartOfDay(SEOUL_ZONE).toInstant());
         }
         if (StringUtils.hasText(keyword)) {
-            String pattern = "%" + keyword.trim() + "%";
-            conditions.add("(title LIKE ? OR subtitle LIKE ? OR body LIKE ?)");
+            String pattern = "%" + escapeLikePattern(normalizeSearchKeyword(keyword)) + "%";
+            conditions.add("(title LIKE ? ESCAPE '!' OR subtitle LIKE ? ESCAPE '!' OR body LIKE ? ESCAPE '!')");
             params.add(pattern);
             params.add(pattern);
             params.add(pattern);
@@ -306,6 +307,24 @@ public class GovernmentBriefingService {
                 countByCode.getOrDefault(rule.code(), 0)
             ))
             .toList();
+    }
+
+    private String normalizeSearchKeyword(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        String normalized = keyword.trim();
+        if (normalized.length() <= MAX_SEARCH_KEYWORD_LENGTH) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_SEARCH_KEYWORD_LENGTH);
+    }
+
+    private String escapeLikePattern(String value) {
+        return value
+            .replace("!", "!!")
+            .replace("%", "!%")
+            .replace("_", "!_");
     }
 
     private int upsertRelevantBriefing(PolicyBriefingClient.PolicyBriefingPayload payload) {
