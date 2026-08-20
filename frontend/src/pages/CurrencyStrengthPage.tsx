@@ -63,7 +63,7 @@ export function CurrencyStrengthPage({
             <FadeIn as="header" className="page-tab-header" delay={0}>
                 <div className="min-w-0">
                     <p className="page-tab-eyebrow">CURRENCY RANKING</p>
-                    <h2 className="page-tab-title mt-0">화폐 랭킹</h2>
+                    <h2 className="page-tab-title mt-0">화폐랭킹</h2>
                     <p className="page-tab-description">
                         주요 통화의 상대 강도를 BIS broad NEER 기준으로 비교합니다.
                         <br/>
@@ -95,7 +95,7 @@ export function CurrencyStrengthPage({
                                     <p className="min-w-0 text-xs font-medium text-zinc-500">
                                         전체 {sortedRanks.length}개 지역 · {sortMode === 'strong' ? '강세 순 정렬' : '약세 순 정렬'}
                                     </p>
-                                    <ChartHelpTooltip ariaLabel="화폐 랭킹 안내" title="화폐 랭킹 기준" widthClassName="w-80">
+                                    <ChartHelpTooltip ariaLabel="화폐랭킹 안내" title="화폐랭킹 기준" widthClassName="w-80">
                                         {rankingHelpContent}
                                     </ChartHelpTooltip>
                                 </div>

@@ -44,7 +44,7 @@ export function GovernmentBriefingsPage({
     const [draftFilters, setDraftFilters] = React.useState(filters);
     const [isFilterOpen, setIsFilterOpen] = React.useState(false);
     const [selectedArticle, setSelectedArticle] = React.useState<GovernmentBriefingArticle | null>(null);
-    const [contentTheme, setContentTheme] = React.useState<BriefingContentThemeKey>('paper');
+    const [contentTheme, setContentTheme] = React.useState<BriefingContentThemeKey>('dark');
     const categoryScrollerRef = React.useRef<HTMLDivElement | null>(null);
     const categoryTabs = React.useMemo(
         () => [
@@ -121,7 +121,7 @@ export function GovernmentBriefingsPage({
             <FadeIn as="header" className="page-tab-header" delay={0}>
                 <div className="min-w-0">
                     <p className="page-tab-eyebrow">GOVERNMENT POLICY</p>
-                    <h2 className="page-tab-title">정부 정책</h2>
+                    <h2 className="page-tab-title">정책뉴스</h2>
                     <p className="page-tab-description">대한민국 정책브리핑 공개 API에서 수집한 정부 부처 공식 발표입니다. 원문 링크와 발행일을 함께 보존해 출처를 확인할 수 있습니다.</p>
                     <p className="mt-1 text-xs font-medium text-zinc-500">평일 공개 자료를 기준으로 업데이트합니다.</p>
                 </div>
@@ -184,7 +184,7 @@ export function GovernmentBriefingsPage({
             </FadeIn>
 
             {/* 3. 카테고리 네비게이션: 0.2초 등장 */}
-            <FadeIn as="nav" className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 sm:block" aria-label="정부 정책 카테고리" delay={0.2}>
+            <FadeIn as="nav" className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 sm:block" aria-label="정책뉴스 카테고리" delay={0.2}>
                 <CategoryScrollButton direction="left" onClick={() => scrollCategories(-1)} />
                 <div className="glass-card flex min-w-0 items-stretch rounded-full p-0.5 shadow-sm sm:items-center sm:justify-between">
                     <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden" ref={(node) => {
@@ -222,11 +222,11 @@ export function GovernmentBriefingsPage({
                 {!configured ? (
                     <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
                 ) : isLoading && articles.length === 0 ? (
-                    <div className="grid min-h-40 place-items-center text-sm text-white/45">정부 정책을 불러오는 중입니다.</div>
+                    <div className="grid min-h-40 place-items-center text-sm text-white/45">정책뉴스를 불러오는 중입니다.</div>
                 ) : isPendingInitialLoad ? (
                     <div className="min-h-40" />
                 ) : articles.length === 0 ? (
-                    <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정부 정책이 없습니다.</div>
+                    <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정책뉴스가 없습니다.</div>
                 ) : (
                     <div className="grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
                         {articles.map((article, index) => {
@@ -462,9 +462,9 @@ const briefingContentThemes: Array<{
     checkClassName: string;
     swatchClassName: string;
 }> = [
+    { key: 'dark', label: '회색 본문', checkClassName: 'text-zinc-900', swatchClassName: 'bg-zinc-200' },
     { key: 'paper', label: '흰색 본문', checkClassName: 'text-stone-900', swatchClassName: 'bg-[#f2eee2]' },
-    { key: 'memo', label: '노란색 본문', checkClassName: 'text-stone-900', swatchClassName: 'bg-[#e4d59a]' },
-    { key: 'dark', label: '회색 본문', checkClassName: 'text-zinc-900', swatchClassName: 'bg-zinc-200' }
+    { key: 'memo', label: '노란색 본문', checkClassName: 'text-stone-900', swatchClassName: 'bg-[#e4d59a]' }
 ];
 
 function getBriefingContentThemeClassName(theme: BriefingContentThemeKey) {
@@ -540,9 +540,7 @@ function GovernmentBriefingModal({
                                 </div>
                                 <h3 className="mt-2 text-lg font-semibold leading-7 text-white md:text-xl md:leading-8">{article.title}</h3>
                                 {article.subtitle ? <p className="mt-2 text-sm leading-6 text-white/65">{article.subtitle}</p> : null}
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                                <div className="flex items-center gap-1" aria-label="본문 색상">
+                                <div className="mt-3 flex items-center gap-1.5" aria-label="본문 색상">
                                     {briefingContentThemes.map((theme) => (
                                         <button
                                             aria-label={theme.label}
@@ -560,14 +558,15 @@ function GovernmentBriefingModal({
                                         </button>
                                     ))}
                                 </div>
-                                <button
-                                    className="h-7 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
-                                    onClick={onClose}
-                                    type="button"
-                                >
-                                    닫기
-                                </button>
                             </div>
+                            <button
+                                aria-label="정책뉴스 닫기"
+                                className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-zinc-200 bg-white text-lg font-semibold leading-none text-zinc-500 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-950"
+                                onClick={onClose}
+                                type="button"
+                            >
+                                ×
+                            </button>
                         </div>
                         <div className={`mx-auto mt-4 max-w-2xl rounded-2xl px-4 py-4 text-sm font-medium leading-7 shadow-sm md:px-5 md:py-5 ${contentThemeClassName}`}>
                             {briefingContent.bodyParagraphs.map((paragraph, index) => (
@@ -667,7 +666,7 @@ function InfiniteLoadMarker({
 
     return (
         <div className="mt-4 grid min-h-12 place-items-center border-t border-white/10 pt-4 text-xs font-semibold text-white/45" ref={markerRef}>
-            {isLoading ? '정부 정책을 더 불러오는 중입니다.' : hasMore ? '아래로 스크롤하면 더 불러옵니다.' : '마지막 정부 정책입니다.'}
+            {isLoading ? '정책뉴스를 더 불러오는 중입니다.' : hasMore ? '아래로 스크롤하면 더 불러옵니다.' : '마지막 정책뉴스입니다.'}
         </div>
     );
 }

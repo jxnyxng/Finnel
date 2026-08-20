@@ -27,14 +27,14 @@ export const specialAreaDisplays: Record<string, { name: string; flag: string }>
 };
 
 export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
-  { key: 'todayFlow', label: '오늘 흐름' },
-  { key: 'dashboard', label: '환율 현황' },
-  { key: 'calculator', label: '환전 계산' },
-  { key: 'koreaStatus', label: '관련 지표' },
-  { key: 'newsroom', label: '뉴스 검색' },
-  { key: 'governmentBriefings', label: '정부 정책' },
-  { key: 'ranking', label: '화폐 랭킹' },
-  { key: 'dataSources', label: '데이터 출처' }
+  { key: 'todayFlow', label: '대시보드' },
+  { key: 'dashboard', label: '환율현황' },
+  { key: 'governmentBriefings', label: '정책뉴스' },
+  { key: 'koreaStatus', label: '경제지표' },
+  { key: 'newsroom', label: '뉴스룸' },
+  { key: 'ranking', label: '화폐랭킹' },
+  { key: 'calculator', label: '환전계산기' },
+  { key: 'dataSources', label: '출처' }
 ];
 
 export const pageRoutes: Record<PageKey, string> = {

@@ -17,7 +17,7 @@ export function DataSourceGuide({ dataSources }: { dataSources: DataSourceInfo[]
       <header className="page-tab-header">
         <div className="min-w-0">
           <p className="page-tab-eyebrow">DATA SOURCES</p>
-          <h2 className="page-tab-title">데이터 출처</h2>
+          <h2 className="page-tab-title">출처</h2>
           <p className="page-tab-description">
             Finnel은 화면에서 외부 서비스를 직접 호출하지 않습니다. 서버 수집 작업이 아래 공개 API와 데이터 파일에서 값을 가져와 저장하고, 화면은 저장된 최신 값을 조회합니다.
           </p>

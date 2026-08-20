@@ -7,8 +7,8 @@ const slides = [
     {
         eyebrow: 'FINNEL DATA BOARD',
         title: '경제·금융 데이터를 한 화면에서 읽으세요.',
-        body: ['환율, 달러 지수, 관련 지표, 화폐 랭킹, 뉴스를 연결해 보여줍니다.', '흩어진 데이터를 Finnel 안에서 순서대로 확인할 수 있습니다.'],
-        action: ['환율 현황에서 오늘의 USD/KRW 흐름을 먼저 확인해보세요.'],
+        body: ['환율, 달러 지수, 경제지표, 화폐랭킹, 뉴스를 연결해 보여줍니다.', '흩어진 데이터를 Finnel 안에서 순서대로 확인할 수 있습니다.'],
+        action: ['환율 탭에서 오늘의 USD/KRW 흐름을 먼저 확인해보세요.'],
         placement: 'items-start text-left',
         imagePosition: 'center center'
     },
@@ -24,15 +24,15 @@ const slides = [
         eyebrow: 'READ THE CONTEXT',
         title: '환율 뒤에 있는 지표를 함께 보세요.',
         body: ['금리, 물가, 외환보유액, 무역수지, 자본 흐름을 함께 확인합니다.', '이 지표들은 원화의 체력을 판단하는 단서가 됩니다.'],
-        action: ['관련 지표에서 외환 방어력과 자본 흐름을 점검해보세요.'],
+        action: ['경제지표에서 외환 방어력과 자본 흐름을 점검해보세요.'],
         placement: 'items-start text-left',
         imagePosition: 'center center'
     },
     {
         eyebrow: 'CHECK RELATIVE WEAKNESS',
         title: '원화가 유독 약한지도 확인하세요.',
-        body: ['BIS broad NEER 화폐 랭킹은 원화의 상대 위치를 보여줍니다.', 'USD/KRW 하나만 볼 때 놓치는 신호를 보완합니다.'],
-        action: ['화폐 랭킹에서 원화의 상대 위치를 확인해보세요.'],
+        body: ['BIS broad NEER 화폐랭킹은 원화의 상대 위치를 보여줍니다.', 'USD/KRW 하나만 볼 때 놓치는 신호를 보완합니다.'],
+        action: ['화폐랭킹에서 원화의 상대 위치를 확인해보세요.'],
         placement: 'items-end text-right',
         imagePosition: 'right center'
     }
@@ -40,10 +40,10 @@ const slides = [
 
 export function ServiceGuidePage() {
     return (
-        <section className="relative left-1/2 -my-3 w-screen -translate-x-1/2 overflow-hidden">
+        <section className="service-guide-page relative left-1/2 -my-3 w-screen -translate-x-1/2 overflow-hidden">
             {slides.map((slide, index) => (
                 <section
-                    className="relative h-[calc(100dvh-4.75rem)] min-h-[34rem] overflow-hidden bg-zinc-50"
+                    className="service-guide-slide relative overflow-hidden bg-zinc-50"
                     key={slide.title}
                 >
                     <div

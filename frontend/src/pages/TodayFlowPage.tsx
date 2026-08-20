@@ -1,17 +1,19 @@
 import React from 'react';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { RelatedNewsBanner, type RelatedBannerArticle } from '../components/RelatedNewsBanner';
 import type {
     ContentSyncStatus,
     DailyDashboardResponse,
     DomesticIndicator,
+    ForeignExchangeRate,
     FreshnessStatus,
     GovernmentBriefingArticle,
     MetricSnapshot,
     NewsArticle,
     TimeSeriesPoint
 } from '../types';
-import { formatMetricUnit, formatMetricValue, formatValue } from '../utils/format';
-import { formatDateTime, getSeoulDateString } from '../utils/time';
+import { formatMetricValue, formatValue } from '../utils/format';
+import { getSeoulDateString } from '../utils/time';
 
 type TodayFlowPageProps = {
     dashboard: DailyDashboardResponse | null;
@@ -20,6 +22,7 @@ type TodayFlowPageProps = {
     governmentBriefings: GovernmentBriefingArticle[];
     governmentBriefingsConfigured: boolean;
     governmentBriefingsSyncStatus: ContentSyncStatus | null;
+    foreignExchangeRates: ForeignExchangeRate[];
     newsArticles: NewsArticle[];
     newsConfigured: boolean;
     newsSyncStatus: ContentSyncStatus | null;
@@ -33,13 +36,13 @@ export function TodayFlowPage({
                                   dashboard,
                                   dashboardEmptyText,
                                   dashboardLoadState,
+                                  foreignExchangeRates,
                                   governmentBriefings,
                                   governmentBriefingsConfigured,
                                   governmentBriefingsSyncStatus,
                                   newsArticles,
                                   newsConfigured,
-                                  newsSyncStatus,
-                                  statusNode
+                                  newsSyncStatus
                               }: TodayFlowPageProps) {
     const today = getSeoulDateString(new Date());
     const metrics = dashboard?.metrics ?? [];
@@ -52,8 +55,9 @@ export function TodayFlowPage({
     const usdKrwPosition = getPositionBand(dashboard?.usdKrwSeries ?? [], usdKrwMetric?.value ?? null);
     const usdKrwThreeMonthPosition = getPositionBand((dashboard?.usdKrwSeries ?? []).slice(-66), usdKrwMetric?.value ?? null);
     const recentIndicators = getRecentIndicators(dashboard?.domesticIndicators ?? []);
-    const latestNews = sortByRecent(newsArticles).slice(0, 4);
-    const latestBriefings = sortByRecent(governmentBriefings).slice(0, 4);
+    const latestNews = React.useMemo(() => sortByRecent(newsArticles).slice(0, 6), [newsArticles]);
+    const latestBriefings = React.useMemo(() => sortByRecent(governmentBriefings).slice(0, 6), [governmentBriefings]);
+    const todayBriefingCount = governmentBriefings.filter((article) => isToday(article.publishedAt ?? article.fetchedAt, today)).length;
     const hasTodayNews = latestNews.some((article) => isToday(article.publishedAt ?? article.fetchedAt, today));
     const hasTodayBriefing = latestBriefings.some((article) => isToday(article.publishedAt ?? article.fetchedAt, today));
     const staleSignals = getStaleSignals(dashboard?.freshnessStatus ?? null, newsSyncStatus, governmentBriefingsSyncStatus);
@@ -66,21 +70,15 @@ export function TodayFlowPage({
         usdKrwDirection,
         usdKrwPosition
     });
-    const threeMonthScore = getPositionScore(usdKrwThreeMonthPosition);
-    const newsFeed = latestNews.slice(0, 2).map((article) => ({
-        href: article.originLink || article.link,
-        kind: '뉴스',
-        meta: `${article.publisher ?? article.categoryName} · ${formatMaybeDate(article.publishedAt)}`,
-        title: article.title
-    }));
-    const policyFeed = latestBriefings.slice(0, 2).map((article) => ({
-        href: article.originalUrl,
-        kind: '정책',
-        meta: `${article.ministry ?? article.category ?? '정부 정책'} · ${formatMaybeDate(article.publishedAt)}`,
-        title: article.title
-    }));
-    const combinedFeedCount = newsFeed.length + policyFeed.length;
-
+    const activeDollarSeries = dashboard?.dollarIndexSeries?.length
+        ? dashboard.dollarIndexSeries
+        : dashboard?.dxyIndexSeries ?? [];
+    const previousDollarPoint = activeDollarSeries.length >= 2 ? activeDollarSeries[activeDollarSeries.length - 2] : null;
+    const latestDollarPoint = activeDollarSeries[activeDollarSeries.length - 1] ?? null;
+    const newsBannerArticles: RelatedBannerArticle[] = React.useMemo(() => latestNews.map((article) => ({
+        ...article,
+        categoryName: article.categoryName || '뉴스'
+    })), [latestNews]);
     // 애니메이션용 인라인 스타일 헬퍼
     const fadeUpStyle = (delay: string) => ({
         opacity: 0,
@@ -97,92 +95,56 @@ export function TodayFlowPage({
         }
       `}</style>
 
-            <header className="page-tab-header" style={fadeUpStyle('0')}>
+            <header className="page-tab-header today-flow-header" style={fadeUpStyle('0')}>
                 <div className="min-w-0">
-                    <p className="page-tab-eyebrow">TODAY FLOW</p>
-                    <h2 className="page-tab-title">오늘 흐름</h2>
-                    <p className="page-tab-description">오늘의 환율, 달러, 지표, 소식 흐름을 빠르게 확인하세요</p>
-                </div>
-                <div className="flex min-w-0 items-start justify-start gap-2 pt-5 md:justify-end">
-                    {statusNode ? <div className="min-w-0">{statusNode}</div> : null}
+                    {newsConfigured && newsBannerArticles.length > 0 ? (
+                        <RelatedNewsBanner articles={newsBannerArticles} configured={newsConfigured} desktopGroupSize={3} label="뉴스룸 배너" />
+                    ) : (
+                        <EmptyState text={newsConfigured ? '최근 뉴스 수집 대기' : '뉴스 수집 설정 확인 중'} />
+                    )}
                 </div>
             </header>
 
-            <section className="grid min-w-0 gap-3 xl:min-h-[31rem] xl:grid-cols-[19rem_minmax(24rem,1.16fr)_minmax(0,0.84fr)]">
-                {/* 1열: 주요 지표 */}
-                <section className="grid min-w-0 content-start gap-2.5" style={fadeUpStyle('0.1')}>
-                    <MetricTile
-                        helper={getMetricCurrentValue(usdKrwMetric)}
-                        label="원/달러 환율"
-                        tone={usdKrwDirection}
-                        value={getMetricChangeValue(usdKrwMetric)}
-                    />
-                    <MetricTile
-                        helper={getMetricCurrentValue(dollarMetric)}
-                        label="달러지수"
-                        tone={dollarDirection}
-                        value={getMetricChangeValue(dollarMetric)}
-                    />
-                    <section className="glass-card rounded-2xl p-4 border border-zinc-100 shadow-sm">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Trade Indicators</p>
-                                <h3 className="mt-1 text-base font-bold text-zinc-950">수출입지표</h3>
-                            </div>
-                        </div>
-                        <div className="grid gap-2">
-                            {recentIndicators.length === 0 ? (
-                                <EmptyState text="지표 대기" />
-                            ) : recentIndicators.slice(0, 3).map((indicator) => (
-                                <IndicatorPill indicator={indicator} key={indicator.code} />
-                            ))}
-                        </div>
-                    </section>
-                </section>
-
-                {/* 2열: 차트 & 피드 */}
-                <section className="grid min-w-0 gap-3 xl:grid-rows-[auto_minmax(0,1fr)]" style={fadeUpStyle('0.2')}>
-                    <MiniSparkline
-                        label="USD/KRW 1일"
-                        series={dashboard?.usdKrwIntradaySeries.map((point) => ({ baseDate: point.observedAt, value: point.value })) ?? []}
-                    />
-                    <section className="glass-card rounded-2xl p-4 border border-zinc-100 shadow-sm xl:min-h-0">
-                        <div className="flex items-center justify-between gap-3">
-                            <div>
-                                <p className="text-xs font-bold uppercase tracking-wider text-teal-700">News & Policy</p>
-                                <h3 className="mt-1 text-base font-bold text-zinc-950">뉴스·정책</h3>
-                            </div>
-                            <span className="rounded bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-600">{combinedFeedCount}건</span>
-                        </div>
-                        <div className="mt-4 grid gap-2 xl:max-h-[22rem] xl:overflow-y-auto xl:pr-1">
-                            {!newsConfigured && !governmentBriefingsConfigured ? (
-                                <EmptyState text="수집 상태 확인 중" />
-                            ) : combinedFeedCount === 0 ? (
-                                <EmptyState text="최근 소식 없음" />
-                            ) : (
-                                <>
-                                    <FeedGroup emptyText="뉴스 없음" items={newsFeed} title="뉴스" />
-                                    <FeedGroup emptyText="정책 없음" items={policyFeed} title="정책" />
-                                </>
-                            )}
-                        </div>
-                    </section>
-                </section>
-
-                {/* 3열: 3개월 흐름 & 요약 브리핑 */}
-                <section className="grid min-w-0 gap-3 xl:grid-rows-[auto_minmax(0,1fr)]" style={fadeUpStyle('0.3')}>
-                    <section className="glass-card grid min-w-0 gap-3 rounded-2xl p-4 border border-zinc-100 shadow-sm">
-                        <div className="min-w-0">
-                            <p className="text-xs font-bold uppercase tracking-wider text-teal-700">3M Flow</p>
-                            <h3 className="mt-1 text-base font-extrabold leading-6 text-zinc-950">최근 3개월 환율 흐름</h3>
-                            <p className="mt-2 text-sm font-medium leading-6 text-zinc-600">{getThreeMonthFlowText(usdKrwThreeMonthPosition)}</p>
-                        </div>
-                        <div className="grid justify-items-center rounded-xl border border-zinc-100 bg-zinc-50/50 p-4">
-                            <DonutGauge caption="3개월" compact score={threeMonthScore} title={getPositionShortLabel(usdKrwThreeMonthPosition)} />
-                        </div>
-                    </section>
-
+            <section className="grid min-w-0 items-stretch gap-3 xl:h-[30rem] xl:grid-cols-[21rem_minmax(0,1fr)_20rem]">
+                <section className="grid min-h-0 min-w-0 gap-3 xl:grid-rows-[auto_minmax(0,1fr)]" style={fadeUpStyle('0.1')}>
+                    <div className="grid min-w-0 grid-cols-2 gap-3">
+                        <TodayPolicyBriefingCard
+                            count={todayBriefingCount}
+                        />
+                        <DollarIndexCard
+                            latestPoint={latestDollarPoint}
+                            metric={dollarMetric}
+                            previousPoint={previousDollarPoint}
+                        />
+                    </div>
                     <BriefingPanel brief={brief} />
+                </section>
+
+                <section className="grid min-h-0 min-w-0 gap-3 xl:grid-rows-[minmax(0,1fr)_auto]" style={fadeUpStyle('0.2')}>
+                    <div className="grid min-h-0 min-w-0 gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(14rem,1fr)]">
+                        <MiniSparkline
+                            caption={getThreeMonthFlowText(usdKrwThreeMonthPosition)}
+                            fill
+                            label="최근 3개월 환율 흐름"
+                            metric={usdKrwMetric}
+                            series={(dashboard?.usdKrwSeries ?? []).slice(-66)}
+                        />
+                        <ForeignExchangeRateCard rates={foreignExchangeRates} />
+                    </div>
+                    <ComingSoonCard
+                        body="트럼프 SNS와 시장 반응을 연결해 보여주는 영역을 준비 중입니다."
+                        compact
+                        title="트럼프 SNS"
+                    />
+                </section>
+
+                <section className="grid min-h-0 min-w-0" style={fadeUpStyle('0.2')}>
+                    <ComingSoonCard
+                        body="주식 지수, 섹터 흐름, 주요 종목 이슈를 대시보드 신호와 함께 연결할 예정입니다."
+                        fill
+                        tall
+                        title="주식시장 소식"
+                    />
                 </section>
             </section>
 
@@ -200,18 +162,36 @@ export function TodayFlowPage({
 // Sub Components
 // ==========================================
 
-function MetricTile({ helper, label, tone, value }: { helper: string; label: string; tone: Direction; value: string }) {
+function TodayPolicyBriefingCard({ count }: { count: number }) {
     return (
-        <article className="glass-card min-w-0 rounded-2xl border border-zinc-100 px-3 py-2.5 shadow-sm transition-all hover:shadow-md">
-            <div className="flex items-start justify-between gap-2">
-                <p className="truncate text-xs font-bold text-zinc-500">{label}</p>
-                <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${getDirectionBadgeClass(tone)}`}>
-          {getDirectionLabel(tone)}
-        </span>
+        <article className="glass-card grid min-h-28 min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-zinc-100 p-3 shadow-sm">
+            <div className="min-w-0">
+                <p className="truncate text-xs font-bold text-zinc-500">정책뉴스 업데이트</p>
             </div>
-            <div className="mt-1.5">
-                <p className="truncate text-base font-extrabold tracking-tight text-zinc-950">{value}</p>
-                <p className="mt-0.5 text-clamp-1 text-[11px] font-medium text-zinc-500">{helper}</p>
+            <div className="flex min-w-0 items-center justify-center gap-1 text-rose-700">
+                <span className="text-4xl font-black leading-none tracking-normal">{count}</span>
+                <span className="pt-3 text-sm font-extrabold">건</span>
+            </div>
+        </article>
+    );
+}
+
+function DollarIndexCard({ latestPoint, metric, previousPoint }: { latestPoint: TimeSeriesPoint | null; metric: MetricSnapshot | null; previousPoint: TimeSeriesPoint | null }) {
+    return (
+        <article className="glass-card grid min-h-28 min-w-0 rounded-2xl border border-zinc-100 p-3 shadow-sm">
+            <div className="grid min-w-0 grid-cols-2 gap-2 text-[10px] font-bold text-zinc-400">
+                <div className="min-w-0">
+                    <p className="truncate">이전 기준일</p>
+                    <p className="mt-0.5 truncate text-zinc-700">{previousPoint?.baseDate ?? '-'}</p>
+                </div>
+                <div className="min-w-0 text-right">
+                    <p className="truncate">최근 기준일</p>
+                    <p className="mt-0.5 truncate text-zinc-700">{latestPoint?.baseDate ?? '-'}</p>
+                </div>
+            </div>
+            <div className="mt-2 min-w-0 self-end">
+                <p className="truncate text-xs font-bold text-zinc-500">달러인덱스</p>
+                <p className="mt-1 text-2xl font-black leading-none tracking-normal text-zinc-950">{metric ? formatMetricValue(metric) : '-'}</p>
             </div>
         </article>
     );
@@ -219,25 +199,25 @@ function MetricTile({ helper, label, tone, value }: { helper: string; label: str
 
 function BriefingPanel({ brief }: { brief: string[] }) {
     return (
-        <section className="glass-card grid min-h-0 rounded-2xl p-4 border border-blue-100 bg-gradient-to-b from-blue-50/50 to-white shadow-sm">
-            <div className="mb-3 flex items-center justify-between gap-3">
+        <section className="glass-card grid min-h-48 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-blue-100 bg-gradient-to-b from-blue-50/50 to-white p-3 shadow-sm xl:h-full xl:min-h-0">
+            <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600">
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"></path>
             </svg>
           </span>
-                    <h3 className="text-base font-bold text-zinc-950">오늘의 흐름 요약</h3>
+                    <h3 className="text-sm font-bold text-zinc-950">흐름 요약</h3>
                 </div>
             </div>
             <div className="scrollbar-none min-h-0 overflow-y-auto pr-1 flex flex-col gap-2">
                 {brief.length === 0 ? (
                     <p className="text-sm font-medium text-zinc-500">요약할 데이터가 없습니다.</p>
                 ) : (
-                    brief.slice(0, 3).map((line, idx) => (
-                        <div key={idx} className="flex gap-2.5 rounded-xl bg-white/80 p-3 shadow-sm border border-zinc-100">
+                    brief.slice(0, 2).map((line, idx) => (
+                        <div key={idx} className="flex gap-2 rounded-xl border border-zinc-100 bg-white/80 p-2.5 shadow-sm">
                             <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500"></div>
-                            <p className="text-sm font-medium leading-relaxed text-zinc-700">{line}</p>
+                            <p className="line-clamp-3 text-xs font-medium leading-5 text-zinc-700">{line}</p>
                         </div>
                     ))
                 )}
@@ -246,7 +226,7 @@ function BriefingPanel({ brief }: { brief: string[] }) {
     );
 }
 
-function MiniSparkline({ label, series }: { label: string; series: TimeSeriesPoint[] }) {
+function MiniSparkline({ caption, fill = false, label, metric, series }: { caption: string; fill?: boolean; label: string; metric: MetricSnapshot | null; series: TimeSeriesPoint[] }) {
     const chartData = series.slice(-48).map((point, index) => ({
         ...point,
         index,
@@ -264,20 +244,26 @@ function MiniSparkline({ label, series }: { label: string; series: TimeSeriesPoi
         : undefined;
 
     return (
-        <div className="glass-card overflow-hidden rounded-2xl p-4 shadow-sm border border-zinc-100">
+        <div className={`glass-card relative overflow-hidden rounded-2xl border border-zinc-100 p-4 shadow-sm ${fill ? 'grid min-h-[19rem] grid-rows-[auto_minmax(0,1fr)] xl:h-full xl:min-h-0' : ''}`}>
             <div className="flex items-end justify-between gap-2">
                 <div className="min-w-0">
                     <p className="truncate text-xs font-bold uppercase tracking-wider text-teal-700">{label}</p>
                     <p className="mt-1 text-2xl font-extrabold tracking-tight text-zinc-950">
                         {latestValue === null ? '-' : `${formatValue(latestValue, 2)}원`}
                     </p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-zinc-500">{caption}</p>
                 </div>
-                <span className={`mb-1 rounded-md px-2.5 py-1 text-xs font-bold ${getDirectionBadgeClass(change !== null && change >= 0 ? 'up' : 'down')}`}>
-          {change === null ? '-' : `${change >= 0 ? '+' : ''}${formatValue(change, 2)}%`}
-        </span>
+                <div className="absolute right-3 top-3 grid justify-items-end gap-1">
+                    <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${getDirectionBadgeClass(getDirection(metric?.changeRate ?? null))}`}>
+                        전일대비 {formatPercentChange(metric?.changeRate ?? null)}
+                    </span>
+                    <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${getDirectionBadgeClass(change !== null && change >= 0 ? 'up' : change !== null && change < 0 ? 'down' : 'unknown')}`}>
+                        3개월대비 {formatPercentChange(change)}
+                    </span>
+                </div>
             </div>
 
-            <div className="mt-4 h-36 w-full">
+            <div className={`mt-3 w-full ${fill ? 'h-36 xl:h-full xl:min-h-0' : 'h-24 xl:h-24'}`}>
                 {chartData.length > 1 ? (
                     <ResponsiveContainer height="100%" width="100%">
                         <AreaChart data={chartData} margin={{ top: 5, right: 0, bottom: 0, left: 0 }}>
@@ -313,41 +299,19 @@ function MiniSparkline({ label, series }: { label: string; series: TimeSeriesPoi
     );
 }
 
-function IndicatorPill({ indicator }: { indicator: DomesticIndicator }) {
-    const change = getNumericChange(indicator);
-
+function ComingSoonCard({ body, compact = false, fill = false, tall = false, title }: { body: string; compact?: boolean; fill?: boolean; tall?: boolean; title: string }) {
     return (
-        <article className="min-w-0 rounded-xl border border-zinc-100 bg-zinc-50/50 px-3 py-3 transition-colors hover:bg-white hover:shadow-sm">
-            <p className="truncate text-xs font-bold text-zinc-500">{indicator.title}</p>
-            <p className="mt-1 truncate text-base font-extrabold text-zinc-950">{formatIndicatorValue(indicator)}</p>
-            <p className={`mt-1 truncate text-xs font-bold ${getNumberToneClass(change)}`}>{formatIndicatorChange(indicator)}</p>
-        </article>
-    );
-}
-
-function DonutGauge({ caption, compact = false, score, title }: { caption: string; compact?: boolean; score: number; title: string }) {
-    const clampedScore = clamp(score, 0, 100);
-    const color = clampedScore >= 67 ? '#e11d48' : clampedScore <= 33 ? '#2563eb' : '#18a999';
-    const background = `conic-gradient(${color} ${clampedScore * 3.6}deg, #e5e7eb 0deg)`;
-    const outerSize = compact ? 'h-24 w-24' : 'h-36 w-36';
-    const innerSize = compact ? 'h-[4.7rem] w-[4.7rem]' : 'h-[6.6rem] w-[6.6rem]';
-
-    return (
-        <div className="grid justify-items-center">
-            <div
-                aria-label={`${caption} ${title}`}
-                className={`relative grid place-items-center rounded-full shadow-inner ${outerSize}`}
-                style={{ background }}
-            >
-                <div className={`grid place-items-center rounded-full bg-white text-center shadow-sm ${innerSize}`}>
-                    <div>
-                        <p className="text-[11px] font-bold uppercase text-zinc-400">{caption}</p>
-                        <p className={`${compact ? 'mt-0.5 text-base' : 'mt-1 text-xl'} font-extrabold text-zinc-950`}>{title}</p>
-                        <p className="text-xs font-bold text-zinc-500">{Math.round(clampedScore)}점</p>
-                    </div>
+        <section className={`relative overflow-hidden rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm ${fill ? 'min-h-64 xl:h-full xl:min-h-0' : tall ? 'min-h-[20rem]' : compact ? 'min-h-28' : ''}`}>
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(248,250,252,0.88),rgba(255,255,255,0.72))] backdrop-blur-[1px]" />
+            <div className="absolute inset-0 bg-[repeating-linear-gradient(110deg,rgba(17,24,39,0.04)_0,rgba(17,24,39,0.04)_1px,transparent_1px,transparent_12px)]" />
+            <div className={`relative grid place-items-center rounded-xl border border-dashed border-zinc-300 bg-white/60 px-4 text-center ${fill ? 'min-h-[15rem] xl:h-full xl:min-h-0' : tall ? 'min-h-[18.5rem]' : compact ? 'min-h-24' : 'min-h-24'}`}>
+                <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">COMING SOON</p>
+                    <h3 className="mt-1 text-base font-extrabold text-zinc-700">{title}</h3>
+                    <p className={`mx-auto max-w-48 text-xs font-semibold leading-5 text-zinc-400 ${compact ? 'mt-1 line-clamp-1' : 'mt-2'}`}>{body}</p>
                 </div>
             </div>
-        </div>
+        </section>
     );
 }
 
@@ -371,51 +335,36 @@ function MiniChartTooltip({
     );
 }
 
-function FeedGroup({
-                       emptyText,
-                       items,
-                       title
-                   }: {
-    emptyText: string;
-    items: Array<{ href: string | null; kind: string; meta: string; title: string }>;
-    title: string;
-}) {
+function ForeignExchangeRateCard({ rates }: { rates: ForeignExchangeRate[] }) {
     return (
-        <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-2">
-            <div className="mb-2 flex items-center justify-between gap-2 px-1">
-                <p className="text-xs font-extrabold text-zinc-800">{title}</p>
-                <span className="text-[11px] font-bold text-zinc-400">{items.length}건</span>
+        <section className="glass-card grid min-h-56 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-zinc-100 p-3 shadow-sm xl:h-full xl:min-h-0">
+            <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-wider text-teal-700">FX RATES</p>
+                    <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">각국 통화 환율</h3>
+                </div>
+                <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-500">{rates.length}개</span>
             </div>
-            <div className="grid gap-1.5">
-                {items.length === 0 ? (
-                    <div className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-zinc-400">{emptyText}</div>
-                ) : items.map((item) => (
-                    <FeedRow item={item} key={`${item.kind}-${item.title}-${item.meta}`} />
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function FeedRow({ compact = false, item }: { compact?: boolean; item: { href: string | null; kind: string; meta: string; title: string } }) {
-    const body = (
-        <div className={`grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2 rounded-xl border border-zinc-200 bg-white px-3 transition-colors hover:border-teal-200 hover:bg-teal-50 ${compact ? 'py-2' : 'py-2.5'}`}>
-            <span className={`rounded px-2 py-0.5 text-[11px] font-bold ${item.kind === '뉴스' ? 'bg-blue-50 text-blue-700' : 'bg-teal-50 text-teal-700'}`}>{item.kind}</span>
-            <span className="min-w-0">
-        <span className="text-clamp-1 block text-sm font-bold leading-5 text-zinc-950">{item.title}</span>
-                {!compact ? <span className="mt-0.5 block truncate text-xs font-medium text-zinc-500">{item.meta}</span> : null}
-      </span>
-        </div>
-    );
-
-    if (!item.href) {
-        return body;
-    }
-
-    return (
-        <a href={item.href} rel="noreferrer" target="_blank">
-            {body}
-        </a>
+            {rates.length === 0 ? (
+                <EmptyState text="환율 데이터 대기" />
+            ) : (
+                <div className="scrollbar-none grid max-h-44 min-h-0 min-w-0 content-start gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
+                    {rates.map((rate) => (
+                        <article className="grid min-w-0 grid-cols-[1.8rem_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-zinc-100 bg-zinc-50/70 px-2.5 py-2" key={rate.currencyCode}>
+                            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-base shadow-sm" aria-hidden="true">
+                                {getCurrencyFlag(rate.displayCode)}
+                            </span>
+                            <span className="grid min-w-0 content-center">
+                                <span className="block truncate text-[9px] font-extrabold leading-none text-zinc-400">{rate.displayCode}</span>
+                                <span className="mt-0.5 block truncate text-[11px] font-bold leading-none text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</span>
+                                <span className="mt-1 block truncate text-[9px] font-medium leading-none text-zinc-400">{formatCompactRateDate(rate.fetchedAt)}</span>
+                            </span>
+                            <span className="whitespace-nowrap text-xs font-extrabold text-teal-700">{formatValue(rate.dealBasRate, 2)}원</span>
+                        </article>
+                    ))}
+                </div>
+            )}
+        </section>
     );
 }
 
@@ -468,7 +417,7 @@ function buildBrief({
     }
 
     if (hasTodayNews || hasTodayBriefing) {
-        lines.push('최근 수집된 뉴스와 정책 자료에 환율 또는 금융시장 관련 이슈가 포함되어 있습니다. 오늘 흐름 요약에 해당 배경 신호가 반영됐습니다.');
+        lines.push('최근 수집된 뉴스와 정책뉴스에 환율 또는 금융시장 관련 이슈가 포함되어 있습니다. 대시보드 요약에 해당 배경 신호가 반영됐습니다.');
     }
 
     if (staleSignals.length > 0) {
@@ -504,19 +453,6 @@ function getDirection(changeRate: number | null): Direction {
     return 'flat';
 }
 
-function getPositionScore(position: PositionBand) {
-    switch (position) {
-        case 'top':
-            return 82;
-        case 'bottom':
-            return 22;
-        case 'middle':
-            return 50;
-        default:
-            return 40;
-    }
-}
-
 function getPositionBand(series: TimeSeriesPoint[], latestValue: number | null): PositionBand {
     if (latestValue === null || series.length < 8) {
         return 'unknown';
@@ -550,33 +486,6 @@ function getStaleSignals(
         newsSyncStatus?.freshnessStatus === 'STALE' || newsSyncStatus?.latestSyncStatus === 'FAILED' ? 'news' : null,
         governmentBriefingsSyncStatus?.freshnessStatus === 'STALE' || governmentBriefingsSyncStatus?.latestSyncStatus === 'FAILED' ? 'policy' : null
     ].filter(Boolean) as string[];
-}
-
-function getMetricChangeValue(metric: MetricSnapshot | null) {
-    if (!metric || metric.changeRate === null || !Number.isFinite(metric.changeRate)) {
-        return '전일 대비 -';
-    }
-    return `전일 대비 ${metric.changeRate >= 0 ? '+' : ''}${formatValue(metric.changeRate, 2)}%`;
-}
-
-function getMetricCurrentValue(metric: MetricSnapshot | null) {
-    if (!metric) {
-        return '현재값 확인 대기';
-    }
-    return `현재 ${formatMetricValue(metric)} ${formatMetricUnit(metric.unit)}`;
-}
-
-function getPositionShortLabel(position: PositionBand) {
-    switch (position) {
-        case 'top':
-            return '높음';
-        case 'bottom':
-            return '낮음';
-        case 'middle':
-            return '중간';
-        default:
-            return '대기';
-    }
 }
 
 function getThreeMonthFlowText(position: PositionBand) {
@@ -615,34 +524,11 @@ function getDirectionBadgeClass(direction: Direction) {
     return 'bg-zinc-100 text-zinc-600';
 }
 
-function getNumberToneClass(value: number | null) {
-    if (value === null || Math.abs(value) < 0.000001) {
-        return 'text-zinc-500';
-    }
-    return value > 0 ? 'text-rose-700' : 'text-blue-700';
-}
-
-function formatIndicatorValue(indicator: DomesticIndicator) {
-    if (indicator.value === null) {
+function formatPercentChange(value: number | null) {
+    if (value === null || !Number.isFinite(value)) {
         return '-';
     }
-    return `${formatValue(indicator.value, indicator.unit === 'KRW_TRILLION' ? 1 : 2)} ${formatMetricUnit(indicator.unit)}`;
-}
-
-function formatIndicatorChange(indicator: DomesticIndicator) {
-    const change = getNumericChange(indicator);
-    if (change === null) {
-        return '직전값 없음';
-    }
-    const fractionDigits = indicator.unit === 'KRW_TRILLION' ? 1 : 2;
-    return `${change >= 0 ? '+' : ''}${formatValue(change, fractionDigits)} ${formatMetricUnit(indicator.unit)}`;
-}
-
-function formatMaybeDate(value: string | null) {
-    if (!value) {
-        return '-';
-    }
-    return formatDateTime(value);
+    return `${value >= 0 ? '+' : ''}${formatValue(value, 2)}%`;
 }
 
 function sortByRecent<T extends { fetchedAt: string; publishedAt?: string | null }>(items: T[]) {
@@ -661,6 +547,10 @@ function isToday(value: string | null, today: string) {
 }
 
 function formatMiniChartTime(value: string) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return value.slice(5).replace('-', '.');
+    }
+
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
         return value.slice(11, 16) || value.slice(0, 10);
@@ -673,6 +563,52 @@ function formatMiniChartTime(value: string) {
     }).format(date);
 }
 
-function clamp(value: number, min: number, max: number) {
-    return Math.min(max, Math.max(min, value));
+function formatCompactRateDate(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value.slice(0, 10);
+    }
+    return new Intl.DateTimeFormat('ko-KR', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Seoul'
+    }).format(date);
+}
+
+function getCurrencyFlag(code: string) {
+    const flags: Record<string, string> = {
+        AUD: '🇦🇺',
+        CAD: '🇨🇦',
+        CHF: '🇨🇭',
+        CNH: '🇨🇳',
+        CNY: '🇨🇳',
+        EUR: '🇪🇺',
+        GBP: '🇬🇧',
+        HKD: '🇭🇰',
+        JPY: '🇯🇵',
+        SGD: '🇸🇬',
+        USD: '🇺🇸'
+    };
+
+    return flags[code] ?? '🏳️';
+}
+
+function getCurrencyShortLabel(code: string) {
+    const labels: Record<string, string> = {
+        AUD: '호주 달러',
+        CAD: '캐나다 달러',
+        CHF: '스위스 프랑',
+        CNH: '역외 위안',
+        CNY: '위안화',
+        EUR: '유로',
+        GBP: '파운드',
+        HKD: '홍콩 달러',
+        JPY: '엔화',
+        SGD: '싱가포르 달러',
+        USD: '미국 달러'
+    };
+
+    return labels[code] ?? code;
 }
