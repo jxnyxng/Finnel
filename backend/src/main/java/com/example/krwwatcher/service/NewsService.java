@@ -6,7 +6,10 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.example.krwwatcher.config.SyncProperties;
@@ -36,6 +39,10 @@ public class NewsService {
     private static final int NEWS_PAGE_SIZE = 10;
     private static final int MIN_BACKFILL_ARTICLES = 250;
     private static final int MAX_SEARCH_KEYWORD_LENGTH = 80;
+    private static final int RELATED_CANDIDATE_LIMIT = 1000;
+    private static final double RELATED_TITLE_SIMILARITY_THRESHOLD = 0.46;
+    private static final double RELATED_TEXT_SIMILARITY_THRESHOLD = 0.54;
+    private static final double RELATED_TEXT_CONTAINMENT_THRESHOLD = 0.72;
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private static final List<NewsCategory> CATEGORIES = List.of(
@@ -232,17 +239,15 @@ public class NewsService {
                 GROUP BY COALESCE(dedupe_key, article_key)
             ) latest ON latest.id = n.id
             ORDER BY n.published_at DESC, n.id DESC
-            LIMIT 100
+            LIMIT ?
             """,
-            (rs, rowNum) -> mapArticle(rs)
+            (rs, rowNum) -> mapArticle(rs),
+            RELATED_CANDIDATE_LIMIT
         );
         List<String> keywords = relatedKeywords(topic);
-        List<NewsArticle> articles = candidates.stream()
-            .sorted(Comparator
-                .comparingInt((NewsArticle article) -> scoreRelatedArticle(article, keywords)).reversed()
-                .thenComparing((NewsArticle article) -> StringUtils.hasText(article.imageUrl()), Comparator.reverseOrder())
-                .thenComparing(NewsArticle::publishedAt, Comparator.nullsLast(Comparator.reverseOrder()))
-                .thenComparing(NewsArticle::fetchedAt, Comparator.reverseOrder()))
+        List<NewsArticle> articles = selectRelatedBannerArticles(candidates, keywords).stream()
+            .sorted(Comparator.comparingInt((RelatedArticleCandidate candidate) -> candidate.bannerScore).reversed())
+            .map(RelatedArticleCandidate::article)
             .limit(normalizedLimit)
             .toList();
 
@@ -255,6 +260,135 @@ public class NewsService {
         }
 
         return List.of("원달러", "환율", "달러", "원화", "외환", "외환시장", "달러 인덱스", "연준", "FOMC");
+    }
+
+    private List<RelatedArticleCandidate> selectRelatedBannerArticles(List<NewsArticle> articles, List<String> keywords) {
+        List<RelatedArticleCandidate> rankedCandidates = articles.stream()
+            .map(article -> toRelatedArticleCandidate(article, scoreRelatedArticle(article, keywords)))
+            .sorted(Comparator
+                .comparingInt((RelatedArticleCandidate candidate) -> candidate.bannerScore).reversed()
+                .thenComparing(candidate -> candidate.article.publishedAt(), Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(candidate -> candidate.article.fetchedAt(), Comparator.nullsLast(Comparator.reverseOrder())))
+            .toList();
+
+        List<RelatedArticleCandidate> representatives = new ArrayList<>();
+        for (RelatedArticleCandidate candidate : rankedCandidates) {
+            int similarIndex = findSimilarRelatedArticleIndex(representatives, candidate);
+            if (similarIndex < 0) {
+                representatives.add(candidate);
+                continue;
+            }
+
+            RelatedArticleCandidate current = representatives.get(similarIndex);
+            if (candidate.representativeScore > current.representativeScore) {
+                representatives.set(similarIndex, candidate);
+            }
+        }
+
+        return representatives;
+    }
+
+    private RelatedArticleCandidate toRelatedArticleCandidate(NewsArticle article, int relatedScore) {
+        int freshnessScore = freshnessScore(article.publishedAt());
+        int textLength = articleTextLength(article);
+        int imageScore = StringUtils.hasText(article.imageUrl()) ? 12 : 0;
+        int bannerScore = relatedScore * 10 + freshnessScore + Math.min(12, textLength / 70) + imageScore;
+        int representativeScore = textLength * 3 + relatedScore * 8 + freshnessScore + (StringUtils.hasText(article.imageUrl()) ? 80 : 0);
+        return new RelatedArticleCandidate(article, relatedScore, bannerScore, representativeScore);
+    }
+
+    private int findSimilarRelatedArticleIndex(List<RelatedArticleCandidate> representatives, RelatedArticleCandidate candidate) {
+        for (int index = 0; index < representatives.size(); index += 1) {
+            if (isSimilarRelatedArticle(representatives.get(index).article(), candidate.article())) {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private boolean isSimilarRelatedArticle(NewsArticle first, NewsArticle second) {
+        Set<String> firstTitle = textNgrams(first.title());
+        Set<String> secondTitle = textNgrams(second.title());
+        if (jaccard(firstTitle, secondTitle) >= RELATED_TITLE_SIMILARITY_THRESHOLD) {
+            return true;
+        }
+
+        Set<String> firstWords = textWords(first.title());
+        Set<String> secondWords = textWords(second.title());
+        if (intersectionSize(firstWords, secondWords) >= 2 && containment(firstWords, secondWords) >= 0.66) {
+            return true;
+        }
+
+        Set<String> firstText = textNgrams(first.title() + " " + nullToEmpty(first.description()) + " " + nullToEmpty(first.aiSummary()));
+        Set<String> secondText = textNgrams(second.title() + " " + nullToEmpty(second.description()) + " " + nullToEmpty(second.aiSummary()));
+        return jaccard(firstText, secondText) >= RELATED_TEXT_SIMILARITY_THRESHOLD
+            || containment(firstText, secondText) >= RELATED_TEXT_CONTAINMENT_THRESHOLD;
+    }
+
+    private Set<String> textWords(String value) {
+        String normalized = newsArticleText.normalizeTitle(value)
+            .toLowerCase(Locale.ROOT);
+        Set<String> words = new HashSet<>();
+        if (!StringUtils.hasText(normalized)) {
+            return words;
+        }
+
+        for (String word : normalized.split("\\s+")) {
+            if (word.length() >= 2) {
+                words.add(word);
+            }
+        }
+        return words;
+    }
+
+    private Set<String> textNgrams(String value) {
+        String normalized = newsArticleText.normalizeTitle(value)
+            .replaceAll("\\s+", "")
+            .toLowerCase(Locale.ROOT);
+        Set<String> ngrams = new HashSet<>();
+        if (!StringUtils.hasText(normalized)) {
+            return ngrams;
+        }
+        if (normalized.length() <= 3) {
+            ngrams.add(normalized);
+            return ngrams;
+        }
+
+        for (int index = 0; index <= normalized.length() - 3; index += 1) {
+            ngrams.add(normalized.substring(index, index + 3));
+        }
+        return ngrams;
+    }
+
+    private double jaccard(Set<String> first, Set<String> second) {
+        if (first.isEmpty() || second.isEmpty()) {
+            return 0;
+        }
+
+        int intersection = intersectionSize(first, second);
+        int union = first.size() + second.size() - intersection;
+        return union == 0 ? 0 : (double) intersection / union;
+    }
+
+    private double containment(Set<String> first, Set<String> second) {
+        if (first.isEmpty() || second.isEmpty()) {
+            return 0;
+        }
+
+        return (double) intersectionSize(first, second) / Math.min(first.size(), second.size());
+    }
+
+    private int intersectionSize(Set<String> first, Set<String> second) {
+        Set<String> smaller = first.size() <= second.size() ? first : second;
+        Set<String> larger = first.size() <= second.size() ? second : first;
+        int count = 0;
+        for (String value : smaller) {
+            if (larger.contains(value)) {
+                count += 1;
+            }
+        }
+        return count;
     }
 
     private int scoreRelatedArticle(NewsArticle article, List<String> keywords) {
@@ -280,7 +414,41 @@ public class NewsService {
             score += 8;
         }
 
+        score += freshnessScore(article.publishedAt());
+        score += Math.min(10, articleTextLength(article) / 80);
+
         return score;
+    }
+
+    private int freshnessScore(Instant publishedAt) {
+        if (publishedAt == null) {
+            return 0;
+        }
+
+        long ageHours = Math.max(0, Duration.between(publishedAt, Instant.now()).toHours());
+        if (ageHours <= 6) {
+            return 30;
+        }
+        if (ageHours <= 24) {
+            return 24;
+        }
+        if (ageHours <= 72) {
+            return 16;
+        }
+        if (ageHours <= 168) {
+            return 8;
+        }
+        return 0;
+    }
+
+    private int articleTextLength(NewsArticle article) {
+        return nullToEmpty(article.title()).length()
+            + nullToEmpty(article.description()).length()
+            + nullToEmpty(article.aiSummary()).length();
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private int syncCategoryLatest(NewsCategory category) {
@@ -709,6 +877,14 @@ public class NewsService {
         String status,
         Instant startedAt,
         Instant endedAt
+    ) {
+    }
+
+    private record RelatedArticleCandidate(
+        NewsArticle article,
+        int relatedScore,
+        int bannerScore,
+        int representativeScore
     ) {
     }
 

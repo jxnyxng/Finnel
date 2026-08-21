@@ -74,7 +74,7 @@ export function prefetchRelatedNews(topic: NonNullable<RelatedNewsBannerProps['t
 export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, configured, desktopGroupSize = 3, label, topic }: RelatedNewsBannerProps) {
   const cachedResponse = topic ? relatedNewsCache.get(topic) : undefined;
   const isControlled = controlledArticles !== undefined;
-  const [articles, setArticles] = React.useState<RelatedBannerArticle[]>(() => normalizeRelatedArticles(controlledArticles ?? cachedResponse?.articles ?? []));
+  const [articles, setArticles] = React.useState<RelatedBannerArticle[]>(() => limitRelatedArticles(normalizeRelatedArticles(controlledArticles ?? cachedResponse?.articles ?? []), relatedNewsDisplayCount));
   const [isConfigured, setIsConfigured] = React.useState(configured ?? cachedResponse?.configured ?? true);
   const [activeGroup, setActiveGroup] = React.useState(0);
   const [previousGroup, setPreviousGroup] = React.useState<number | null>(null);
@@ -107,7 +107,7 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
 
   React.useEffect(() => {
     if (isControlled) {
-      setArticles(normalizeRelatedArticles(controlledArticles ?? []).slice(0, relatedNewsDisplayCount));
+      setArticles(limitRelatedArticles(normalizeRelatedArticles(controlledArticles ?? []), relatedNewsDisplayCount));
       setIsConfigured(configured ?? true);
       return;
     }
@@ -338,8 +338,12 @@ function getArticleGroup(articles: RelatedBannerArticle[], group: number, groupS
 function normalizeRelatedNewsResponse(response: RelatedNewsResponse): RelatedNewsResponse {
   return {
     ...response,
-    articles: normalizeRelatedArticles(response.articles).slice(0, relatedNewsDisplayCount)
+    articles: limitRelatedArticles(normalizeRelatedArticles(response.articles), relatedNewsDisplayCount)
   };
+}
+
+function limitRelatedArticles(articles: RelatedBannerArticle[], maxCount: number) {
+  return articles.slice(0, maxCount);
 }
 
 function normalizeRelatedArticles(articles: RelatedBannerArticle[]) {
