@@ -14,7 +14,6 @@ type NewsroomPageProps = {
     isPendingInitialLoad?: boolean;
     page: number;
     selectedCategory: string;
-    statusNode?: React.ReactNode;
     totalCount: number;
     totalPages: number;
     onCategoryChange: (category: string) => void;
@@ -31,7 +30,6 @@ export function NewsroomPage({
                                  isPendingInitialLoad = false,
                                  page,
                                  selectedCategory,
-                                 statusNode,
                                  totalCount,
                                  totalPages,
                                  onCategoryChange,
@@ -125,7 +123,6 @@ export function NewsroomPage({
                         <span>총 {totalCount}건</span>
                         <span>{articles.length}건 표시</span>
                     </div>
-                    {statusNode}
                 </div>
             </FadeIn>
 
