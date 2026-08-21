@@ -14,20 +14,47 @@ type KoreaStatusPageProps = {
     indicators: DomesticIndicator[];
     isLoading: boolean;
     latestSyncLabel: string;
-    statusNode?: React.ReactNode;
 };
 
 const sections = [
     {
-        key: 'policy',
-        label: '정책',
-        title: '통화정책 압력',
-        description: '기준금리, 금리차, 통화량은 원화 보유 유인과 원화 공급을 바꿉니다.',
-        codes: ['KR_POLICY_RATE', 'US_POLICY_RATE', 'KR_US_RATE_GAP', 'M2']
+        key: 'daily',
+        label: '주요 시장지표',
+        title: '환율 주요 시장지표',
+        description: '금리, 유동성, 변동성, 원자재처럼 원/달러 환율을 해석할 때 먼저 확인하는 시장 지표입니다.',
+        codes: ['US_TREASURY_2Y', 'US_10Y_TREASURY', 'SOFR', 'SOFR_30D_AVG', 'KOFR', 'CD_91D', 'VIX', 'WTI_OIL', 'GLOBAL_CREDIT_SPREAD_PROXY']
     },
     {
-        key: 'policy',
-        label: '정책',
+        key: 'liquidity',
+        label: '단기금리',
+        title: '단기금리·유동성',
+        description: 'SOFR, KOFR, CD금리는 달러와 원화 단기 조달 여건을 보여줍니다.',
+        codes: ['SOFR', 'SOFR_30D_AVG', 'SOFR_90D_AVG', 'SOFR_180D_AVG', 'SOFR_INDEX', 'KOFR', 'CD_91D']
+    },
+    {
+        key: 'curve',
+        label: '미국채',
+        title: '미국채 수익률곡선',
+        description: '만기별 미국채 금리로 달러 금리 기대와 경기침체/재가속 신호를 함께 봅니다.',
+        codes: ['US_TREASURY_1MO', 'US_TREASURY_3MO', 'US_TREASURY_6MO', 'US_TREASURY_1Y', 'US_TREASURY_2Y', 'US_TREASURY_3Y', 'US_TREASURY_5Y', 'US_TREASURY_7Y', 'US_10Y_TREASURY', 'US_TREASURY_20Y', 'US_TREASURY_30Y']
+    },
+    {
+        key: 'trend',
+        label: '통화량 추세',
+        title: '통화량 추세',
+        description: 'M2는 최신값 카드보다 1Y/3Y/5Y 추세로 원화 공급 흐름을 확인합니다.',
+        codes: ['M2']
+    },
+    {
+        key: 'reference',
+        label: '참고',
+        title: '정책금리 참고 지표',
+        description: '기준금리와 한미 기준금리차는 중요하지만 발표 주기가 느려 일별 모니터링보다는 참고 지표로 봅니다.',
+        codes: ['KR_POLICY_RATE', 'US_POLICY_RATE', 'KR_US_RATE_GAP']
+    },
+    {
+        key: 'reference',
+        label: '참고',
         title: '재정 정책 자료',
         description: '정부 재정 건전성은 국가 신뢰도와 환율 변동성에 영향을 줍니다.',
         codes: ['FISCAL_BALANCE', 'GOVERNMENT_DEBT']
@@ -58,19 +85,23 @@ const sections = [
         label: '자본·리스크',
         title: '자본 흐름과 대외 리스크',
         description: '외국인 자금, 미국 금리, 변동성, 신용위험은 원화 자산 선호를 바꿉니다.',
-        codes: ['FOREIGN_STOCK_FLOW', 'FOREIGN_BOND_FLOW', 'US_10Y_TREASURY', 'VIX', 'KOREA_CDS']
+        codes: ['FOREIGN_STOCK_FLOW', 'FOREIGN_BOND_FLOW', 'VIX', 'GLOBAL_CREDIT_SPREAD_PROXY']
     }
 ];
 
 const sectionTabs = [
     { key: 'all', label: '전체' },
+    { key: 'daily', label: '주요 시장지표' },
+    { key: 'liquidity', label: '단기금리' },
+    { key: 'curve', label: '미국채' },
+    { key: 'trend', label: '통화량 추세' },
     { key: 'external', label: '대외수급' },
-    { key: 'policy', label: '정책' },
+    { key: 'reference', label: '참고' },
     { key: 'inflation', label: '물가·원자재' },
     { key: 'risk', label: '자본·리스크' }
 ];
 
-const sectionTabMinButtonWidth = 82;
+const sectionTabMinButtonWidth = 104;
 
 const historyRangeOptions: Array<{ key: HistoryRangeKey; label: string }> = [
     { key: '1Y', label: '1년' },
@@ -78,7 +109,7 @@ const historyRangeOptions: Array<{ key: HistoryRangeKey; label: string }> = [
     { key: '5Y', label: '5년' }
 ];
 
-export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyncLabel, statusNode }: KoreaStatusPageProps) {
+export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyncLabel }: KoreaStatusPageProps) {
     const [activeSectionKey, setActiveSectionKey] = React.useState(sectionTabs[0].key);
     const [viewMode, setViewMode] = React.useState<'card' | 'list'>('list');
     const [selectedIndicator, setSelectedIndicator] = React.useState<DomesticIndicator | null>(null);
@@ -103,6 +134,12 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
     const cleanLatestSyncLabel = latestSyncLabel
         .replace(/\s·\s(?:SUCCESS|RUNNING|FAILED|PARTIAL_SUCCESS|UNKNOWN)(?=\s·|$)/g, '')
         .replace(/\s·\sSKIPPED[^·]*(?=\s·|$)/g, '');
+    const scrollSectionTabs = (direction: -1 | 1) => {
+        sectionTabNavRef.current?.scrollBy({
+            behavior: 'smooth',
+            left: direction * 180
+        });
+    };
 
     return (
         <section className="grid min-w-0 gap-4">
@@ -119,7 +156,6 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
                             <p className="mt-1">수집 지표 {collectedIndicators.length}개</p>
                             <p className="mt-1">{cleanLatestSyncLabel}</p>
                         </ChartHelpTooltip>
-                        {statusNode}
                     </div>
                     <div className="shrink-0">
                         <ViewModeToggle value={viewMode} onChange={setViewMode} />
@@ -128,31 +164,35 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
             </FadeIn>
 
             {/* 2. 네비게이션 탭: 0.1초 등장 */}
-            <FadeIn as="nav" delay={0.1} className="glass-card flex min-w-0 items-stretch rounded-full p-0.5 shadow-sm lg:items-center lg:justify-between" aria-label="국내 현황 범주">
-                <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden lg:overflow-visible" ref={sectionTabNavRef}>
-                    <MovingTabIndicator contained indicator={sectionTabIndicator} isMoving={isSectionTabIndicatorMoving} />
-                    {sectionTabs.map((tab) => (
-                        <button
-                            className={`relative z-10 h-8 rounded-full px-2.5 text-[11px] font-semibold transition-colors duration-150 sm:px-3 ${
-                                activeSectionLabelKey === tab.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
-                            }`}
-                            key={tab.key}
-                            onClick={() => {
-                                if (activeSectionKey !== tab.key) {
-                                    startSectionTabIndicatorMoving();
-                                }
-                                setActiveSectionKey(tab.key);
-                            }}
-                            ref={(node) => {
-                                sectionTabButtonRefs.current[tab.key] = node;
-                            }}
-                            style={sectionTabButtonWidth > 0 ? { width: sectionTabButtonWidth } : undefined}
-                            type="button"
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+            <FadeIn as="nav" delay={0.1} className="grid min-w-0 grid-cols-[28px_minmax(0,1fr)_28px] items-center gap-1 sm:block" aria-label="국내 현황 범주">
+                <SectionTabScrollButton direction="left" onClick={() => scrollSectionTabs(-1)} />
+                <div className="glass-card flex min-w-0 items-stretch rounded-full p-0.5 shadow-sm sm:items-center sm:justify-between">
+                    <div className="scrollbar-none relative flex max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden" ref={sectionTabNavRef}>
+                        <MovingTabIndicator contained indicator={sectionTabIndicator} isMoving={isSectionTabIndicatorMoving} />
+                        {sectionTabs.map((tab) => (
+                            <button
+                                className={`relative z-10 h-8 shrink-0 whitespace-nowrap rounded-full px-2.5 text-[11px] font-semibold transition-colors duration-150 sm:px-3 ${
+                                    activeSectionLabelKey === tab.key ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
+                                }`}
+                                key={tab.key}
+                                onClick={() => {
+                                    if (activeSectionKey !== tab.key) {
+                                        startSectionTabIndicatorMoving();
+                                    }
+                                    setActiveSectionKey(tab.key);
+                                }}
+                                ref={(node) => {
+                                    sectionTabButtonRefs.current[tab.key] = node;
+                                }}
+                                style={sectionTabButtonWidth > 0 ? { width: sectionTabButtonWidth } : undefined}
+                                type="button"
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
+                <SectionTabScrollButton direction="right" onClick={() => scrollSectionTabs(1)} />
             </FadeIn>
 
             {isLoading ? (
@@ -177,7 +217,9 @@ export function KoreaStatusPage({ errorMessage, indicators, isLoading, latestSyn
                                     <h3 className="text-sm font-semibold text-white">{section.title}</h3>
                                     <p className="mt-1 text-xs text-white/60">{section.description}</p>
                                 </div>
-                                {viewMode === 'card' ? (
+                                {section.key === 'trend' && sectionIndicators.some((indicator) => indicator.code === 'M2') ? (
+                                    <M2TrendPanel indicator={sectionIndicators.find((indicator) => indicator.code === 'M2')!} />
+                                ) : viewMode === 'card' ? (
                                     <div className="grid min-w-0 gap-2 md:grid-cols-2 xl:grid-cols-3">
                                         {sectionIndicators.map((indicator) => (
                                             <PolicyIndicatorCard indicator={indicator} key={indicator.code} onInfoOpen={setSelectedIndicator} />
@@ -248,6 +290,108 @@ function ViewModeToggle({
     );
 }
 
+function SectionTabScrollButton({ direction, onClick }: { direction: 'left' | 'right'; onClick: () => void }) {
+    return (
+        <button
+            aria-label={direction === 'left' ? '이전 지표 범주 보기' : '다음 지표 범주 보기'}
+            className="grid h-7 w-7 place-items-center rounded-lg border border-zinc-200 bg-white text-sm font-semibold text-zinc-600 shadow-sm hover:bg-zinc-50 hover:text-zinc-950 sm:hidden"
+            onClick={onClick}
+            type="button"
+        >
+            {direction === 'left' ? '‹' : '›'}
+        </button>
+    );
+}
+
+function M2TrendPanel({ indicator }: { indicator: DomesticIndicator }) {
+    const [historyRange, setHistoryRange] = React.useState<HistoryRangeKey>('3Y');
+    const [history, setHistory] = React.useState<DomesticIndicatorHistoryResponse | null>(null);
+    const [isHistoryLoading, setIsHistoryLoading] = React.useState(false);
+    const [historyError, setHistoryError] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        let ignore = false;
+        setIsHistoryLoading(true);
+        setHistoryError(null);
+
+        axios.get<DomesticIndicatorHistoryResponse>('/api/v1/dashboard/domestic-indicators/M2/history', {
+            params: { range: historyRange }
+        })
+            .then((response) => {
+                if (!ignore) {
+                    setHistory(response.data);
+                    if (response.data.range !== historyRange) {
+                        setHistoryRange(response.data.range);
+                    }
+                }
+            })
+            .catch(() => {
+                if (!ignore) {
+                    setHistory(null);
+                    setHistoryError('M2 추세를 불러오지 못했습니다.');
+                }
+            })
+            .finally(() => {
+                if (!ignore) {
+                    setIsHistoryLoading(false);
+                }
+            });
+
+        return () => {
+            ignore = true;
+        };
+    }, [historyRange]);
+
+    return (
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,0.9fr)]">
+            <div className="min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="min-w-0 text-[11px] text-white/55">
+                        {history ? `${history.startDate} - ${history.endDate} · ${history.points.length}개 관측치` : 'ECOS 월별 저장값을 기간별로 조회합니다.'}
+                    </p>
+                    <HistoryRangeSelector history={history} value={historyRange} onChange={setHistoryRange} />
+                </div>
+                <DomesticIndicatorHistoryChart
+                    history={history}
+                    indicator={indicator}
+                    isLoading={isHistoryLoading}
+                    error={historyError}
+                />
+            </div>
+            <div className="grid min-w-0 content-start gap-4 border-t border-white/10 pt-4 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                    <M2TrendInfoItem label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+                    <M2TrendInfoItem label="기준일" value={indicator.baseDate ?? '-'} />
+                    <M2TrendInfoItem label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
+                    <M2TrendInfoItem label="수집일" value={formatCollectedAt(indicator)} />
+                </div>
+                <div className="border-t border-white/10 pt-3 text-[11px] leading-5 text-white/60">
+                    <p className="font-semibold text-white/80">해석 기준</p>
+                    <p className="mt-1">{indicator.krwImpact}</p>
+                </div>
+                <div className="border-t border-white/10 pt-3 text-[11px] leading-5 text-white/55">
+                    <p className="font-semibold text-white/75">수집 기준</p>
+                    <p className="mt-1">{indicator.note}</p>
+                </div>
+                <div className="border-t border-white/10 pt-3 text-[10px] leading-4 text-white/45">
+                    <span className="font-semibold text-white/60">출처</span>
+                    <span> · </span>
+                    <span>{indicator.source}</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function M2TrendInfoItem({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-white/45">{label}</p>
+            <p className="mt-1 break-words text-xs font-semibold text-white">{value}</p>
+        </div>
+    );
+}
+
 function PolicyIndicatorCard({
                                  indicator,
                                  onInfoOpen
@@ -277,7 +421,6 @@ function PolicyIndicatorCard({
                         <div className="text-[10px] font-semibold text-white/45">{indicator.category}</div>
                         <h4 className="mt-0.5 truncate text-sm font-semibold text-white">{indicator.title}</h4>
                     </div>
-                    <CollectionStatusDot indicator={indicator} />
                 </div>
 
                 <div className="mt-3 min-w-0">
@@ -309,10 +452,9 @@ function PolicyIndicatorTable({
                 <table className="w-full min-w-[560px] table-fixed border-separate border-spacing-0 text-left md:min-w-[620px]">
                     <thead>
                     <tr className="text-[11px] font-semibold text-white/45">
-                        <th className="w-[30%] border-b border-white/10 px-4 py-2.5 md:w-[40%] md:px-5">지표</th>
-                        <th className="w-[32%] border-b border-white/10 px-4 py-2.5 text-right md:w-[26%] md:px-5 md:text-left">현재 수치</th>
-                        <th className="w-[24%] border-b border-white/10 px-4 py-2.5 text-right md:w-[24%] md:px-5">기준일</th>
-                        <th className="w-[14%] border-b border-white/10 px-4 py-2.5 text-right md:w-[10%] md:px-5">수집</th>
+                        <th className="w-[40%] border-b border-white/10 px-4 py-2.5 md:px-5">지표</th>
+                        <th className="w-[32%] border-b border-white/10 px-4 py-2.5 text-right md:w-[30%] md:px-5 md:text-left">현재 수치</th>
+                        <th className="w-[28%] border-b border-white/10 px-4 py-2.5 text-right md:w-[30%] md:px-5">기준일</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -350,9 +492,6 @@ function PolicyIndicatorTable({
                                     <div className="whitespace-nowrap text-xs text-white/65 transition-transform duration-150 ease-out group-hover/row:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none">
                                         {indicator.baseDate ?? '-'}
                                     </div>
-                                </td>
-                                <td className="border-b border-white/10 px-4 py-3 text-right md:px-5">
-                                    <CollectionStatusDot indicator={indicator} />
                                 </td>
                             </tr>
                         );
@@ -457,11 +596,12 @@ function IndicatorInfoPanel({
                             <h3 className="mt-1 text-base font-semibold text-white">{indicator.title}</h3>
                         </div>
                         <button
-                            className="h-7 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+                            aria-label="경제지표 닫기"
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-zinc-200 bg-white text-lg font-semibold leading-none text-zinc-500 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-950"
                             onClick={onClose}
                             type="button"
                         >
-                            닫기
+                            ×
                         </button>
                     </div>
                     <dl className="mt-5 grid gap-x-6 gap-y-3 rounded-2xl border border-zinc-200 bg-white p-4 text-xs shadow-sm md:grid-cols-2">
@@ -761,16 +901,6 @@ function IndicatorSourceSummary({ indicators }: { indicators: DomesticIndicator[
     );
 }
 
-function CollectionStatusDot({ indicator }: { indicator: DomesticIndicator }) {
-    return (
-        <span
-            aria-label={`수집 상태 ${collectionStatusLabel(indicator)}`}
-            className={`inline-flex h-3 w-3 shrink-0 rounded-full ${collectionStatusDotClassName(indicator)}`}
-            title={`수집 상태 ${collectionStatusLabel(indicator)}`}
-        />
-    );
-}
-
 function formatIndicatorValue(indicator: DomesticIndicator) {
     if (indicator.value === null) {
         return '-';
@@ -833,17 +963,4 @@ function collectionStatusLabel(indicator: DomesticIndicator) {
     }
 
     return '정상';
-}
-
-function collectionStatusDotClassName(indicator: DomesticIndicator) {
-    const label = collectionStatusLabel(indicator);
-    if (label === '대기') {
-        return 'bg-amber-300 shadow-[0_0_0_3px_rgba(251,191,36,0.15)]';
-    }
-
-    if (label === '지연') {
-        return 'bg-rose-300 shadow-[0_0_0_3px_rgba(251,113,133,0.15)]';
-    }
-
-    return 'bg-teal-300 shadow-[0_0_0_3px_rgba(94,234,212,0.15)]';
 }

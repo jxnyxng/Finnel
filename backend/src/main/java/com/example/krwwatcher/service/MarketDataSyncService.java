@@ -1357,6 +1357,7 @@ public class MarketDataSyncService {
         rows += upsertTradeBalance(exportAmounts, importAmounts);
         rows += syncExternalDefenseIndicators(currentMonth, historyStartMonth);
         rows += syncFredRiskIndicators();
+        rows += syncShortTermRateIndicators();
         rows += syncOpenFiscalIndicators();
         rows += syncForeignCapitalFlowIndicators(currentMonth, historyStartMonth);
         return rows;
@@ -1496,7 +1497,7 @@ public class MarketDataSyncService {
 
     private int syncFredRiskIndicators() {
         LocalDate startDate = LocalDate.now().minusYears(5);
-        return syncFredDomesticPolicyIndicator(
+        int rows = syncFredDomesticPolicyIndicator(
             "US_10Y_TREASURY",
             "미국 10년 국채금리",
             "미국 금융여건",
@@ -1518,13 +1519,93 @@ public class MarketDataSyncService {
             "USD",
             startDate
         ) + syncFredDomesticPolicyIndicator(
-            "KOREA_CDS",
+            "GLOBAL_CREDIT_SPREAD_PROXY",
             "글로벌 신용스프레드 프록시",
             "대외 신용위험",
             properties.fred().creditSpreadProxySeriesId(),
             "PERCENT",
             startDate
         );
+
+        for (TreasuryCurveSpec spec : treasuryCurveSpecs()) {
+            rows += syncFredDomesticPolicyIndicator(
+                spec.code(),
+                spec.title(),
+                "미국채 수익률곡선",
+                spec.seriesId(),
+                "PERCENT",
+                startDate
+            );
+        }
+
+        for (SofrSpec spec : sofrSpecs()) {
+            rows += syncFredDomesticPolicyIndicator(
+                spec.code(),
+                spec.title(),
+                "SOFR",
+                spec.seriesId(),
+                spec.unit(),
+                startDate
+            );
+        }
+
+        return rows;
+    }
+
+    private int syncShortTermRateIndicators() {
+        LocalDate today = LocalDate.now(SEOUL_ZONE);
+        LocalDate startDate = today.minusYears(5);
+        return syncEcosDailyRateIndicator(
+            "CD_91D",
+            "CD(91일)",
+            "단기금리·유동성",
+            "817Y002",
+            "010502000",
+            "PERCENT",
+            startDate,
+            today
+        ) + syncEcosDailyRateIndicator(
+            "KOFR",
+            "KOFR",
+            "단기금리·유동성",
+            "817Y002",
+            "010901000",
+            "PERCENT",
+            startDate,
+            today
+        );
+    }
+
+    private int syncEcosDailyRateIndicator(String code, String title, String category, String statCode, String itemCode, String unit, LocalDate startDate, LocalDate endDate) {
+        if (hasRecentDomesticPolicyFetch(code, startOfTodayInSeoul())
+            && hasDomesticPolicyCoverage(code, startDate)) {
+            return 0;
+        }
+
+        LocalDate observationStart = findLatestDomesticPolicyDate(code);
+        if (observationStart == null || !hasDomesticPolicyCoverage(code, startDate)) {
+            observationStart = startDate;
+        } else {
+            observationStart = observationStart.minusDays(14);
+        }
+        List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchStatisticObservations(
+            statCode,
+            "D",
+            observationStart.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE),
+            endDate.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE),
+            itemCode
+        );
+        return observations.stream()
+            .mapToInt(payload -> upsertDomesticPolicyIndicator(
+                code,
+                title,
+                category,
+                payload.baseDate(),
+                payload.value(),
+                unit,
+                "ECOS:" + statCode + "/" + itemCode
+            ))
+            .sum();
     }
 
     private int syncFredDomesticPolicyIndicator(String code, String title, String category, String seriesId, String unit, LocalDate startDate) {
@@ -1551,6 +1632,31 @@ public class MarketDataSyncService {
                 "FRED:" + seriesId
             ))
             .sum();
+    }
+
+    private List<TreasuryCurveSpec> treasuryCurveSpecs() {
+        return List.of(
+            new TreasuryCurveSpec("US_TREASURY_1MO", "미국채 1개월", "DGS1MO"),
+            new TreasuryCurveSpec("US_TREASURY_3MO", "미국채 3개월", "DGS3MO"),
+            new TreasuryCurveSpec("US_TREASURY_6MO", "미국채 6개월", "DGS6MO"),
+            new TreasuryCurveSpec("US_TREASURY_1Y", "미국채 1년", "DGS1"),
+            new TreasuryCurveSpec("US_TREASURY_2Y", "미국채 2년", "DGS2"),
+            new TreasuryCurveSpec("US_TREASURY_3Y", "미국채 3년", "DGS3"),
+            new TreasuryCurveSpec("US_TREASURY_5Y", "미국채 5년", "DGS5"),
+            new TreasuryCurveSpec("US_TREASURY_7Y", "미국채 7년", "DGS7"),
+            new TreasuryCurveSpec("US_TREASURY_20Y", "미국채 20년", "DGS20"),
+            new TreasuryCurveSpec("US_TREASURY_30Y", "미국채 30년", "DGS30")
+        );
+    }
+
+    private List<SofrSpec> sofrSpecs() {
+        return List.of(
+            new SofrSpec("SOFR", "SOFR", "SOFR", "PERCENT"),
+            new SofrSpec("SOFR_30D_AVG", "SOFR 30일 평균", "SOFR30DAYAVG", "PERCENT"),
+            new SofrSpec("SOFR_90D_AVG", "SOFR 90일 평균", "SOFR90DAYAVG", "PERCENT"),
+            new SofrSpec("SOFR_180D_AVG", "SOFR 180일 평균", "SOFR180DAYAVG", "PERCENT"),
+            new SofrSpec("SOFR_INDEX", "SOFR 지수", "SOFRINDEX", "INDEX")
+        );
     }
 
     private int upsertDomesticPolicyIndicators(DomesticPolicySpec spec, List<EcosClient.EcosObservationPayload> observations) {
@@ -2349,6 +2455,12 @@ public class MarketDataSyncService {
         private BigDecimal normalizeValue(BigDecimal value) {
             return value.multiply(multiplier);
         }
+    }
+
+    private record TreasuryCurveSpec(String code, String title, String seriesId) {
+    }
+
+    private record SofrSpec(String code, String title, String seriesId, String unit) {
     }
 
     private record LatestExchangeRate(LocalDate baseDate, BigDecimal rate) {
