@@ -351,6 +351,24 @@ public class DashboardService {
 
     private List<DomesticIndicator> domesticPolicyIndicators() {
         List<String> codes = List.of(
+            "US_TREASURY_1MO",
+            "US_TREASURY_3MO",
+            "US_TREASURY_6MO",
+            "US_TREASURY_1Y",
+            "US_TREASURY_2Y",
+            "US_TREASURY_3Y",
+            "US_TREASURY_5Y",
+            "US_TREASURY_7Y",
+            "US_10Y_TREASURY",
+            "US_TREASURY_20Y",
+            "US_TREASURY_30Y",
+            "SOFR",
+            "SOFR_30D_AVG",
+            "SOFR_90D_AVG",
+            "SOFR_180D_AVG",
+            "SOFR_INDEX",
+            "KOFR",
+            "CD_91D",
             "M2",
             "CURRENT_ACCOUNT",
             "GOODS_ACCOUNT",
@@ -365,10 +383,9 @@ public class DashboardService {
             "FOREIGN_STOCK_FLOW",
             "FOREIGN_BOND_FLOW",
             "TERMS_OF_TRADE",
-            "US_10Y_TREASURY",
             "VIX",
             "WTI_OIL",
-            "KOREA_CDS"
+            "GLOBAL_CREDIT_SPREAD_PROXY"
         );
         return codes.stream()
             .map(this::domesticPolicyIndicator)
@@ -511,6 +528,12 @@ public class DashboardService {
 
     private String domesticPolicyImpact(String code) {
         return switch (code) {
+            case "US_TREASURY_1MO", "US_TREASURY_3MO", "US_TREASURY_6MO", "US_TREASURY_1Y", "US_TREASURY_2Y",
+                "US_TREASURY_3Y", "US_TREASURY_5Y", "US_TREASURY_7Y", "US_TREASURY_20Y", "US_TREASURY_30Y" -> "미국채 금리 상승은 달러 자산의 상대 매력을 높이고, 곡선의 기울기 변화는 경기·정책금리 기대를 통해 환율에 영향을 줄 수 있습니다.";
+            case "SOFR", "SOFR_30D_AVG", "SOFR_90D_AVG", "SOFR_180D_AVG" -> "SOFR 상승은 달러 단기 조달금리 부담을 키워 글로벌 달러 유동성 여건이 빡빡해지는 신호로 볼 수 있습니다.";
+            case "SOFR_INDEX" -> "SOFR 지수는 SOFR 누적 성과를 보여주는 보조 지표로, 단기 달러 유동성의 누적 비용 흐름을 확인할 때 사용합니다.";
+            case "KOFR" -> "KOFR 상승은 원화 단기자금시장의 조달 부담이 커지는 신호로, 달러-원 스왑과 원화 유동성 해석에 함께 봅니다.";
+            case "CD_91D" -> "CD 91일 금리 상승은 은행권 단기 조달비용과 원화 시장금리 압력이 커지는 신호로 볼 수 있습니다.";
             case "M2" -> "통화량 증가가 빠르면 원화 공급 확대와 인플레이션 기대를 통해 원화 약세 압력이 커질 수 있습니다.";
             case "CURRENT_ACCOUNT" -> "경상수지 흑자는 달러 유입 기반을 강화해 원화 안정 요인으로 해석됩니다.";
             case "GOODS_ACCOUNT" -> "상품수지 흑자는 무역을 통한 달러 유입을 늘려 원화에 우호적입니다.";
@@ -529,14 +552,31 @@ public class DashboardService {
             case "US_10Y_TREASURY" -> "미국 장기금리 상승은 달러 자산 매력을 높여 원화에는 부담이 될 수 있습니다.";
             case "VIX" -> "VIX 상승은 위험회피 심리 확대로 이어져 신흥국·원화 자산에는 부담이 될 수 있습니다.";
             case "WTI_OIL" -> "유가 상승은 에너지 수입 부담을 키워 무역수지와 원화 수급에 부정적일 수 있습니다.";
-            case "KOREA_CDS" -> "무료 공식 한국 CDS API가 없어 FRED 미국 하이일드 신용스프레드를 대외 신용위험 프록시로 사용합니다.";
+            case "GLOBAL_CREDIT_SPREAD_PROXY", "KOREA_CDS" -> "무료 공식 한국 CDS API가 없어 FRED 미국 하이일드 신용스프레드를 대외 신용위험 프록시로 사용합니다.";
             default -> "환율에 영향을 줄 수 있는 국내 정책·거시경제 지표입니다.";
         };
     }
 
     private String domesticPolicyNote(String code) {
         return switch (code) {
-            case "M2" -> "ECOS 161Y005, M2 평잔 계절조정계열입니다.";
+            case "US_TREASURY_1MO" -> "FRED DGS1MO, 미국 1개월 만기 국채 수익률입니다.";
+            case "US_TREASURY_3MO" -> "FRED DGS3MO, 미국 3개월 만기 국채 수익률입니다.";
+            case "US_TREASURY_6MO" -> "FRED DGS6MO, 미국 6개월 만기 국채 수익률입니다.";
+            case "US_TREASURY_1Y" -> "FRED DGS1, 미국 1년 만기 국채 수익률입니다.";
+            case "US_TREASURY_2Y" -> "FRED DGS2, 미국 2년 만기 국채 수익률입니다.";
+            case "US_TREASURY_3Y" -> "FRED DGS3, 미국 3년 만기 국채 수익률입니다.";
+            case "US_TREASURY_5Y" -> "FRED DGS5, 미국 5년 만기 국채 수익률입니다.";
+            case "US_TREASURY_7Y" -> "FRED DGS7, 미국 7년 만기 국채 수익률입니다.";
+            case "US_TREASURY_20Y" -> "FRED DGS20, 미국 20년 만기 국채 수익률입니다.";
+            case "US_TREASURY_30Y" -> "FRED DGS30, 미국 30년 만기 국채 수익률입니다.";
+            case "SOFR" -> "FRED SOFR, Secured Overnight Financing Rate입니다.";
+            case "SOFR_30D_AVG" -> "FRED SOFR30DAYAVG, SOFR 30일 평균입니다.";
+            case "SOFR_90D_AVG" -> "FRED SOFR90DAYAVG, SOFR 90일 평균입니다.";
+            case "SOFR_180D_AVG" -> "FRED SOFR180DAYAVG, SOFR 180일 평균입니다.";
+            case "SOFR_INDEX" -> "FRED SOFRINDEX, SOFR 지수입니다.";
+            case "KOFR" -> "ECOS 817Y002/010901000, KOFR(공시RFR) 일별 값입니다.";
+            case "CD_91D" -> "ECOS 817Y002/010502000, CD(91일) 일별 금리입니다.";
+            case "M2" -> "ECOS 161Y005, M2 평잔 계절조정계열입니다. 단일 최신값보다 1Y/3Y/5Y 추세 확인에 적합합니다.";
             case "CURRENT_ACCOUNT" -> "ECOS 301Y017, 경상수지 계절조정 월별 값입니다.";
             case "GOODS_ACCOUNT" -> "ECOS 301Y017, 상품수지 계절조정 월별 값입니다.";
             case "CPI" -> "ECOS 901Y009, 소비자물가지수 총지수입니다.";
@@ -554,7 +594,7 @@ public class DashboardService {
             case "US_10Y_TREASURY" -> "FRED DGS10, 미국 10년 만기 국채 수익률입니다.";
             case "VIX" -> "FRED VIXCLS, CBOE VIX 종가 계열입니다.";
             case "WTI_OIL" -> "FRED DCOILWTICO, WTI 현물 유가 계열입니다.";
-            case "KOREA_CDS" -> "FRED BAMLH0A0HYM2, ICE BofA 미국 하이일드 옵션조정스프레드입니다. 한국 CDS가 아니라 신용위험 프록시입니다.";
+            case "GLOBAL_CREDIT_SPREAD_PROXY", "KOREA_CDS" -> "FRED BAMLH0A0HYM2, ICE BofA 미국 하이일드 옵션조정스프레드입니다. 한국 CDS가 아니라 글로벌 신용위험 프록시입니다.";
             default -> "ECOS 저장값 기준입니다.";
         };
     }
@@ -727,7 +767,11 @@ public class DashboardService {
         }
 
         return switch (code) {
-            case "US_10Y_TREASURY", "VIX", "WTI_OIL", "KOREA_CDS" -> freshnessByBusinessDays(code, baseDate, value, fetchedAt, now, 2);
+            case "US_TREASURY_1MO", "US_TREASURY_3MO", "US_TREASURY_6MO", "US_TREASURY_1Y", "US_TREASURY_2Y",
+                "US_TREASURY_3Y", "US_TREASURY_5Y", "US_TREASURY_7Y", "US_10Y_TREASURY",
+                "US_TREASURY_20Y", "US_TREASURY_30Y", "SOFR", "SOFR_30D_AVG", "SOFR_90D_AVG",
+                "SOFR_180D_AVG", "SOFR_INDEX", "KOFR", "CD_91D", "VIX", "WTI_OIL",
+                "GLOBAL_CREDIT_SPREAD_PROXY", "KOREA_CDS" -> freshnessByBusinessDays(code, baseDate, value, fetchedAt, now, 2);
             case "US_POLICY_RATE" -> freshnessByBusinessDays(code, baseDate, value, fetchedAt, now, 2);
             case "RESERVES_TO_SHORT_TERM_DEBT" -> freshnessByMonths(code, baseDate, value, fetchedAt, now, 4);
             default -> freshnessByMonths(code, baseDate, value, fetchedAt, now, 2);
@@ -978,11 +1022,15 @@ public class DashboardService {
                 endDate
             );
             case "KR_NEER_RANK" -> findKrwNeerRankHistory(startDate, endDate);
-            case "M2", "CURRENT_ACCOUNT", "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
+            case "US_TREASURY_1MO", "US_TREASURY_3MO", "US_TREASURY_6MO", "US_TREASURY_1Y", "US_TREASURY_2Y",
+                "US_TREASURY_3Y", "US_TREASURY_5Y", "US_TREASURY_7Y", "US_10Y_TREASURY",
+                "US_TREASURY_20Y", "US_TREASURY_30Y", "SOFR", "SOFR_30D_AVG", "SOFR_90D_AVG",
+                "SOFR_180D_AVG", "SOFR_INDEX", "KOFR", "CD_91D", "M2", "CURRENT_ACCOUNT",
+                "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
                 "TRADE_BALANCE", "RESERVES_TO_SHORT_TERM_DEBT", "SHORT_TERM_EXTERNAL_DEBT",
                 "FISCAL_BALANCE", "GOVERNMENT_DEBT", "FOREIGN_STOCK_FLOW",
-                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "US_10Y_TREASURY", "VIX",
-                "WTI_OIL", "KOREA_CDS" -> jdbcTemplate.query(
+                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "VIX",
+                "WTI_OIL", "GLOBAL_CREDIT_SPREAD_PROXY", "KOREA_CDS" -> jdbcTemplate.query(
                     """
                         SELECT base_date, value
                         FROM domestic_policy_indicators
@@ -1092,6 +1140,24 @@ public class DashboardService {
 
     private DomesticIndicatorMetadata pendingDomesticIndicatorMetadata(String code) {
         return switch (code) {
+            case "US_TREASURY_1MO" -> new DomesticIndicatorMetadata("미국채 1개월", "PERCENT");
+            case "US_TREASURY_3MO" -> new DomesticIndicatorMetadata("미국채 3개월", "PERCENT");
+            case "US_TREASURY_6MO" -> new DomesticIndicatorMetadata("미국채 6개월", "PERCENT");
+            case "US_TREASURY_1Y" -> new DomesticIndicatorMetadata("미국채 1년", "PERCENT");
+            case "US_TREASURY_2Y" -> new DomesticIndicatorMetadata("미국채 2년", "PERCENT");
+            case "US_TREASURY_3Y" -> new DomesticIndicatorMetadata("미국채 3년", "PERCENT");
+            case "US_TREASURY_5Y" -> new DomesticIndicatorMetadata("미국채 5년", "PERCENT");
+            case "US_TREASURY_7Y" -> new DomesticIndicatorMetadata("미국채 7년", "PERCENT");
+            case "US_TREASURY_20Y" -> new DomesticIndicatorMetadata("미국채 20년", "PERCENT");
+            case "US_TREASURY_30Y" -> new DomesticIndicatorMetadata("미국채 30년", "PERCENT");
+            case "SOFR" -> new DomesticIndicatorMetadata("SOFR", "PERCENT");
+            case "SOFR_30D_AVG" -> new DomesticIndicatorMetadata("SOFR 30일 평균", "PERCENT");
+            case "SOFR_90D_AVG" -> new DomesticIndicatorMetadata("SOFR 90일 평균", "PERCENT");
+            case "SOFR_180D_AVG" -> new DomesticIndicatorMetadata("SOFR 180일 평균", "PERCENT");
+            case "SOFR_INDEX" -> new DomesticIndicatorMetadata("SOFR 지수", "INDEX");
+            case "KOFR" -> new DomesticIndicatorMetadata("KOFR", "PERCENT");
+            case "CD_91D" -> new DomesticIndicatorMetadata("CD(91일)", "PERCENT");
+            case "GLOBAL_CREDIT_SPREAD_PROXY", "KOREA_CDS" -> new DomesticIndicatorMetadata("글로벌 신용스프레드 프록시", "PERCENT");
             case "FISCAL_BALANCE" -> new DomesticIndicatorMetadata("재정수지", "KRW_TRILLION");
             case "GOVERNMENT_DEBT" -> new DomesticIndicatorMetadata("중앙정부 국가채무", "KRW_TRILLION");
             default -> throw new IllegalArgumentException("Unsupported domestic indicator code: " + code);
@@ -1146,11 +1212,15 @@ public class DashboardService {
                       AND area_code = 'KR'
                     """
             );
-            case "M2", "CURRENT_ACCOUNT", "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
+            case "US_TREASURY_1MO", "US_TREASURY_3MO", "US_TREASURY_6MO", "US_TREASURY_1Y", "US_TREASURY_2Y",
+                "US_TREASURY_3Y", "US_TREASURY_5Y", "US_TREASURY_7Y", "US_10Y_TREASURY",
+                "US_TREASURY_20Y", "US_TREASURY_30Y", "SOFR", "SOFR_30D_AVG", "SOFR_90D_AVG",
+                "SOFR_180D_AVG", "SOFR_INDEX", "KOFR", "CD_91D", "M2", "CURRENT_ACCOUNT",
+                "GOODS_ACCOUNT", "CPI", "PPI", "EXPORT_AMOUNT", "IMPORT_AMOUNT",
                 "TRADE_BALANCE", "RESERVES_TO_SHORT_TERM_DEBT", "SHORT_TERM_EXTERNAL_DEBT",
                 "FISCAL_BALANCE", "GOVERNMENT_DEBT", "FOREIGN_STOCK_FLOW",
-                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "US_10Y_TREASURY", "VIX",
-                "WTI_OIL", "KOREA_CDS" -> queryEarliestDate(
+                "FOREIGN_BOND_FLOW", "TERMS_OF_TRADE", "VIX",
+                "WTI_OIL", "GLOBAL_CREDIT_SPREAD_PROXY", "KOREA_CDS" -> queryEarliestDate(
                     """
                         SELECT MIN(base_date)
                         FROM domestic_policy_indicators
