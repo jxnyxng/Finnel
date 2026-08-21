@@ -17,7 +17,6 @@ type GovernmentBriefingsPageProps = {
     isPendingInitialLoad?: boolean;
     page: number;
     selectedCategory: string;
-    statusNode?: React.ReactNode;
     totalCount: number;
     totalPages: number;
     onCategoryChange: (category: string) => void;
@@ -37,7 +36,6 @@ export function GovernmentBriefingsPage({
                                             onLoadMore,
                                             page,
                                             selectedCategory,
-                                            statusNode,
                                             totalCount,
                                             totalPages
                                         }: GovernmentBriefingsPageProps) {
@@ -130,7 +128,6 @@ export function GovernmentBriefingsPage({
                         <span>총 {totalCount}건</span>
                         <span>{articles.length}건 표시</span>
                     </div>
-                    {statusNode}
                 </div>
             </FadeIn>
 
