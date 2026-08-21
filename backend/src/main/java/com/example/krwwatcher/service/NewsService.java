@@ -369,7 +369,7 @@ public class NewsService {
     }
 
     private String relatedArticleIdentity(NewsArticle article) {
-        String url = newsArticleText.canonicalizeUrl(newsArticleText.firstText(article.originLink(), article.link()));
+        String url = newsArticleText.canonicalizeUrl(newsArticleText.firstText(article.link(), article.originLink()));
         if (StringUtils.hasText(url)) {
             return "url:" + url;
         }
