@@ -6,6 +6,7 @@ type RelatedNewsBannerProps = {
   articles?: RelatedBannerArticle[];
   configured?: boolean;
   desktopGroupSize?: 1 | 2 | 3;
+  fallbackArticles?: RelatedBannerArticle[];
   label?: string;
 };
 
@@ -71,10 +72,18 @@ export function prefetchRelatedNews(topic: NonNullable<RelatedNewsBannerProps['t
   return request;
 }
 
-export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, configured, desktopGroupSize = 3, label, topic }: RelatedNewsBannerProps) {
+export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, configured, desktopGroupSize = 3, fallbackArticles = [], label, topic }: RelatedNewsBannerProps) {
   const cachedResponse = topic ? relatedNewsCache.get(topic) : undefined;
   const isControlled = controlledArticles !== undefined;
-  const [articles, setArticles] = React.useState<RelatedBannerArticle[]>(() => limitRelatedArticles(normalizeRelatedArticles(controlledArticles ?? cachedResponse?.articles ?? []), relatedNewsDisplayCount));
+  const normalizedFallbackArticles = React.useMemo(
+    () => limitRelatedArticles(normalizeRelatedArticles(fallbackArticles), relatedNewsDisplayCount),
+    [fallbackArticles]
+  );
+  const [articles, setArticles] = React.useState<RelatedBannerArticle[]>(() => mergeRelatedArticles(
+    controlledArticles ?? cachedResponse?.articles ?? [],
+    normalizedFallbackArticles,
+    relatedNewsDisplayCount
+  ));
   const [isConfigured, setIsConfigured] = React.useState(configured ?? cachedResponse?.configured ?? true);
   const [activeGroup, setActiveGroup] = React.useState(0);
   const [previousGroup, setPreviousGroup] = React.useState<number | null>(null);
@@ -107,12 +116,12 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
 
   React.useEffect(() => {
     if (isControlled) {
-      setArticles(limitRelatedArticles(normalizeRelatedArticles(controlledArticles ?? []), relatedNewsDisplayCount));
+      setArticles(mergeRelatedArticles(controlledArticles ?? [], normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(configured ?? true);
       return;
     }
     if (!topic) {
-      setArticles([]);
+      setArticles(normalizedFallbackArticles);
       setIsConfigured(configured ?? true);
       return;
     }
@@ -129,8 +138,10 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
     }
 
     if (cached) {
-      setArticles(normalizeRelatedArticles(cached.articles));
+      setArticles(mergeRelatedArticles(cached.articles, normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(cached.configured);
+    } else if (normalizedFallbackArticles.length > 0) {
+      setArticles(normalizedFallbackArticles);
     }
 
     prefetchRelatedNews(topic).then((response) => {
@@ -138,18 +149,18 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
         return;
       }
 
-      setArticles(response.articles);
+      setArticles(mergeRelatedArticles(response.articles, normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(response.configured);
     }).catch(() => {
       if (isMounted && !relatedNewsCache.has(topic)) {
-        setArticles([]);
+        setArticles(normalizedFallbackArticles);
       }
     });
 
     return () => {
       isMounted = false;
     };
-  }, [configured, controlledArticles, isControlled, topic]);
+  }, [configured, controlledArticles, isControlled, normalizedFallbackArticles, topic]);
 
   React.useEffect(() => {
     if (groupCount <= 1) {
@@ -344,6 +355,10 @@ function normalizeRelatedNewsResponse(response: RelatedNewsResponse): RelatedNew
 
 function limitRelatedArticles(articles: RelatedBannerArticle[], maxCount: number) {
   return articles.slice(0, maxCount);
+}
+
+function mergeRelatedArticles(primaryArticles: RelatedBannerArticle[], fallbackArticles: RelatedBannerArticle[], maxCount: number) {
+  return limitRelatedArticles(normalizeRelatedArticles([...primaryArticles, ...fallbackArticles]), maxCount);
 }
 
 function normalizeRelatedArticles(articles: RelatedBannerArticle[]) {
