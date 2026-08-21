@@ -90,6 +90,7 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
   const [slideDirection, setSlideDirection] = React.useState<SlideDirection>('next');
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isAutoPaused, setIsAutoPaused] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(() => Boolean(topic && articles.length === 0));
   const [groupSize, setGroupSize] = React.useState(() => getResponsiveGroupSize(desktopGroupSize));
   const manualPauseUntilRef = React.useRef(0);
   const animationTimerRef = React.useRef<number | null>(null);
@@ -118,11 +119,13 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
     if (isControlled) {
       setArticles(mergeRelatedArticles(controlledArticles ?? [], normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(configured ?? true);
+      setIsLoading(false);
       return;
     }
     if (!topic) {
       setArticles(normalizedFallbackArticles);
       setIsConfigured(configured ?? true);
+      setIsLoading(false);
       return;
     }
 
@@ -140,6 +143,9 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
     if (cached) {
       setArticles(mergeRelatedArticles(cached.articles, normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(cached.configured);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
     }
 
     prefetchRelatedNews(topic).then((response) => {
@@ -149,9 +155,13 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
 
       setArticles(mergeRelatedArticles(response.articles, normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(response.configured);
+      setIsLoading(false);
     }).catch(() => {
       if (isMounted && !relatedNewsCache.has(topic)) {
         setArticles(normalizedFallbackArticles);
+      }
+      if (isMounted) {
+        setIsLoading(false);
       }
     });
 
@@ -182,7 +192,7 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
     }
   }, []);
 
-  if (!isConfigured || articles.length === 0) {
+  if (!isConfigured || (articles.length === 0 && !isLoading)) {
     return null;
   }
 
@@ -228,7 +238,7 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
             </div>
           ) : null}
           <div className={isAnimating ? `related-news-slide related-news-slide-enter related-news-slide-enter-${slideDirection}` : undefined}>
-            <RelatedNewsGroup articles={visibleArticles} columns={groupSize} />
+            {articles.length > 0 ? <RelatedNewsGroup articles={visibleArticles} columns={groupSize} /> : <RelatedNewsLoadingGroup columns={groupSize} />}
           </div>
           {groupCount > 1 ? (
             <div className="related-news-controls absolute right-2 top-2 z-20 inline-flex rounded-full border border-zinc-200 bg-white/95 p-px text-zinc-700 shadow-sm backdrop-blur">
@@ -274,6 +284,22 @@ function RelatedNewsGroup({ articles, columns }: { articles: RelatedBannerArticl
     <div className={columns >= 3 ? 'grid md:grid-cols-3' : columns === 2 ? 'grid md:grid-cols-2' : 'grid'}>
       {articles.map((article) => (
         <RelatedNewsCard article={article} key={getArticleIdentity(article)} />
+      ))}
+    </div>
+  );
+}
+
+function RelatedNewsLoadingGroup({ columns }: { columns: number }) {
+  return (
+    <div className={columns >= 3 ? 'grid md:grid-cols-3' : columns === 2 ? 'grid md:grid-cols-2' : 'grid'}>
+      {Array.from({ length: columns }).map((_, index) => (
+        <div className="h-36 animate-pulse bg-zinc-100" key={index}>
+          <div className="flex h-full flex-col justify-end p-3">
+            <div className="mb-2 h-4 w-28 rounded bg-zinc-200" />
+            <div className="h-4 w-4/5 rounded bg-zinc-200" />
+            <div className="mt-2 h-3 w-3/5 rounded bg-zinc-200" />
+          </div>
+        </div>
       ))}
     </div>
   );
