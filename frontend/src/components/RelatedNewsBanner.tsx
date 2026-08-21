@@ -80,7 +80,7 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
     [fallbackArticles]
   );
   const [articles, setArticles] = React.useState<RelatedBannerArticle[]>(() => mergeRelatedArticles(
-    controlledArticles ?? cachedResponse?.articles ?? [],
+    controlledArticles ?? cachedResponse?.articles ?? (topic ? [] : normalizedFallbackArticles),
     normalizedFallbackArticles,
     relatedNewsDisplayCount
   ));
@@ -140,8 +140,6 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
     if (cached) {
       setArticles(mergeRelatedArticles(cached.articles, normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(cached.configured);
-    } else if (normalizedFallbackArticles.length > 0) {
-      setArticles(normalizedFallbackArticles);
     }
 
     prefetchRelatedNews(topic).then((response) => {
