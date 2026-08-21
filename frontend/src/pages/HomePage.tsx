@@ -233,7 +233,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
                             <FadeIn delay={0.5}>
                                 <p className="home-hero-coffee-copy mx-auto mt-5 max-w-2xl break-keep text-center text-sm font-extrabold sm:text-base">
                                     <span className="bg-gradient-to-r from-teal-500 to-teal-800 bg-clip-text text-transparent">
-                                        매일 아침 커피 한 잔과 함께 복잡한 경제 흐름을 가볍게 따라가보세요
+                                        복잡한 경제의 흐름을 쉽게 따라가보세요
                                     </span>
                                 </p>
                             </FadeIn>

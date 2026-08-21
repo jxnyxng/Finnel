@@ -50,9 +50,7 @@ import { findMetric, sortMetrics } from './utils/metrics';
 import {
     getIntradayStatusLabel,
     getLatestSyncLabel,
-    getMarketDailyStatus,
-    getServiceStatus,
-    getServiceUpdateInterval
+    getMarketDailyStatus
 } from './utils/sync';
 import {
     getRemainingCooldownSeconds,
@@ -617,24 +615,6 @@ function App() {
     const remainingCooldownSeconds = getRemainingCooldownSeconds(syncStatus, nowMs);
     const remainingIntradayCooldownSeconds = getRemainingCooldownSeconds(intradayStatus, nowMs);
     const latestSyncLabel = getLatestSyncLabel(syncStatus, remainingCooldownSeconds);
-    const activeServiceStatus = getServiceStatus({
-        activeTab,
-        dashboard,
-        dashboardLoadState,
-        domesticIndicators,
-        governmentBriefingsSyncStatus,
-        isGovernmentBriefingsConfigured,
-        intradayStatus,
-        latestGovernmentBriefingFetchedAt,
-        isNewsConfigured,
-        newsSyncStatus,
-        latestNewsFetchedAt,
-        latestIntradayDate,
-        ranks: currencyStrengthRanks,
-        seoulDate: seoulToday,
-        seoulTime,
-        syncStatus
-    });
     const selectDollarIndexTab = React.useCallback((tabKey: DollarIndexTabKey) => {
         if (tabKey === 'broad') {
             setShowBroadDollarIndex(true);
@@ -644,12 +624,7 @@ function App() {
             setActiveBroadDollarHover(null);
         }
     }, []);
-    const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
     const marketDailyStatus = getMarketDailyStatus(dashboard, syncStatus);
-    const dollarIndexSourceRun = syncStatus?.sourceRuns?.find((sourceRun) => sourceRun.sourceName === 'dollarIndex') ?? null;
-    const activeDollarIndexFetchedAt = showBroadDollarIndex
-        ? dollarIndexStatus?.fetchedAt ?? null
-        : advancedDollarIndexStatus?.fetchedAt ?? null;
     const usdKrwLatestUpdatedAt = usdKrwIndicator?.lastSuccessfulFetchedAt ?? usdKrwIndicator?.fetchedAt ?? null;
     const usdKrwIntradayLatestUpdatedAt = latestUsdKrwIntradayPoint?.observedAt ?? usdKrwLatestUpdatedAt;
     const usdKrwIntradayStatusDetails = getStatusDetails({
@@ -662,30 +637,6 @@ function App() {
         latestUpdatedAt: usdKrwLatestUpdatedAt,
         syncStatus: syncStatus?.latestStatus ?? null
     });
-    const dollarIndexStatusDetails = getStatusDetails({
-        attemptedAt: dollarIndexSourceRun?.endedAt ?? dollarIndexSourceRun?.startedAt ?? syncStatus?.latestEndedAt ?? syncStatus?.latestStartedAt ?? null,
-        latestUpdatedAt: activeDollarIndexFetchedAt,
-        syncStatus: dollarIndexSourceRun?.status ?? syncStatus?.latestStatus ?? null
-    });
-    const newsStatusDetails = getStatusDetails({
-        attemptedAt: newsSyncStatus?.latestSyncEndedAt ?? newsSyncStatus?.latestSyncStartedAt ?? null,
-        latestUpdatedAt: latestNewsFetchedAt,
-        syncStatus: newsSyncStatus?.latestSyncStatus ?? null
-    });
-    const governmentBriefingsStatusDetails = getStatusDetails({
-        attemptedAt: governmentBriefingsSyncStatus?.latestSyncEndedAt ?? governmentBriefingsSyncStatus?.latestSyncStartedAt ?? null,
-        latestUpdatedAt: latestGovernmentBriefingFetchedAt,
-        syncStatus: governmentBriefingsSyncStatus?.latestSyncStatus ?? null
-    });
-    const activeStatusDetails = activeTab === 'newsroom'
-        ? newsStatusDetails
-        : activeTab === 'governmentBriefings'
-            ? governmentBriefingsStatusDetails
-            : getStatusDetails({
-                attemptedAt: syncStatus?.latestEndedAt ?? syncStatus?.latestStartedAt ?? null,
-                latestUpdatedAt: syncStatus?.latestEndedAt ?? null,
-                syncStatus: syncStatus?.latestStatus ?? null
-            });
     const usdKrwIntradayCardStatus = getUsdKrwIntradayCardStatus({
         dashboard,
         dashboardLoadState,
@@ -697,28 +648,11 @@ function App() {
     const usdKrwStatusNode = (
         <UpdateStatusBox
             details={usdKrwRange === '1D' ? usdKrwIntradayStatusDetails : usdKrwDailyStatusDetails}
-            interval={`${getRangeLabel(usdKrwRange)} 수집상태`}
+            interval="시스템 상태"
             statusLabel={usdKrwRange === '1D' ? usdKrwIntradayCardStatus.label : marketDailyStatus.label}
             tone={usdKrwRange === '1D' ? usdKrwIntradayCardStatus.tone : marketDailyStatus.tone}
         />
     );
-    const dollarIndexStatusNode = (
-        <UpdateStatusBox
-            details={dollarIndexStatusDetails}
-            interval={`${getRangeLabel(showBroadDollarIndex ? dollarIndexRange : dxyRange)} 수집상태`}
-            statusLabel={marketDailyStatus.label}
-            tone={marketDailyStatus.tone}
-        />
-    );
-    const showPageStatus = activePage !== 'dashboard' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator';
-    const activeStatusNode = showPageStatus ? (
-        <UpdateStatusBox
-            details={activeStatusDetails}
-            interval={activeServiceUpdateInterval}
-            statusLabel={activeServiceStatus.label}
-            tone={activeServiceStatus.tone}
-        />
-    ) : null;
     const intradayStatusLabel = getIntradayStatusLabel(
         false,
         latestIntradayDate,
@@ -731,7 +665,7 @@ function App() {
         : `기준 환율 일별 · 최신 ${latestUsdKrwPoint?.dateValue.slice(0, 10) ?? '-'} · ${marketDailyStatus.label}`;
     const exchangeGuideButton = (
         <button
-            className="inline-flex h-7 shrink-0 items-center justify-center border border-transparent px-1.5 text-[12px] font-bold leading-none text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+            className="inline-flex h-6 shrink-0 items-center justify-center border border-transparent px-1 text-[11px] font-bold leading-none text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
             onClick={() => setIsExchangeGuideOpen(true)}
             type="button"
         >
@@ -922,26 +856,18 @@ function App() {
                             newsConfigured={!hasNewsLoaded || isNewsConfigured}
                             newsSyncStatus={newsSyncStatus}
                             foreignExchangeRates={foreignExchangeRates}
-                            statusNode={activeStatusNode}
                         />
                     </FadeIn>
                 ) : null}
 
                 {activePage === 'dashboard' ? (
                     <FadeIn as="header" className="page-tab-header page-tab-header-no-divider page-content-enter">
-                        <div className="min-w-0 md:col-span-2">
+                        <div className="relative min-w-0 md:col-span-2">
+                            <div className="absolute right-0 top-[-0.125rem]">{exchangeGuideButton}</div>
                             <p className="page-tab-eyebrow">FX DASHBOARD</p>
                             <h2 className="page-tab-title">환율현황</h2>
-                            <div className="mt-1 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="page-tab-description m-0 max-w-none">원/달러 환율과 달러지수의 차트, 기준값, 기간별 변동 정보를 제공합니다.</p>
-                                {exchangeGuideButton}
-                            </div>
+                            <p className="page-tab-description m-0 mt-1 max-w-none">원/달러 환율과 달러지수의 차트, 기준값, 기간별 변동 정보를 제공합니다.</p>
                         </div>
-                        {activeStatusNode ? (
-                            <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
-                                {activeStatusNode}
-                            </div>
-                        ) : null}
                     </FadeIn>
                 ) : null}
 
@@ -953,7 +879,7 @@ function App() {
                             chartAction={usdKrwChartDisplayControl}
                             chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
                             desktopAdSlot={chartAdSlots.usdKrwDesktop}
-                            headerStatus={usdKrwStatusNode}
+                            headerStatus={usdKrwRange === '1D' ? usdKrwStatusNode : null}
                             helpAriaLabel="USD/KRW 그래프 안내"
                             helpContent={(
                                 <>
@@ -997,7 +923,6 @@ function App() {
                         <MarketChartSection
                             emptyText={dashboardEmptyText}
                             desktopAdSlot={chartAdSlots.dollarIndexDesktop}
-                            headerStatus={dollarIndexStatusNode}
                             helpAriaLabel="달러인덱스 안내"
                             helpContent={(
                                 <>
@@ -1058,7 +983,6 @@ function App() {
                             errorMessage={hasDashboardError && domesticIndicators.length === 0 ? dashboardErrorMessage : null}
                             isLoading={isInitialDashboardLoading}
                             latestSyncLabel={latestSyncLabel}
-                            statusNode={activeStatusNode}
                         />
                     </FadeIn>
                 ) : null}
@@ -1087,7 +1011,6 @@ function App() {
                             onLoadMore={changeNewsPage}
                             page={newsPage}
                             selectedCategory={selectedNewsCategory}
-                            statusNode={activeStatusNode}
                             totalCount={newsTotalCount}
                             totalPages={newsTotalPages}
                         />
@@ -1108,7 +1031,6 @@ function App() {
                             onLoadMore={changeGovernmentBriefingsPage}
                             page={governmentBriefingsPage}
                             selectedCategory={selectedGovernmentBriefingCategory}
-                            statusNode={activeStatusNode}
                             totalCount={governmentBriefingsTotalCount}
                             totalPages={governmentBriefingsTotalPages}
                         />
