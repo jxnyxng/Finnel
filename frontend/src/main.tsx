@@ -21,7 +21,6 @@ import { GoogleAdSlot } from './components/AdSlot';
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
-import { prefetchRelatedNews } from './components/RelatedNewsBanner';
 import { CurrencyStrengthPage as CurrencyStrengthPageView } from './pages/CurrencyStrengthPage';
 import { ExchangeRateGuidePage as ExchangeRateGuidePageView } from './pages/ExchangeRateGuidePage';
 import { GovernmentBriefingsPage as GovernmentBriefingsPageView } from './pages/GovernmentBriefingsPage';
@@ -529,8 +528,6 @@ function App() {
     React.useEffect(() => {
         loadNews('all', 1, false);
         loadGovernmentBriefings('all', 1, false);
-        prefetchRelatedNews('exchange').catch(() => undefined);
-        prefetchRelatedNews('indicators').catch(() => undefined);
     }, []);
 
     React.useEffect(() => {
