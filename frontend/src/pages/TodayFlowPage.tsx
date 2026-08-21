@@ -1,6 +1,6 @@
 import React from 'react';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { RelatedNewsBanner, type RelatedBannerArticle } from '../components/RelatedNewsBanner';
+import { RelatedNewsBanner } from '../components/RelatedNewsBanner';
 import type {
     ContentSyncStatus,
     DailyDashboardResponse,
@@ -75,10 +75,6 @@ export function TodayFlowPage({
         : dashboard?.dxyIndexSeries ?? [];
     const previousDollarPoint = activeDollarSeries.length >= 2 ? activeDollarSeries[activeDollarSeries.length - 2] : null;
     const latestDollarPoint = activeDollarSeries[activeDollarSeries.length - 1] ?? null;
-    const newsBannerArticles: RelatedBannerArticle[] = React.useMemo(() => latestNews.map((article) => ({
-        ...article,
-        categoryName: article.categoryName || '뉴스'
-    })), [latestNews]);
     // 애니메이션용 인라인 스타일 헬퍼
     const fadeUpStyle = (delay: string) => ({
         opacity: 0,
@@ -97,8 +93,8 @@ export function TodayFlowPage({
 
             <header className="page-tab-header today-flow-header" style={fadeUpStyle('0')}>
                 <div className="min-w-0">
-                    {newsConfigured && newsBannerArticles.length > 0 ? (
-                        <RelatedNewsBanner articles={newsBannerArticles} configured={newsConfigured} desktopGroupSize={3} label="뉴스룸 배너" />
+                    {newsConfigured ? (
+                        <RelatedNewsBanner configured={newsConfigured} desktopGroupSize={3} label="뉴스룸 배너" topic="exchange" />
                     ) : (
                         <EmptyState text={newsConfigured ? '최근 뉴스 수집 대기' : '뉴스 수집 설정 확인 중'} />
                     )}
