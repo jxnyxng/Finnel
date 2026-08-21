@@ -38,6 +38,7 @@ const manualPauseMs = 10000;
 const slideDurationMs = 420;
 const relatedNewsDisplayCount = 9;
 const relatedNewsRequestLimit = 30;
+const relatedNewsRequestTimeoutMs = 6000;
 const relatedNewsDesktopMediaQuery = '(min-width: 768px)';
 const relatedNewsCache = new Map<NonNullable<RelatedNewsBannerProps['topic']>, RelatedNewsResponse>();
 const relatedNewsRequestCache = new Map<NonNullable<RelatedNewsBannerProps['topic']>, Promise<RelatedNewsResponse>>();
@@ -57,7 +58,8 @@ export function prefetchRelatedNews(topic: NonNullable<RelatedNewsBannerProps['t
     params: {
       limit: relatedNewsRequestLimit,
       topic
-    }
+    },
+    timeout: relatedNewsRequestTimeoutMs
   }).then((response) => {
     const normalizedResponse = normalizeRelatedNewsResponse(response.data);
     relatedNewsCache.set(topic, normalizedResponse);
@@ -143,6 +145,9 @@ export function RelatedNewsBanner({ actionSlot, articles: controlledArticles, co
     if (cached) {
       setArticles(mergeRelatedArticles(cached.articles, normalizedFallbackArticles, relatedNewsDisplayCount));
       setIsConfigured(cached.configured);
+      setIsLoading(false);
+    } else if (normalizedFallbackArticles.length > 0) {
+      setArticles(normalizedFallbackArticles);
       setIsLoading(false);
     } else {
       setIsLoading(true);
