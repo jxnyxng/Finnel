@@ -72,7 +72,6 @@ type MarketChartSectionProps<T extends RangeKey> = {
   metric?: MetricSnapshot | null;
   panelDetails?: Array<{ label: string; value: string }>;
   panelFooterText?: string;
-  statusNode?: ReactNode;
   headerAction?: ReactNode;
   chartAction?: ReactNode;
   headerActionPlacement?: 'header' | 'chartControls' | 'panel';
@@ -118,7 +117,6 @@ export function MarketChartSection<T extends RangeKey>({
   chartVariant = 'line',
   candlestickSeries = [],
   statusClassName = 'text-zinc-500',
-  statusNode,
   statusText,
   statusTextPlacement = 'belowTitle',
   subtitle,
@@ -521,20 +519,11 @@ export function MarketChartSection<T extends RangeKey>({
   const renderMobileAdSlot = () => (
     <GoogleAdSlot minHeightClassName="min-h-28" slot={mobileAdSlot ?? desktopAdSlot} />
   );
-  const collectionStatusCard = (
-    <div className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-1.5">
-      {headerStatus ? (
-        <div className="rounded-lg bg-black/15 px-2.5 py-1.5">
-          {headerStatus}
-        </div>
-      ) : statusText ? (
-        <div className="rounded-lg bg-black/15 px-2.5 py-1.5">
-          <p className="text-[11px] font-medium leading-4 text-white/45">업데이트</p>
-          <p className="mt-0.5 text-xs font-semibold leading-4 text-white/85">{statusText}</p>
-        </div>
-      ) : null}
+  const headerStatusBox = headerStatus ? (
+    <div className="rounded-xl border border-white/15 bg-black/15 px-3 py-2">
+      {headerStatus}
     </div>
-  );
+  ) : null;
 
   return (
     <div className="grid gap-2">
@@ -570,6 +559,7 @@ export function MarketChartSection<T extends RangeKey>({
           <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
             <div className="order-1 grid min-w-0 justify-items-stretch gap-2 px-1 pb-1 pt-2 text-center lg:hidden">
               {chartControls}
+              {headerStatusBox}
             </div>
 
             <div
@@ -815,22 +805,13 @@ export function MarketChartSection<T extends RangeKey>({
               <div className="px-0 pb-0 pt-0.5">
                 {chartControls}
               </div>
+              {headerStatusBox}
               <div className="glass-subcard flex min-w-0 flex-none flex-col rounded-2xl p-2.5">
                 {headerActionPlacement === 'panel' && headerAction ? (
                   <div className="panel-action-row">
                     {headerAction}
                   </div>
                 ) : null}
-                <div className="grid gap-4">
-                  {statusNode ? (
-                    <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2">
-                      {statusNode}
-                    </div>
-                  ) : null}
-                </div>
-                <div className={statusNode || headerActionPlacement === 'panel' && headerAction ? 'mt-1' : ''}>
-                  {collectionStatusCard}
-                </div>
                 <dl className="mx-1.5 mb-1 mt-2 divide-y divide-white/10 text-xs">
                   {panelInfoDetails.map((item) => (
                     <div key={item.label} className="flex items-start justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
@@ -850,14 +831,6 @@ export function MarketChartSection<T extends RangeKey>({
                   {headerAction}
                 </div>
               ) : null}
-              {statusNode ? (
-                <div className="rounded-2xl border border-white/15 bg-white/10 px-3 py-2">
-                  {statusNode}
-                </div>
-              ) : null}
-              <div className={statusNode || headerActionPlacement === 'panel' && headerAction ? 'mt-1' : ''}>
-                {collectionStatusCard}
-              </div>
               <dl className="mx-1.5 mb-1 mt-2 divide-y divide-white/10 text-xs">
                 {panelInfoDetails.map((item) => (
                   <div key={item.label} className="flex items-start justify-between gap-3 py-1.5 first:pt-0 last:pb-0">

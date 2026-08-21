@@ -50,9 +50,7 @@ import { findMetric, sortMetrics } from './utils/metrics';
 import {
     getIntradayStatusLabel,
     getLatestSyncLabel,
-    getMarketDailyStatus,
-    getServiceStatus,
-    getServiceUpdateInterval
+    getMarketDailyStatus
 } from './utils/sync';
 import {
     getRemainingCooldownSeconds,
@@ -617,24 +615,6 @@ function App() {
     const remainingCooldownSeconds = getRemainingCooldownSeconds(syncStatus, nowMs);
     const remainingIntradayCooldownSeconds = getRemainingCooldownSeconds(intradayStatus, nowMs);
     const latestSyncLabel = getLatestSyncLabel(syncStatus, remainingCooldownSeconds);
-    const activeServiceStatus = getServiceStatus({
-        activeTab,
-        dashboard,
-        dashboardLoadState,
-        domesticIndicators,
-        governmentBriefingsSyncStatus,
-        isGovernmentBriefingsConfigured,
-        intradayStatus,
-        latestGovernmentBriefingFetchedAt,
-        isNewsConfigured,
-        newsSyncStatus,
-        latestNewsFetchedAt,
-        latestIntradayDate,
-        ranks: currencyStrengthRanks,
-        seoulDate: seoulToday,
-        seoulTime,
-        syncStatus
-    });
     const selectDollarIndexTab = React.useCallback((tabKey: DollarIndexTabKey) => {
         if (tabKey === 'broad') {
             setShowBroadDollarIndex(true);
@@ -644,12 +624,7 @@ function App() {
             setActiveBroadDollarHover(null);
         }
     }, []);
-    const activeServiceUpdateInterval = getServiceUpdateInterval(activeTab);
     const marketDailyStatus = getMarketDailyStatus(dashboard, syncStatus);
-    const dollarIndexSourceRun = syncStatus?.sourceRuns?.find((sourceRun) => sourceRun.sourceName === 'dollarIndex') ?? null;
-    const activeDollarIndexFetchedAt = showBroadDollarIndex
-        ? dollarIndexStatus?.fetchedAt ?? null
-        : advancedDollarIndexStatus?.fetchedAt ?? null;
     const usdKrwLatestUpdatedAt = usdKrwIndicator?.lastSuccessfulFetchedAt ?? usdKrwIndicator?.fetchedAt ?? null;
     const usdKrwIntradayLatestUpdatedAt = latestUsdKrwIntradayPoint?.observedAt ?? usdKrwLatestUpdatedAt;
     const usdKrwIntradayStatusDetails = getStatusDetails({
@@ -662,30 +637,6 @@ function App() {
         latestUpdatedAt: usdKrwLatestUpdatedAt,
         syncStatus: syncStatus?.latestStatus ?? null
     });
-    const dollarIndexStatusDetails = getStatusDetails({
-        attemptedAt: dollarIndexSourceRun?.endedAt ?? dollarIndexSourceRun?.startedAt ?? syncStatus?.latestEndedAt ?? syncStatus?.latestStartedAt ?? null,
-        latestUpdatedAt: activeDollarIndexFetchedAt,
-        syncStatus: dollarIndexSourceRun?.status ?? syncStatus?.latestStatus ?? null
-    });
-    const newsStatusDetails = getStatusDetails({
-        attemptedAt: newsSyncStatus?.latestSyncEndedAt ?? newsSyncStatus?.latestSyncStartedAt ?? null,
-        latestUpdatedAt: latestNewsFetchedAt,
-        syncStatus: newsSyncStatus?.latestSyncStatus ?? null
-    });
-    const governmentBriefingsStatusDetails = getStatusDetails({
-        attemptedAt: governmentBriefingsSyncStatus?.latestSyncEndedAt ?? governmentBriefingsSyncStatus?.latestSyncStartedAt ?? null,
-        latestUpdatedAt: latestGovernmentBriefingFetchedAt,
-        syncStatus: governmentBriefingsSyncStatus?.latestSyncStatus ?? null
-    });
-    const activeStatusDetails = activeTab === 'newsroom'
-        ? newsStatusDetails
-        : activeTab === 'governmentBriefings'
-            ? governmentBriefingsStatusDetails
-            : getStatusDetails({
-                attemptedAt: syncStatus?.latestEndedAt ?? syncStatus?.latestStartedAt ?? null,
-                latestUpdatedAt: syncStatus?.latestEndedAt ?? null,
-                syncStatus: syncStatus?.latestStatus ?? null
-            });
     const usdKrwIntradayCardStatus = getUsdKrwIntradayCardStatus({
         dashboard,
         dashboardLoadState,
@@ -697,28 +648,11 @@ function App() {
     const usdKrwStatusNode = (
         <UpdateStatusBox
             details={usdKrwRange === '1D' ? usdKrwIntradayStatusDetails : usdKrwDailyStatusDetails}
-            interval={`${getRangeLabel(usdKrwRange)} 수집상태`}
+            interval="시스템 상태"
             statusLabel={usdKrwRange === '1D' ? usdKrwIntradayCardStatus.label : marketDailyStatus.label}
             tone={usdKrwRange === '1D' ? usdKrwIntradayCardStatus.tone : marketDailyStatus.tone}
         />
     );
-    const dollarIndexStatusNode = (
-        <UpdateStatusBox
-            details={dollarIndexStatusDetails}
-            interval={`${getRangeLabel(showBroadDollarIndex ? dollarIndexRange : dxyRange)} 수집상태`}
-            statusLabel={marketDailyStatus.label}
-            tone={marketDailyStatus.tone}
-        />
-    );
-    const showPageStatus = activePage !== 'dashboard' && activePage !== 'serviceGuide' && activePage !== 'dataSources' && activePage !== 'calculator';
-    const activeStatusNode = showPageStatus ? (
-        <UpdateStatusBox
-            details={activeStatusDetails}
-            interval={activeServiceUpdateInterval}
-            statusLabel={activeServiceStatus.label}
-            tone={activeServiceStatus.tone}
-        />
-    ) : null;
     const intradayStatusLabel = getIntradayStatusLabel(
         false,
         latestIntradayDate,
@@ -922,7 +856,6 @@ function App() {
                             newsConfigured={!hasNewsLoaded || isNewsConfigured}
                             newsSyncStatus={newsSyncStatus}
                             foreignExchangeRates={foreignExchangeRates}
-                            statusNode={activeStatusNode}
                         />
                     </FadeIn>
                 ) : null}
@@ -937,11 +870,6 @@ function App() {
                                 {exchangeGuideButton}
                             </div>
                         </div>
-                        {activeStatusNode ? (
-                            <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
-                                {activeStatusNode}
-                            </div>
-                        ) : null}
                     </FadeIn>
                 ) : null}
 
@@ -953,7 +881,7 @@ function App() {
                             chartAction={usdKrwChartDisplayControl}
                             chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
                             desktopAdSlot={chartAdSlots.usdKrwDesktop}
-                            headerStatus={usdKrwStatusNode}
+                            headerStatus={usdKrwRange === '1D' ? usdKrwStatusNode : null}
                             helpAriaLabel="USD/KRW 그래프 안내"
                             helpContent={(
                                 <>
@@ -997,7 +925,6 @@ function App() {
                         <MarketChartSection
                             emptyText={dashboardEmptyText}
                             desktopAdSlot={chartAdSlots.dollarIndexDesktop}
-                            headerStatus={dollarIndexStatusNode}
                             helpAriaLabel="달러인덱스 안내"
                             helpContent={(
                                 <>
@@ -1058,7 +985,6 @@ function App() {
                             errorMessage={hasDashboardError && domesticIndicators.length === 0 ? dashboardErrorMessage : null}
                             isLoading={isInitialDashboardLoading}
                             latestSyncLabel={latestSyncLabel}
-                            statusNode={activeStatusNode}
                         />
                     </FadeIn>
                 ) : null}
@@ -1087,7 +1013,6 @@ function App() {
                             onLoadMore={changeNewsPage}
                             page={newsPage}
                             selectedCategory={selectedNewsCategory}
-                            statusNode={activeStatusNode}
                             totalCount={newsTotalCount}
                             totalPages={newsTotalPages}
                         />
@@ -1108,7 +1033,6 @@ function App() {
                             onLoadMore={changeGovernmentBriefingsPage}
                             page={governmentBriefingsPage}
                             selectedCategory={selectedGovernmentBriefingCategory}
-                            statusNode={activeStatusNode}
                             totalCount={governmentBriefingsTotalCount}
                             totalPages={governmentBriefingsTotalPages}
                         />

@@ -12,7 +12,7 @@ export function FadeIn({
                            children,
                            as: Component = 'div',
                            delay = 0,
-                           duration = 0.4,
+                           duration = 0.32,
                            className = '',
                            style,
                            ...props
@@ -33,7 +33,7 @@ export function FadeIn({
       */}
             <style>{`
         @keyframes todayFlowFadeInUp {
-          from { opacity: 0; transform: translateY(12px); }
+          from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
