@@ -9,8 +9,10 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.example.krwwatcher.config.SyncProperties;
 import com.example.krwwatcher.external.NaverNewsClient;
@@ -40,10 +42,14 @@ public class NewsService {
     private static final int MIN_BACKFILL_ARTICLES = 250;
     private static final int MAX_SEARCH_KEYWORD_LENGTH = 80;
     private static final int RELATED_CANDIDATE_LIMIT = 1000;
+    private static final int RELATED_BANNER_DISPLAY_COUNT = 9;
+    private static final int RELATED_BANNER_UPDATE_TRIGGER_COUNT = 3;
+    private static final int RELATED_BANNER_IMPORTANT_SCORE = 38;
     private static final double RELATED_TITLE_SIMILARITY_THRESHOLD = 0.46;
     private static final double RELATED_TEXT_SIMILARITY_THRESHOLD = 0.54;
     private static final double RELATED_TEXT_CONTAINMENT_THRESHOLD = 0.86;
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
+    private static final Duration RELATED_BANNER_IMPORTANT_MAX_AGE = Duration.ofHours(48);
 
     private static final List<NewsCategory> CATEGORIES = List.of(
         new NewsCategory("fx", "환율", "원달러 환율", 0),
@@ -59,6 +65,7 @@ public class NewsService {
     private final NewsArticleMaintenance newsArticleMaintenance;
     private final NewsArticleText newsArticleText;
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
+    private final Map<String, RelatedNewsBannerSnapshot> relatedBannerSnapshots = new ConcurrentHashMap<>();
 
     public NewsService(
         NaverNewsClient naverNewsClient,
@@ -229,6 +236,7 @@ public class NewsService {
 
     public RelatedNewsResponse related(String topic, int limit) {
         int normalizedLimit = Math.max(1, Math.min(limit, 30));
+        int bannerLimit = Math.min(normalizedLimit, RELATED_BANNER_DISPLAY_COUNT);
         List<NewsArticle> candidates = jdbcTemplate.query(
             """
             SELECT n.category_code, n.category_name, n.query_text, n.title, n.description, n.origin_link, n.link, n.publisher, n.published_at, n.ai_summary, n.market_sentiment, n.image_url, n.fetched_at
@@ -245,11 +253,7 @@ public class NewsService {
             RELATED_CANDIDATE_LIMIT
         );
         List<String> keywords = relatedKeywords(topic);
-        List<NewsArticle> articles = selectRelatedBannerArticles(candidates, keywords).stream()
-            .sorted(Comparator.comparingInt((RelatedArticleCandidate candidate) -> candidate.bannerScore).reversed())
-            .map(RelatedArticleCandidate::article)
-            .limit(normalizedLimit)
-            .toList();
+        List<NewsArticle> articles = stableRelatedBannerArticles(topic, candidates, keywords, bannerLimit);
 
         return new RelatedNewsResponse(naverNewsClient.isConfigured(), articles);
     }
@@ -262,15 +266,49 @@ public class NewsService {
         return List.of("원달러", "환율", "달러", "원화", "외환", "외환시장", "달러 인덱스", "연준", "FOMC");
     }
 
-    private List<RelatedArticleCandidate> selectRelatedBannerArticles(List<NewsArticle> articles, List<String> keywords) {
-        List<RelatedArticleCandidate> rankedCandidates = articles.stream()
+    private List<NewsArticle> stableRelatedBannerArticles(String topic, List<NewsArticle> articles, List<String> keywords, int limit) {
+        List<RelatedArticleCandidate> rankedCandidates = rankRelatedArticleCandidates(articles, keywords);
+        String snapshotKey = (StringUtils.hasText(topic) ? topic : "exchange") + ":" + limit;
+        RelatedNewsBannerSnapshot currentSnapshot = relatedBannerSnapshots.get(snapshotKey);
+        if (currentSnapshot == null || currentSnapshot.articles().size() < limit) {
+            RelatedNewsBannerSnapshot nextSnapshot = new RelatedNewsBannerSnapshot(buildRelatedBannerArticles(rankedCandidates, limit), Instant.now());
+            relatedBannerSnapshots.put(snapshotKey, nextSnapshot);
+            return nextSnapshot.articles();
+        }
+
+        long importantNewArticleCount = rankedCandidates.stream()
+            .filter(this::isImportantFreshRelatedArticle)
+            .filter(candidate -> isNewToRelatedBannerSnapshot(candidate.article(), currentSnapshot.articles()))
+            .limit(RELATED_BANNER_UPDATE_TRIGGER_COUNT)
+            .count();
+        if (importantNewArticleCount >= RELATED_BANNER_UPDATE_TRIGGER_COUNT) {
+            RelatedNewsBannerSnapshot nextSnapshot = new RelatedNewsBannerSnapshot(buildRelatedBannerArticles(rankedCandidates, limit), Instant.now());
+            relatedBannerSnapshots.put(snapshotKey, nextSnapshot);
+            return nextSnapshot.articles();
+        }
+
+        return currentSnapshot.articles();
+    }
+
+    private List<RelatedArticleCandidate> rankRelatedArticleCandidates(List<NewsArticle> articles, List<String> keywords) {
+        return articles.stream()
             .map(article -> toRelatedArticleCandidate(article, scoreRelatedArticle(article, keywords)))
             .sorted(Comparator
                 .comparingInt((RelatedArticleCandidate candidate) -> candidate.bannerScore).reversed()
                 .thenComparing(candidate -> candidate.article.publishedAt(), Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(candidate -> candidate.article.fetchedAt(), Comparator.nullsLast(Comparator.reverseOrder())))
             .toList();
+    }
 
+    private List<NewsArticle> buildRelatedBannerArticles(List<RelatedArticleCandidate> rankedCandidates, int limit) {
+        return selectRelatedBannerArticles(rankedCandidates).stream()
+            .sorted(Comparator.comparingInt((RelatedArticleCandidate candidate) -> candidate.bannerScore()).reversed())
+            .map(RelatedArticleCandidate::article)
+            .limit(limit)
+            .toList();
+    }
+
+    private List<RelatedArticleCandidate> selectRelatedBannerArticles(List<RelatedArticleCandidate> rankedCandidates) {
         List<RelatedArticleCandidate> representatives = new ArrayList<>();
         for (RelatedArticleCandidate candidate : rankedCandidates) {
             int similarIndex = findSimilarRelatedArticleIndex(representatives, candidate);
@@ -286,6 +324,34 @@ public class NewsService {
         }
 
         return representatives;
+    }
+
+    private boolean isImportantFreshRelatedArticle(RelatedArticleCandidate candidate) {
+        Instant publishedAt = candidate.article().publishedAt();
+        return publishedAt != null
+            && !publishedAt.isBefore(Instant.now().minus(RELATED_BANNER_IMPORTANT_MAX_AGE))
+            && candidate.bannerScore() >= RELATED_BANNER_IMPORTANT_SCORE;
+    }
+
+    private boolean isNewToRelatedBannerSnapshot(NewsArticle article, List<NewsArticle> snapshotArticles) {
+        String articleIdentity = relatedArticleIdentity(article);
+        for (NewsArticle snapshotArticle : snapshotArticles) {
+            if (articleIdentity.equals(relatedArticleIdentity(snapshotArticle)) || isSimilarRelatedArticle(article, snapshotArticle)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String relatedArticleIdentity(NewsArticle article) {
+        String url = newsArticleText.canonicalizeUrl(newsArticleText.firstText(article.originLink(), article.link()));
+        if (StringUtils.hasText(url)) {
+            return "url:" + url;
+        }
+
+        String title = newsArticleText.normalizeTitle(article.title());
+        String publishedDate = article.publishedAt() == null ? "" : LocalDate.ofInstant(article.publishedAt(), SEOUL_ZONE).toString();
+        return "title:" + title + ":" + publishedDate;
     }
 
     private RelatedArticleCandidate toRelatedArticleCandidate(NewsArticle article, int relatedScore) {
@@ -886,6 +952,12 @@ public class NewsService {
         int relatedScore,
         int bannerScore,
         int representativeScore
+    ) {
+    }
+
+    private record RelatedNewsBannerSnapshot(
+        List<NewsArticle> articles,
+        Instant updatedAt
     ) {
     }
 
