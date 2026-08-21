@@ -149,6 +149,28 @@ class NewsServiceRelatedSelectionTest {
             .contains("외환당국 시장 안정 메시지에 환율 상단 주목");
     }
 
+    @Test
+    void relatedNewsBannerStillReturnsNineWhenSimilarityFilterLeavesTooFewRepresentatives() {
+        Instant now = Instant.now();
+        for (int index = 1; index <= 12; index += 1) {
+            insertArticle(
+                "similar-fill-" + index,
+                "원달러 환율 급등에 외환시장 변동성 확대 " + index,
+                "원달러 환율 급등과 외환시장 변동성 확대, 달러 수급 불안, 원화 약세 압력이 주요 변수로 부각됐다.",
+                "https://news.example.com/similar-fill-" + index,
+                index % 2 == 0 ? "https://img.example.com/similar-fill-" + index + ".jpg" : null,
+                now.minusSeconds(index * 60L)
+            );
+        }
+
+        NewsService.RelatedNewsResponse response = newsService.related("exchange", 9);
+
+        assertThat(response.articles()).hasSize(9);
+        assertThat(response.articles())
+            .extracting(NewsService.NewsArticle::link)
+            .doesNotHaveDuplicates();
+    }
+
     private void insertNineBannerArticles(Instant now) {
         insertArticle(
             "short-appointment",
