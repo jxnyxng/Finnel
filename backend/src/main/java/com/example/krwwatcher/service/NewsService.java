@@ -301,11 +301,26 @@ public class NewsService {
     }
 
     private List<NewsArticle> buildRelatedBannerArticles(List<RelatedArticleCandidate> rankedCandidates, int limit) {
-        return selectRelatedBannerArticles(rankedCandidates).stream()
+        List<NewsArticle> selectedArticles = new ArrayList<>(selectRelatedBannerArticles(rankedCandidates).stream()
             .sorted(Comparator.comparingInt((RelatedArticleCandidate candidate) -> candidate.bannerScore()).reversed())
             .map(RelatedArticleCandidate::article)
             .limit(limit)
-            .toList();
+            .toList());
+        if (selectedArticles.size() >= limit || rankedCandidates.size() < limit) {
+            return selectedArticles;
+        }
+
+        for (RelatedArticleCandidate candidate : rankedCandidates) {
+            if (selectedArticles.size() >= limit) {
+                break;
+            }
+            if (containsSameRelatedArticle(selectedArticles, candidate.article())) {
+                continue;
+            }
+            selectedArticles.add(candidate.article());
+        }
+
+        return selectedArticles;
     }
 
     private List<RelatedArticleCandidate> selectRelatedBannerArticles(List<RelatedArticleCandidate> rankedCandidates) {
@@ -341,6 +356,16 @@ public class NewsService {
             }
         }
         return true;
+    }
+
+    private boolean containsSameRelatedArticle(List<NewsArticle> articles, NewsArticle article) {
+        String articleIdentity = relatedArticleIdentity(article);
+        for (NewsArticle currentArticle : articles) {
+            if (articleIdentity.equals(relatedArticleIdentity(currentArticle))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String relatedArticleIdentity(NewsArticle article) {
