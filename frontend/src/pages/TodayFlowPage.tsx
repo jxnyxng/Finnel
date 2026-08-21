@@ -1,6 +1,6 @@
 import React from 'react';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { RelatedNewsBanner } from '../components/RelatedNewsBanner';
+import { RelatedNewsBanner, type RelatedBannerArticle } from '../components/RelatedNewsBanner';
 import type {
     ContentSyncStatus,
     DailyDashboardResponse,
@@ -55,7 +55,7 @@ export function TodayFlowPage({
     const usdKrwPosition = getPositionBand(dashboard?.usdKrwSeries ?? [], usdKrwMetric?.value ?? null);
     const usdKrwThreeMonthPosition = getPositionBand((dashboard?.usdKrwSeries ?? []).slice(-66), usdKrwMetric?.value ?? null);
     const recentIndicators = getRecentIndicators(dashboard?.domesticIndicators ?? []);
-    const latestNews = React.useMemo(() => sortByRecent(newsArticles).slice(0, 6), [newsArticles]);
+    const latestNews = React.useMemo(() => sortByRecent(newsArticles).slice(0, 9), [newsArticles]);
     const latestBriefings = React.useMemo(() => sortByRecent(governmentBriefings).slice(0, 6), [governmentBriefings]);
     const todayBriefingCount = governmentBriefings.filter((article) => isToday(article.publishedAt ?? article.fetchedAt, today)).length;
     const hasTodayNews = latestNews.some((article) => isToday(article.publishedAt ?? article.fetchedAt, today));
@@ -75,6 +75,10 @@ export function TodayFlowPage({
         : dashboard?.dxyIndexSeries ?? [];
     const previousDollarPoint = activeDollarSeries.length >= 2 ? activeDollarSeries[activeDollarSeries.length - 2] : null;
     const latestDollarPoint = activeDollarSeries[activeDollarSeries.length - 1] ?? null;
+    const fallbackNewsBannerArticles: RelatedBannerArticle[] = React.useMemo(() => latestNews.map((article) => ({
+        ...article,
+        categoryName: article.categoryName || '뉴스'
+    })), [latestNews]);
     // 애니메이션용 인라인 스타일 헬퍼
     const fadeUpStyle = (delay: string) => ({
         opacity: 0,
@@ -94,7 +98,13 @@ export function TodayFlowPage({
             <header className="page-tab-header today-flow-header" style={fadeUpStyle('0')}>
                 <div className="min-w-0">
                     {newsConfigured ? (
-                        <RelatedNewsBanner configured={newsConfigured} desktopGroupSize={3} label="뉴스룸 배너" topic="exchange" />
+                        <RelatedNewsBanner
+                            configured={newsConfigured}
+                            desktopGroupSize={3}
+                            fallbackArticles={fallbackNewsBannerArticles}
+                            label="뉴스룸 배너"
+                            topic="exchange"
+                        />
                     ) : (
                         <EmptyState text={newsConfigured ? '최근 뉴스 수집 대기' : '뉴스 수집 설정 확인 중'} />
                     )}
