@@ -42,7 +42,7 @@ public class NewsService {
     private static final int RELATED_CANDIDATE_LIMIT = 1000;
     private static final double RELATED_TITLE_SIMILARITY_THRESHOLD = 0.46;
     private static final double RELATED_TEXT_SIMILARITY_THRESHOLD = 0.54;
-    private static final double RELATED_TEXT_CONTAINMENT_THRESHOLD = 0.72;
+    private static final double RELATED_TEXT_CONTAINMENT_THRESHOLD = 0.86;
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
     private static final List<NewsCategory> CATEGORIES = List.of(
@@ -316,14 +316,15 @@ public class NewsService {
 
         Set<String> firstWords = textWords(first.title());
         Set<String> secondWords = textWords(second.title());
-        if (intersectionSize(firstWords, secondWords) >= 2 && containment(firstWords, secondWords) >= 0.66) {
+        int titleWordIntersection = intersectionSize(firstWords, secondWords);
+        if (titleWordIntersection >= 2 && containment(firstWords, secondWords) >= 0.66) {
             return true;
         }
 
         Set<String> firstText = textNgrams(first.title() + " " + nullToEmpty(first.description()) + " " + nullToEmpty(first.aiSummary()));
         Set<String> secondText = textNgrams(second.title() + " " + nullToEmpty(second.description()) + " " + nullToEmpty(second.aiSummary()));
         return jaccard(firstText, secondText) >= RELATED_TEXT_SIMILARITY_THRESHOLD
-            || containment(firstText, secondText) >= RELATED_TEXT_CONTAINMENT_THRESHOLD;
+            || (titleWordIntersection >= 2 && containment(firstText, secondText) >= RELATED_TEXT_CONTAINMENT_THRESHOLD);
     }
 
     private Set<String> textWords(String value) {
