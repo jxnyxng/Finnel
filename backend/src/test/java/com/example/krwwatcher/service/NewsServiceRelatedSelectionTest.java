@@ -53,55 +53,21 @@ class NewsServiceRelatedSelectionTest {
     }
 
     @Test
-    void relatedNewsBannerCollapsesSimilarArticlesAndKeepsLongestRepresentative() {
+    void relatedNewsBannerReturnsHighestScoredArticlesFirst() {
         Instant now = Instant.now();
-        insertArticle(
-            "short-appointment",
-            "김민수 신임 외환정책국장 선임",
-            "정부가 김민수 신임 외환정책국장을 선임했다.",
-            "https://news.example.com/short",
-            "https://img.example.com/person.jpg",
-            now.minusSeconds(600)
-        );
-        insertArticle(
-            "long-appointment",
-            "김민수 신임 외환정책국장 선임...외환시장 안정 과제 주목",
-            "정부가 김민수 신임 외환정책국장을 선임했다. 시장에서는 원달러 환율 변동성, 외환시장 안정 조치, 외환보유액 운용 방향과 관련한 향후 정책 메시지를 함께 주목하고 있다.",
-            "https://news.example.com/long",
-            null,
-            now.minusSeconds(1_200)
-        );
-        insertArticle(
-            "same-appointment-other-url",
-            "김민수 외환정책국장 임명",
-            "김민수 신임 국장 선임 소식이 전해졌다.",
-            "https://another.example.com/appointment",
-            "https://img.example.com/person2.jpg",
-            now.minusSeconds(1_800)
-        );
-        insertArticle(
-            "exchange-rate",
-            "원달러 환율 장중 1390원대 등락",
-            "원달러 환율이 연준 발언과 달러 강세 영향으로 장중 1390원대에서 움직였다.",
-            "https://news.example.com/exchange",
-            "https://img.example.com/exchange.jpg",
-            now.minusSeconds(900)
-        );
+        insertArticle("weak-1", "국내 증시 혼조 마감", "주요 지수가 등락을 보였다.", "https://news.example.com/weak-1", null, now.minusSeconds(60));
+        insertArticle("weak-2", "기업 실적 발표 이어져", "분기 실적 발표가 이어졌다.", "https://news.example.com/weak-2", null, now.minusSeconds(120));
+        insertArticle("strong", "원달러 환율 달러 원화 외환 외환시장 달러 인덱스 연준 FOMC 동시 주목", "원달러 환율과 달러, 원화, 외환시장, 달러 인덱스, 연준 FOMC 이슈가 모두 반영됐다.", "https://news.example.com/strong", "https://img.example.com/strong.jpg", now.minusSeconds(180));
 
         NewsService.RelatedNewsResponse response = newsService.related("exchange", 10);
 
         List<String> titles = response.articles().stream().map(NewsService.NewsArticle::title).toList();
         assertThat(response.configured()).isTrue();
-        assertThat(titles)
-            .contains("김민수 신임 외환정책국장 선임...외환시장 안정 과제 주목")
-            .contains("원달러 환율 장중 1390원대 등락");
-        assertThat(titles)
-            .doesNotContain("김민수 신임 외환정책국장 선임")
-            .doesNotContain("김민수 외환정책국장 임명");
+        assertThat(titles).first().isEqualTo("원달러 환율 달러 원화 외환 외환시장 달러 인덱스 연준 FOMC 동시 주목");
     }
 
     @Test
-    void relatedNewsBannerFillsNineArticlesAfterCollapsingSimilarArticles() {
+    void relatedNewsBannerReturnsNineArticlesFromScoredCandidates() {
         Instant now = Instant.now();
         insertNineBannerArticles(now);
 
@@ -109,13 +75,22 @@ class NewsServiceRelatedSelectionTest {
 
         assertThat(response.articles()).hasSize(9);
         assertThat(response.articles())
-            .extracting(NewsService.NewsArticle::title)
-            .contains("김민수 신임 외환정책국장 선임...외환시장 안정 과제 주목")
-            .doesNotContain("김민수 신임 외환정책국장 선임", "김민수 외환정책국장 임명");
+            .extracting(NewsService.NewsArticle::link)
+            .doesNotHaveDuplicates();
     }
 
     @Test
-    void relatedNewsBannerKeepsSnapshotUntilThreeImportantFreshArticlesArrive() {
+    void relatedNewsBannerAlwaysReturnsNineWhenEnoughCandidatesExist() {
+        Instant now = Instant.now();
+        insertNineBannerArticles(now);
+
+        NewsService.RelatedNewsResponse response = newsService.related("exchange", 3);
+
+        assertThat(response.articles()).hasSize(9);
+    }
+
+    @Test
+    void relatedNewsBannerReflectsNewHigherScoredArticlesImmediately() {
         Instant now = Instant.now();
         insertNineBannerArticles(now);
         List<String> initialTitles = newsService.related("exchange", 9)
@@ -124,17 +99,7 @@ class NewsServiceRelatedSelectionTest {
             .map(NewsService.NewsArticle::title)
             .toList();
 
-        insertArticle("new-1", "원달러 환율 급등에 외환시장 변동성 확대", "원달러 환율과 외환시장 변동성이 동시에 커지며 달러 수급과 원화 약세 압력이 주요 변수로 떠올랐다.", "https://news.example.com/new-1", "https://img.example.com/new-1.jpg", now.plusSeconds(60));
-        insertArticle("new-2", "연준 긴축 경계에 달러 인덱스 다시 상승", "연준 긴축 경계와 달러 인덱스 상승이 원달러 환율, 원화 흐름, 외환시장 투자 심리에 영향을 줬다.", "https://news.example.com/new-2", "https://img.example.com/new-2.jpg", now.plusSeconds(120));
-
-        List<String> unchangedTitles = newsService.related("exchange", 9)
-            .articles()
-            .stream()
-            .map(NewsService.NewsArticle::title)
-            .toList();
-        assertThat(unchangedTitles).containsExactlyElementsOf(initialTitles);
-
-        insertArticle("new-3", "외환당국 시장 안정 메시지에 환율 상단 주목", "외환당국의 시장 안정 메시지와 원달러 환율 상단, 달러 수급 변화가 외환시장 주요 뉴스로 부각됐다.", "https://news.example.com/new-3", "https://img.example.com/new-3.jpg", now.plusSeconds(180));
+        insertArticle("new-1", "원달러 환율 달러 원화 외환 외환시장 달러 인덱스 연준 FOMC 급등", "원달러 환율과 달러, 원화, 외환시장, 달러 인덱스, 연준 FOMC 이슈가 집중됐다.", "https://news.example.com/new-1", "https://img.example.com/new-1.jpg", now.plusSeconds(60));
 
         List<String> updatedTitles = newsService.related("exchange", 9)
             .articles()
@@ -143,14 +108,11 @@ class NewsServiceRelatedSelectionTest {
             .toList();
         assertThat(updatedTitles).hasSize(9);
         assertThat(updatedTitles).isNotEqualTo(initialTitles);
-        assertThat(updatedTitles)
-            .contains("원달러 환율 급등에 외환시장 변동성 확대")
-            .contains("연준 긴축 경계에 달러 인덱스 다시 상승")
-            .contains("외환당국 시장 안정 메시지에 환율 상단 주목");
+        assertThat(updatedTitles).first().isEqualTo("원달러 환율 달러 원화 외환 외환시장 달러 인덱스 연준 FOMC 급등");
     }
 
     @Test
-    void relatedNewsBannerStillReturnsNineWhenSimilarityFilterLeavesTooFewRepresentatives() {
+    void relatedNewsBannerStillReturnsNineForSimilarButDistinctArticles() {
         Instant now = Instant.now();
         for (int index = 1; index <= 12; index += 1) {
             insertArticle(
@@ -162,6 +124,28 @@ class NewsServiceRelatedSelectionTest {
                 now.minusSeconds(index * 60L)
             );
         }
+
+        NewsService.RelatedNewsResponse response = newsService.related("exchange", 9);
+
+        assertThat(response.articles()).hasSize(9);
+        assertThat(response.articles())
+            .extracting(NewsService.NewsArticle::link)
+            .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void relatedNewsBannerBackfillsAfterRemovingDuplicateArticleIdentities() {
+        Instant now = Instant.now();
+        insertArticle("duplicate-url-1", "원달러 환율 장중 변동성 확대", "원달러 환율과 외환시장 변동성이 확대됐다.", "https://news.example.com/duplicate", "https://img.example.com/duplicate-1.jpg", now.minusSeconds(60));
+        insertArticle("duplicate-url-2", "달러 강세에 원화 약세 압력", "달러 강세와 원화 약세 압력이 이어졌다.", "https://news.example.com/duplicate", "https://img.example.com/duplicate-2.jpg", now.minusSeconds(120));
+        insertArticle("unique-1", "연준 발언 이후 환율 상단 주목", "연준 발언 이후 원달러 환율 상단이 주목된다.", "https://news.example.com/fill-1", null, now.minusSeconds(180));
+        insertArticle("unique-2", "달러 인덱스 상승에 외환시장 경계", "달러 인덱스 상승이 외환시장 경계감을 키웠다.", "https://news.example.com/fill-2", null, now.minusSeconds(240));
+        insertArticle("unique-3", "외환당국 안정 메시지 대기", "외환당국 안정 메시지와 달러 수급이 변수다.", "https://news.example.com/fill-3", null, now.minusSeconds(300));
+        insertArticle("unique-4", "한국은행 금리 동결 뒤 원화 흐름", "한국은행 금리 동결 뒤 원화 흐름이 주목된다.", "https://news.example.com/fill-4", null, now.minusSeconds(360));
+        insertArticle("unique-5", "외환보유액 지표와 대외 안정성", "외환보유액 지표가 대외 안정성 판단에 쓰인다.", "https://news.example.com/fill-5", null, now.minusSeconds(420));
+        insertArticle("unique-6", "미국 물가 앞두고 달러 수요 증가", "미국 물가 발표를 앞두고 달러 수요가 늘었다.", "https://news.example.com/fill-6", null, now.minusSeconds(480));
+        insertArticle("unique-7", "경상수지 개선에도 원화 반등 제한", "경상수지 개선에도 원화 반등은 제한됐다.", "https://news.example.com/fill-7", null, now.minusSeconds(540));
+        insertArticle("unique-8", "무역수지 흐름과 환율 전망", "무역수지 흐름이 원달러 환율 전망에 반영됐다.", "https://news.example.com/fill-8", null, now.minusSeconds(600));
 
         NewsService.RelatedNewsResponse response = newsService.related("exchange", 9);
 
