@@ -665,7 +665,7 @@ function App() {
         : `기준 환율 일별 · 최신 ${latestUsdKrwPoint?.dateValue.slice(0, 10) ?? '-'} · ${marketDailyStatus.label}`;
     const exchangeGuideButton = (
         <button
-            className="inline-flex h-7 shrink-0 items-center justify-center border border-transparent px-1.5 text-[12px] font-bold leading-none text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
+            className="inline-flex h-6 shrink-0 items-center justify-center border border-transparent px-1 text-[11px] font-bold leading-none text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
             onClick={() => setIsExchangeGuideOpen(true)}
             type="button"
         >
@@ -862,13 +862,11 @@ function App() {
 
                 {activePage === 'dashboard' ? (
                     <FadeIn as="header" className="page-tab-header page-tab-header-no-divider page-content-enter">
-                        <div className="min-w-0 md:col-span-2">
+                        <div className="relative min-w-0 md:col-span-2">
+                            <div className="absolute right-0 top-[-0.125rem]">{exchangeGuideButton}</div>
                             <p className="page-tab-eyebrow">FX DASHBOARD</p>
                             <h2 className="page-tab-title">환율현황</h2>
-                            <div className="mt-1 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="page-tab-description m-0 max-w-none">원/달러 환율과 달러지수의 차트, 기준값, 기간별 변동 정보를 제공합니다.</p>
-                                {exchangeGuideButton}
-                            </div>
+                            <p className="page-tab-description m-0 mt-1 max-w-none">원/달러 환율과 달러지수의 차트, 기준값, 기간별 변동 정보를 제공합니다.</p>
                         </div>
                     </FadeIn>
                 ) : null}
