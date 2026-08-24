@@ -178,7 +178,7 @@ function App() {
     const [isExchangeGuideOpen, setIsExchangeGuideOpen] = React.useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const [homeResetKey, setHomeResetKey] = React.useState(0);
-    const isMainAppPage = activePage === 'home' || mainTabs.some((tab) => tab.key === activePage);
+    const isMainAppPage = activePage === 'home' || activePage === 'dataSources' || mainTabs.some((tab) => tab.key === activePage);
     const isFullBleedPage = activePage === 'home' || activePage === 'serviceGuide';
     const mainTabNavRef = React.useRef<HTMLElement | null>(null);
     const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
@@ -818,7 +818,7 @@ function App() {
       `}</style>
 
             <header className="app-header border-b border-zinc-800 bg-black/95">
-                <div className="grid w-full grid-cols-[auto_auto] items-center gap-2 px-3 py-2 sm:px-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-8">
+                <div className="grid w-full grid-cols-[auto_auto] items-center gap-2 pb-1 pl-9 pr-4 pt-1.5 sm:pl-10 sm:pr-5 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-[3.25rem]">
                     <button
                         className="brand-lockup flex min-w-0 shrink-0 items-center justify-start gap-2 py-0.5 xl:gap-2.5"
                         onClick={handleBrandClick}
@@ -827,11 +827,11 @@ function App() {
                         <img
                             alt=""
                             aria-hidden="true"
-                            className="brand-logo-mark h-[1.9rem] w-[1.9rem] shrink-0 lg:h-[2.1rem] lg:w-[2.1rem]"
+                            className="brand-logo-mark h-[1.8rem] w-[1.8rem] shrink-0 lg:h-[2rem] lg:w-[2rem]"
                             src="/assets/finnel_logo_rounded_final_white.svg"
                         />
                         <span className="flex min-w-0 items-center">
-              <span className="brand-name-en text-[1.22rem] leading-none lg:text-[1.38rem]">
+              <span className="brand-name-en text-[1.16rem] leading-none lg:text-[1.31rem]">
                 <span className="brand-name-en-accent">fin</span>nel.kr
               </span>
                         </span>
@@ -857,7 +857,7 @@ function App() {
                     >
                         {mainTabs.map((tab) => (
                             <button
-                                className={`main-tab-button relative z-10 inline-flex h-[25px] shrink-0 items-center justify-center px-[11px] text-center text-[12px] font-bold leading-none sm:h-[28px] sm:px-[13px] sm:text-[13px] ${
+                                className={`main-tab-button relative z-10 inline-flex h-[23px] shrink-0 items-center justify-center px-[10px] text-center text-[11.4px] leading-none sm:h-[24px] sm:px-[12px] sm:text-[12.4px] ${
                                     activeMainTabKey === tab.key ? 'main-tab-button-active' : 'text-zinc-400 hover:text-teal-200'
                                 }`}
                                 key={tab.key}
@@ -892,7 +892,7 @@ function App() {
                 ) : null}
             </header>
             <section
-                className={`flex w-full flex-col px-0 ${isFullBleedPage ? 'gap-0 pb-0 pt-0 sm:pb-0 sm:pt-0' : 'gap-2 pb-2 pt-2 sm:gap-3 sm:pb-3 sm:pt-3'}`}
+                className={`app-content-shell flex w-full flex-col px-0 ${isFullBleedPage ? 'gap-0 pb-0 pt-0 sm:pb-0 sm:pt-0' : 'gap-2 pb-2 pt-1 sm:gap-3 sm:pb-3 sm:pt-2'}`}
                 onTouchEnd={handleTabSwipeEnd}
                 onTouchStart={handleTabSwipeStart}
             >
@@ -943,7 +943,7 @@ function App() {
                                     )}
                                     helpTitle="USD/KRW 그래프"
                                     hover={activeUsdKrwHover}
-                                    lineStroke="#18a999"
+                                    lineStroke="#00C9A7"
                                     lineStrokeWidth={1.75}
                                     metric={usdKrwMetric}
                                     mobileAdSlot={chartAdSlots.usdKrwMobile}
@@ -956,7 +956,7 @@ function App() {
                                     rangeColumns={4}
                                     rangeOptions={rangeOptions}
                                     rangeSummary={<RangeChangeSummary changeRate={usdKrwSelectedRangeChangeRate} rangeLabel={getRangeLabel(usdKrwRange)} />}
-                                    referenceStroke="#18a999"
+                                    referenceStroke="#00C9A7"
                                     sectionLabelAction={dashboardMainChartSelector}
                                     series={visibleUsdKrwSeries}
                                     showExtremaLines
@@ -989,7 +989,7 @@ function App() {
                                       helpTitle="달러인덱스"
                                       helpWidthClassName="w-80"
                                       hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
-                                      lineStroke="#18a999"
+                                      lineStroke="#00C9A7"
                                       lineStrokeWidth={1.75}
                                       keepHeaderSingleLineOnMobile
                                       metric={activeDollarIndexMetric}
@@ -1011,7 +1011,7 @@ function App() {
                                       rangeColumns={3}
                                       rangeOptions={longRangeOptions}
                                       rangeSummary={<RangeChangeSummary changeRate={dollarIndexSelectedRangeChangeRate} rangeLabel={getRangeLabel(activeDollarIndexRange)} />}
-                                      referenceStroke="#18a999"
+                                      referenceStroke="#00C9A7"
                                       sectionLabelAction={dashboardMainChartSelector}
                                       series={activeDollarIndexSeries}
                                       showExtremaLines
@@ -1064,7 +1064,7 @@ function App() {
                             )}
                             helpTitle="USD/KRW 그래프"
                             hover={activeUsdKrwHover}
-                            lineStroke="#18a999"
+                            lineStroke="#00C9A7"
                             lineStrokeWidth={1.75}
                             metric={usdKrwMetric}
                             mobileAdSlot={chartAdSlots.usdKrwMobile}
@@ -1076,7 +1076,7 @@ function App() {
                             range={usdKrwRange}
                             rangeColumns={4}
                             rangeOptions={rangeOptions}
-                            referenceStroke="#18a999"
+                            referenceStroke="#00C9A7"
                             series={visibleUsdKrwSeries}
                             showExtremaLines
                             showLatestValueDot={showUsdKrwLatestValueDot && !showUsdKrwCandlesticks}
@@ -1109,7 +1109,7 @@ function App() {
                             helpTitle="달러인덱스"
                             helpWidthClassName="w-80"
                             hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
-                            lineStroke="#18a999"
+                            lineStroke="#00C9A7"
                             lineStrokeWidth={1.75}
                             keepHeaderSingleLineOnMobile
                             metric={activeDollarIndexMetric}
@@ -1130,7 +1130,7 @@ function App() {
                             range={activeDollarIndexRange}
                             rangeColumns={3}
                             rangeOptions={longRangeOptions}
-                            referenceStroke="#18a999"
+                            referenceStroke="#00C9A7"
                             series={activeDollarIndexSeries}
                             showExtremaLines
                             showLatestValueDot={false}
@@ -1715,7 +1715,7 @@ function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; 
                 <span className="block truncate text-[11px] font-semibold text-zinc-950">{getCurrencyShortLabel(activeRate.displayCode)}</span>
                 <span className="block truncate text-[10px] text-zinc-500">{activeRate.displayCode} · {formatForeignExchangeUpdatedAt(new Date(activeRate.fetchedAt))}</span>
               </span>
-                            <span className="shrink-0 text-xs font-bold text-teal-700">{formatValue(activeRate.dealBasRate, 2)}원</span>
+                            <span className="current-market-value shrink-0 text-xs font-bold">{formatValue(activeRate.dealBasRate, 2)}원</span>
                         </div>
                         <span className="foreign-rate-hover-content pointer-events-none absolute inset-0 grid place-items-center text-[11px] font-semibold text-teal-700 opacity-0 group-hover:opacity-100">
               <span className="foreign-rate-hover-label">펼쳐서 보기</span>
@@ -1744,7 +1744,7 @@ function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; 
                                 </p>
                             </div>
                             <div className="foreign-rate-card-value shrink-0 pt-0.5 text-right">
-                                <p className="whitespace-nowrap text-sm font-bold text-teal-700">{formatValue(rate.dealBasRate, 2)}원</p>
+                                <p className="current-market-value whitespace-nowrap text-sm font-bold">{formatValue(rate.dealBasRate, 2)}원</p>
                             </div>
                         </article>
                     ))}
@@ -1887,7 +1887,7 @@ function ExchangeRateConversionCalculator({
 
                     <div className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-[11px] leading-5 text-zinc-500">
                         <p className="font-medium text-zinc-700">
-                            1 {selectedRate.displayCode} = {formatValue(selectedRate.dealBasRate / selectedRate.unitSize, 2)}원
+                            1 {selectedRate.displayCode} = <span className="current-market-value">{formatValue(selectedRate.dealBasRate / selectedRate.unitSize, 2)}원</span>
                         </p>
                         <p>기준 시각 {formatForeignExchangeUpdatedAt(new Date(selectedRate.fetchedAt))}</p>
                     </div>

@@ -21,7 +21,7 @@ export function MacroSummaryCard({ metrics, isLoading, latestSyncLabel }: MacroS
           <div key={metric.code} className="glass-subcard min-w-0 rounded px-2 py-1.5">
             <dt className="truncate text-[10px] font-medium text-white/55">{metric.label}</dt>
             <dd className="mt-0.5 flex min-w-0 items-baseline justify-between gap-1">
-              <span className="min-w-0 truncate text-xs font-semibold text-white">{formatMetricValue(metric)}</span>
+              <span className="current-market-value min-w-0 truncate text-xs font-semibold">{formatMetricValue(metric)}</span>
               <span className="shrink-0 text-[10px] font-medium text-white/55">{formatMetricUnit(metric.unit)}</span>
             </dd>
           </div>
