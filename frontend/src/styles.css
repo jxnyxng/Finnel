@@ -607,6 +607,21 @@ body,
   position: relative;
 }
 
+.dashboard-trump-mobile-slot {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .dashboard-chart-supplement {
+    display: none;
+  }
+
+  .dashboard-trump-mobile-slot {
+    display: block;
+    margin-top: 0.25rem;
+  }
+}
+
 .dashboard-dollar-panel-stack {
   display: grid;
   gap: 0.45rem;
@@ -3710,9 +3725,11 @@ body,
 .mobile-main-menu-button {
   align-items: center;
   border: 0;
-  display: inline-grid;
-  gap: 0.015rem;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
   height: 1.9rem;
+  justify-content: center;
   justify-items: center;
   position: relative;
   width: 1.9rem;
@@ -3732,7 +3749,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(1) {
-  transform: translateY(0.15rem) rotate(45deg);
+  transform: translateY(3px) rotate(45deg);
 }
 
 .mobile-main-menu-button-open span:nth-child(2) {
@@ -3740,7 +3757,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(3) {
-  transform: translateY(-0.15rem) rotate(-45deg);
+  transform: translateY(-3px) rotate(-45deg);
 }
 
 .mobile-main-menu-overlay {
