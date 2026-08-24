@@ -127,7 +127,7 @@ export function TodayFlowPage({
                         <EmptyState text={newsConfigured ? '최근 뉴스 수집 대기' : '뉴스 수집 설정 확인 중'} />
                     )}
                 </div>
-                <div className="dashboard-mobile-coming-soon min-w-0">
+                <div className="dashboard-gemini-desktop-slot min-w-0">
                     <ComingSoonCard
                         body="환율·금리·뉴스 기반 리포트"
                         className="dashboard-gemini-card"
@@ -174,6 +174,16 @@ export function TodayFlowPage({
                 </aside>
 
                 <aside className="dashboard-market-indicator-column dashboard-mobile-coming-soon grid min-h-0 min-w-0 gap-3" style={fadeUpStyle('0.18')}>
+                    <div className="dashboard-gemini-mobile-slot min-w-0">
+                        <ComingSoonCard
+                            body="환율·금리·뉴스 기반 리포트"
+                            className="dashboard-gemini-card"
+                            compact
+                            fill
+                            title="Gemini 시장 리포트"
+                            variant="gemini"
+                        />
+                    </div>
                     <ComingSoonCard
                         body="주식 지수, 섹터 흐름, 주요 종목 이슈를 연결할 예정입니다."
                         className="dashboard-side-full-card"
