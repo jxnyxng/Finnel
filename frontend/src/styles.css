@@ -2440,12 +2440,12 @@ body,
   box-shadow:
     inset 1.2rem 0 1.8rem rgba(82, 214, 199, 0.12),
     inset -1.2rem 0 1.8rem rgba(82, 214, 199, 0.1);
-  height: calc(var(--home-deck-height) * 5.45);
+  height: calc(var(--home-deck-height) * 5.72);
   left: 50%;
   -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 0.65rem, #000 100%);
   mask-image: linear-gradient(180deg, transparent 0, #000 0.65rem, #000 100%);
   position: absolute;
-  top: calc(var(--home-deck-height) * 0.965);
+  top: calc(var(--home-deck-height) * 0.69);
   transform: translateX(-50%);
   width: clamp(6.2rem, 11.5vw, 9.4rem);
 }
