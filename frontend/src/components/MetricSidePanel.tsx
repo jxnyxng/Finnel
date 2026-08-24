@@ -13,7 +13,7 @@ export function MetricSidePanel({ metric, footerText, details }: MetricSidePanel
       <div>
         <p className="text-sm font-medium text-white/55">{metric?.label ?? '지표 확인 중'}</p>
         <div className="mt-4 flex items-end justify-between gap-3 lg:flex-col lg:items-start">
-          <p className="text-3xl font-semibold tracking-normal text-white">{metric ? formatMetricValue(metric) : '-'}</p>
+          <p className="current-market-value text-3xl font-semibold tracking-normal">{metric ? formatMetricValue(metric) : '-'}</p>
           <span className="text-xs font-medium text-white/55">{metric ? formatMetricUnit(metric.unit) : ''}</span>
         </div>
       </div>
