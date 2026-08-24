@@ -111,6 +111,25 @@ body,
   z-index: -1;
 }
 
+.app-header {
+  background:
+    linear-gradient(180deg, rgba(10, 16, 15, 0.98), rgba(4, 8, 8, 0.96)) !important;
+  border-bottom-color: rgba(82, 214, 199, 0.16) !important;
+  position: relative;
+}
+
+.app-header::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(82, 214, 199, 0.08) 28%, rgba(82, 214, 199, 0.72) 50%, rgba(82, 214, 199, 0.08) 72%, transparent 100%);
+  bottom: -1px;
+  content: "";
+  height: 1px;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%);
+  width: min(42rem, 86vw);
+}
+
 .glass-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1867,21 +1886,21 @@ body,
 }
 
 .service-guide-page {
-  min-height: calc(100svh - 2.25rem);
+  min-height: 100svh;
 }
 
 .service-guide-slide {
   min-height: 34rem;
-  height: calc(100svh - 2.25rem);
+  height: 100svh;
 }
 
 @supports (height: 100dvh) {
   .service-guide-page {
-    min-height: calc(100dvh - 2.25rem);
+    min-height: 100dvh;
   }
 
   .service-guide-slide {
-    height: calc(100dvh - 2.25rem);
+    height: 100dvh;
   }
 }
 
@@ -3702,15 +3721,12 @@ body,
 .main-tab-button {
   border: 1px solid transparent !important;
   border-radius: 0 !important;
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
+  transition: none;
   width: 5.75rem;
 }
 
 .main-tab-button:hover {
-  background: rgba(82, 214, 199, 0.12);
+  background: rgba(82, 214, 199, 0.14);
   border-color: rgba(82, 214, 199, 0.34) !important;
 }
 
@@ -3727,7 +3743,7 @@ body,
   border: 0;
   display: inline-flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 4px;
   height: 1.9rem;
   justify-content: center;
   justify-items: center;
@@ -3749,7 +3765,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(1) {
-  transform: translateY(3px) rotate(45deg);
+  transform: translateY(6px) rotate(45deg);
 }
 
 .mobile-main-menu-button-open span:nth-child(2) {
@@ -3757,7 +3773,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(3) {
-  transform: translateY(-3px) rotate(-45deg);
+  transform: translateY(-6px) rotate(-45deg);
 }
 
 .mobile-main-menu-overlay {

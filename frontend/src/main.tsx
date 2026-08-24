@@ -817,7 +817,7 @@ function App() {
         }
       `}</style>
 
-            <header className="border-b border-zinc-800 bg-black/95">
+            <header className="app-header border-b border-zinc-800 bg-black/95">
                 <div className="grid w-full grid-cols-[auto_auto] items-center gap-2 px-3 py-2 sm:px-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-8">
                     <button
                         className="brand-lockup flex min-w-0 shrink-0 items-center justify-start gap-2 py-0.5 xl:gap-2.5"
