@@ -3726,7 +3726,7 @@ body,
 }
 
 .main-tab-button:hover {
-  background: rgba(82, 214, 199, 0.14);
+  background: rgba(82, 214, 199, 0.07);
   border-color: rgba(82, 214, 199, 0.34) !important;
 }
 
