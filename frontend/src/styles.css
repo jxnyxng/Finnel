@@ -3255,7 +3255,7 @@ body,
 }
 
 .home-hero-scroll-copy {
-  bottom: clamp(2.2rem, 7vh, 4rem);
+  bottom: calc(clamp(2.2rem, 7vh, 4rem) + 5px);
   font-size: 0.7rem;
   left: 50%;
   line-height: 1.45;
@@ -3386,7 +3386,7 @@ body,
   }
 
   .home-hero-scroll-copy {
-    bottom: clamp(1.25rem, 6vh, 3.25rem);
+    bottom: calc(clamp(1.25rem, 6vh, 3.25rem) + 5px);
     font-size: 0.82rem;
   }
 
