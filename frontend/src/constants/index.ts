@@ -32,7 +32,7 @@ export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
   { key: 'governmentBriefings', label: '정책뉴스' },
   { key: 'newsroom', label: '뉴스검색' },
   { key: 'ranking', label: '화폐랭킹' },
-  { key: 'calculator', label: '환전계산기' }
+  { key: 'calculator', label: '환전계산' }
 ];
 
 export const pageRoutes: Record<PageKey, string> = {
