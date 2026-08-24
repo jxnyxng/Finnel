@@ -239,7 +239,8 @@ function NewsListCard({
             {items.length === 0 ? (
                 <EmptyState text={emptyText} />
             ) : (
-                <ol className={`news-card-list dashboard-scroll-shadow ${scrollShadow.shadowClassName} grid min-h-0 min-w-0 content-start gap-1 overflow-y-auto`} ref={scrollShadow.ref}>
+                <div className={`dashboard-scroll-shadow-frame ${scrollShadow.shadowClassName}`}>
+                    <ol className="news-card-list dashboard-scroll-shadow grid min-h-0 min-w-0 content-start gap-1 overflow-y-auto" ref={scrollShadow.ref}>
                     {items.map((item, index) => {
                         const content = (
                             <>
@@ -264,7 +265,8 @@ function NewsListCard({
                             </li>
                         );
                     })}
-                </ol>
+                    </ol>
+                </div>
             )}
         </section>
     );
@@ -315,7 +317,8 @@ function MajorIndicatorChangesCard({ indicators }: { indicators: DomesticIndicat
             {indicators.length === 0 ? (
                 <EmptyState text="시장 지표 데이터 대기" />
             ) : (
-                <div className={`dashboard-scroll-shadow ${scrollShadow.shadowClassName} grid min-h-0 min-w-0 content-start gap-1.5 overflow-y-auto pr-1`} ref={scrollShadow.ref}>
+                <div className={`dashboard-scroll-shadow-frame ${scrollShadow.shadowClassName}`}>
+                    <div className="dashboard-scroll-shadow grid min-h-0 min-w-0 content-start gap-1.5 overflow-y-auto pr-1" ref={scrollShadow.ref}>
                     {indicators.map((indicator) => {
                         const change = getNumericChange(indicator);
                         return (
@@ -325,7 +328,7 @@ function MajorIndicatorChangesCard({ indicators }: { indicators: DomesticIndicat
                                     <span className="mt-1 block truncate text-[9px] font-medium leading-none text-zinc-400">기준 {indicator.baseDate ?? '-'}</span>
                                 </span>
                                 <span className="grid justify-items-end gap-0.5">
-                                    <span className="whitespace-nowrap text-xs font-extrabold text-white">{formatIndicatorMarketValue(indicator)}</span>
+                                    <span className="current-market-value whitespace-nowrap text-xs font-extrabold">{formatIndicatorMarketValue(indicator)}</span>
                                     <span className={`text-[10px] font-extrabold ${getDirectionTextClass(change)}`}>
                                         {formatSignedNumber(change)}
                                     </span>
@@ -333,6 +336,7 @@ function MajorIndicatorChangesCard({ indicators }: { indicators: DomesticIndicat
                             </article>
                         );
                     })}
+                    </div>
                 </div>
             )}
         </section>
@@ -382,25 +386,38 @@ function ChangeComparisonCard({ rows }: { rows: ChangeComparisonRow[] }) {
                 <p className="text-xs font-bold uppercase tracking-wider text-teal-700">CHANGE MAP</p>
                 <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">환율 · 달러인덱스</h3>
             </div>
-            <div className="grid min-w-0 gap-1.5">
-                {rows.map((row) => (
-                    <article className="grid min-w-0 grid-cols-[2.2rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1.5 border border-zinc-100 bg-zinc-50/70 px-2 py-1.5" key={row.label}>
-                        <span className="text-[10px] font-extrabold text-white">{row.label}</span>
-                        <ChangeComparisonValue label="환율" value={row.usdKrwChangeRate} />
-                        <ChangeComparisonValue label="DXY" value={row.dollarIndexChangeRate} />
-                    </article>
-                ))}
+            <div className="change-comparison-table-wrap min-w-0 overflow-hidden border border-zinc-100 bg-zinc-50/70">
+                <table className="change-comparison-table w-full table-fixed border-collapse">
+                    <colgroup>
+                        <col className="w-[34%]" />
+                        <col className="w-[33%]" />
+                        <col className="w-[33%]" />
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">기간</th>
+                            <th scope="col">환율</th>
+                            <th scope="col">DXY</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row) => (
+                            <tr key={row.label}>
+                                <th scope="row">{row.label}</th>
+                                <ChangeComparisonValue value={row.usdKrwChangeRate} />
+                                <ChangeComparisonValue value={row.dollarIndexChangeRate} />
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </section>
     );
 }
 
-function ChangeComparisonValue({ label, value }: { label: string; value: number | null }) {
+function ChangeComparisonValue({ value }: { value: number | null }) {
     return (
-        <span className="grid min-w-0 gap-0.5 text-right">
-            <span className="text-[9px] font-medium leading-none text-zinc-500">{label}</span>
-            <span className={`text-[10px] font-extrabold leading-none ${getPercentTextClass(value)}`}>{formatChangePercent(value)}</span>
-        </span>
+        <td className={`text-right ${getPercentTextClass(value)}`}>{formatChangePercent(value)}</td>
     );
 }
 
@@ -408,30 +425,32 @@ function ForeignExchangeRateCard({ className = '', rates }: { className?: string
     const scrollShadow = useDashboardScrollShadow<HTMLDivElement>(rates.length);
 
     return (
-        <section className={`glass-card grid max-h-[17rem] min-h-56 grid-rows-[auto_minmax(0,1fr)] border border-zinc-100 p-3 shadow-sm ${className}`}>
-            <div className="mb-2 flex items-center justify-between gap-3">
+        <section className={`glass-card grid max-h-[19rem] min-h-64 grid-rows-[auto_minmax(0,1fr)] border border-zinc-100 p-3.5 shadow-sm ${className}`}>
+            <div className="mb-2.5 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wider text-teal-700">FX RATES</p>
-                    <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">각국 통화환율</h3>
+                    <h3 className="mt-0.5 text-base font-extrabold text-zinc-950">각국 통화환율</h3>
                 </div>
-                <span className="bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-500">{rates.length}개</span>
+                <span className="bg-zinc-100 px-2.5 py-1 text-xs font-bold text-zinc-500">{rates.length}개</span>
             </div>
             {rates.length === 0 ? (
                 <EmptyState text="환율 데이터 대기" />
             ) : (
-                <div className={`dashboard-fx-rate-list dashboard-scroll-shadow ${scrollShadow.shadowClassName} grid min-h-0 min-w-0 content-start gap-1 overflow-y-auto`} ref={scrollShadow.ref}>
+                <div className={`dashboard-scroll-shadow-frame ${scrollShadow.shadowClassName}`}>
+                    <div className="dashboard-fx-rate-list dashboard-scroll-shadow grid min-h-0 min-w-0 content-start gap-1.5 overflow-y-auto" ref={scrollShadow.ref}>
                     {rates.map((rate) => (
-                        <article className="dashboard-fx-rate-row grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-1.5 border border-zinc-100 bg-zinc-50/70 px-2 py-1.5" key={rate.currencyCode}>
-                            <span className="text-sm leading-none" aria-hidden="true">
+                        <article className="dashboard-fx-rate-row grid min-w-0 grid-cols-[1.55rem_minmax(0,1fr)_auto] items-center gap-2 border border-zinc-100 bg-zinc-50/70 px-2.5 py-2" key={rate.currencyCode}>
+                            <span className="text-base leading-none" aria-hidden="true">
                                 {getCurrencyFlag(rate.displayCode)}
                             </span>
                             <span className="min-w-0">
-                                <span className="block truncate text-[10px] font-bold leading-4 text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</span>
-                                <span className="block truncate text-[9px] font-semibold leading-3 text-zinc-500">{formatCompactRateDate(rate.fetchedAt)}</span>
+                                <span className="block truncate text-[11px] font-bold leading-4 text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</span>
+                                <span className="block truncate text-[10px] font-semibold leading-3 text-zinc-500">{formatCompactRateDate(rate.fetchedAt)}</span>
                             </span>
-                            <span className="whitespace-nowrap text-[11px] font-extrabold text-teal-700">{formatValue(rate.dealBasRate, 2)}</span>
+                            <span className="current-market-value whitespace-nowrap text-xs font-extrabold">{formatValue(rate.dealBasRate, 2)}</span>
                         </article>
                     ))}
+                    </div>
                 </div>
             )}
         </section>
@@ -453,7 +472,7 @@ function getPercentTextClass(value: number | null) {
     if (value === null || !Number.isFinite(value) || value === 0) {
         return 'text-zinc-500';
     }
-    return value > 0 ? 'text-teal-400' : 'text-rose-400';
+    return value > 0 ? 'change-rate-up' : 'change-rate-down';
 }
 
 // ==========================================
@@ -547,7 +566,7 @@ function getDirectionTextClass(value: number | null) {
     if (value === null || !Number.isFinite(value) || value === 0) {
         return 'text-zinc-500';
     }
-    return value > 0 ? 'text-teal-400' : 'text-rose-400';
+    return value > 0 ? 'change-rate-up' : 'change-rate-down';
 }
 
 function getDirection(changeRate: number | null): Direction {
@@ -578,10 +597,10 @@ function getDirectionLabel(direction: Direction) {
 
 function getDirectionBadgeClass(direction: Direction) {
     if (direction === 'up') {
-        return 'bg-rose-50 text-rose-700';
+        return 'bg-blue-50 text-blue-700';
     }
     if (direction === 'down') {
-        return 'bg-blue-50 text-blue-700';
+        return 'bg-rose-50 text-rose-700';
     }
     return 'bg-zinc-100 text-zinc-600';
 }
