@@ -1,5 +1,4 @@
 import React from 'react';
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { RelatedNewsBanner, type RelatedBannerArticle } from '../components/RelatedNewsBanner';
 import type {
     ContentSyncStatus,
@@ -7,53 +6,93 @@ import type {
     DomesticIndicator,
     ForeignExchangeRate,
     GovernmentBriefingArticle,
-    MetricSnapshot,
-    NewsArticle,
-    TimeSeriesPoint
+    NewsArticle
 } from '../types';
-import { formatMetricValue, formatValue } from '../utils/format';
-import { getSeoulDateString } from '../utils/time';
+import { formatValue } from '../utils/format';
 
 type TodayFlowPageProps = {
     dashboard: DailyDashboardResponse | null;
     dashboardEmptyText: string;
     dashboardLoadState: 'idle' | 'loading' | 'ready' | 'error';
+    changeComparisonRows: ChangeComparisonRow[];
+    foreignExchangeRates: ForeignExchangeRate[];
     governmentBriefings: GovernmentBriefingArticle[];
     governmentBriefingsConfigured: boolean;
     governmentBriefingsSyncStatus: ContentSyncStatus | null;
-    foreignExchangeRates: ForeignExchangeRate[];
     newsArticles: NewsArticle[];
     newsConfigured: boolean;
     newsSyncStatus: ContentSyncStatus | null;
+    chartSupplement?: React.ReactNode;
+    usdKrwChart: React.ReactNode;
 };
 
 type Direction = 'up' | 'down' | 'flat' | 'unknown';
-type PositionBand = 'top' | 'middle' | 'bottom' | 'unknown';
+type ChangeComparisonRow = {
+    dollarIndexChangeRate: number | null;
+    label: string;
+    usdKrwChangeRate: number | null;
+};
+
+function useDashboardScrollShadow<T extends HTMLElement>(dependencyKey: unknown) {
+    const ref = React.useRef<T | null>(null);
+    const [shadowClassName, setShadowClassName] = React.useState('');
+
+    React.useLayoutEffect(() => {
+        const element = ref.current;
+
+        if (!element) {
+            setShadowClassName('');
+            return undefined;
+        }
+
+        const updateShadow = () => {
+            const maxScrollTop = element.scrollHeight - element.clientHeight;
+
+            if (maxScrollTop <= 1) {
+                setShadowClassName('');
+                return;
+            }
+
+            const showTop = element.scrollTop > 1;
+            const showBottom = element.scrollTop < maxScrollTop - 1;
+            setShadowClassName([
+                showTop ? 'dashboard-scroll-shadow-top' : '',
+                showBottom ? 'dashboard-scroll-shadow-bottom' : ''
+            ].filter(Boolean).join(' '));
+        };
+
+        updateShadow();
+        const resizeObserver = new ResizeObserver(updateShadow);
+        resizeObserver.observe(element);
+        window.addEventListener('resize', updateShadow);
+        element.addEventListener('scroll', updateShadow, { passive: true });
+
+        return () => {
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', updateShadow);
+            element.removeEventListener('scroll', updateShadow);
+        };
+    }, [dependencyKey]);
+
+    return { ref, shadowClassName };
+}
 
 export function TodayFlowPage({
                                   dashboard,
                                   dashboardEmptyText,
                                   dashboardLoadState,
+                                  changeComparisonRows,
                                   foreignExchangeRates,
                                   governmentBriefings,
                                   newsArticles,
-                                  newsConfigured
+                                  newsConfigured,
+                                  chartSupplement,
+                                  usdKrwChart
                               }: TodayFlowPageProps) {
-    const today = getSeoulDateString(new Date());
-    const metrics = dashboard?.metrics ?? [];
-    const usdKrwMetric = metrics.find((metric) => metric.code === 'USD/KRW') ?? null;
-    const dollarMetric = metrics.find((metric) => metric.code === 'BROAD_DOLLAR_INDEX')
-        ?? metrics.find((metric) => metric.code === 'ADVANCED_DOLLAR_INDEX')
-        ?? null;
-    const usdKrwThreeMonthPosition = getPositionBand((dashboard?.usdKrwSeries ?? []).slice(-66), usdKrwMetric?.value ?? null);
     const majorIndicatorChanges = getMajorIndicatorChanges(dashboard?.domesticIndicators ?? []);
     const latestNews = React.useMemo(() => sortByRecent(newsArticles).slice(0, 9), [newsArticles]);
-    const todayBriefingCount = governmentBriefings.filter((article) => isToday(article.publishedAt ?? article.fetchedAt, today)).length;
-    const activeDollarSeries = dashboard?.dollarIndexSeries?.length
-        ? dashboard.dollarIndexSeries
-        : dashboard?.dxyIndexSeries ?? [];
-    const previousDollarPoint = activeDollarSeries.length >= 2 ? activeDollarSeries[activeDollarSeries.length - 2] : null;
-    const latestDollarPoint = activeDollarSeries[activeDollarSeries.length - 1] ?? null;
+    const importantNews = React.useMemo(() => getImportantRecentNews(newsArticles, 8), [newsArticles]);
+    const importantBriefings = React.useMemo(() => getImportantRecentBriefings(governmentBriefings, 8), [governmentBriefings]);
     const fallbackNewsBannerArticles: RelatedBannerArticle[] = React.useMemo(() => latestNews.map((article) => ({
         ...article,
         categoryName: article.categoryName || '뉴스'
@@ -74,8 +113,8 @@ export function TodayFlowPage({
         }
       `}</style>
 
-            <header className="page-tab-header today-flow-header" style={fadeUpStyle('0')}>
-                <div className="min-w-0">
+            <section className="dashboard-top-strip grid min-w-0 gap-3 px-3 sm:px-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,1fr)]" style={fadeUpStyle('0')}>
+                <div className="min-w-0 xl:max-w-[calc(50vw-1.25rem)]">
                     {newsConfigured ? (
                         <RelatedNewsBanner
                             configured={newsConfigured}
@@ -88,55 +127,61 @@ export function TodayFlowPage({
                         <EmptyState text={newsConfigured ? '최근 뉴스 수집 대기' : '뉴스 수집 설정 확인 중'} />
                     )}
                 </div>
-            </header>
-
-            <section className="grid min-w-0 items-stretch gap-3 xl:h-[30rem] xl:grid-cols-[21rem_minmax(0,1fr)_20rem]">
-                <section className="grid min-h-0 min-w-0 gap-3 xl:grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)]" style={fadeUpStyle('0.1')}>
-                    <div className="grid min-w-0 grid-cols-2 gap-3">
-                        <TodayPolicyBriefingCard
-                            count={todayBriefingCount}
-                        />
-                        <DollarIndexCard
-                            latestPoint={latestDollarPoint}
-                            metric={dollarMetric}
-                            previousPoint={previousDollarPoint}
-                        />
-                    </div>
-                    <MiniSparkline
-                        caption={getThreeMonthFlowText(usdKrwThreeMonthPosition)}
-                        compact
-                        label="최근 3개월 환율 흐름"
-                        metric={usdKrwMetric}
-                        series={(dashboard?.usdKrwSeries ?? []).slice(-66)}
-                    />
-                    <ComingSoonCard
-                        body="SNS 발언과 시장 반응을 분리해서 표시할 예정입니다."
-                        fill
-                        title="트럼프 SNS"
-                    />
-                </section>
-
-                <section className="grid min-h-0 min-w-0 gap-3 xl:grid-rows-[auto_minmax(0,1fr)]" style={fadeUpStyle('0.2')}>
+                <div className="min-w-0">
                     <ComingSoonCard
                         body="환율·금리·뉴스 기반 리포트"
+                        className="dashboard-gemini-card"
                         compact
+                        fill
                         title="Gemini 시장 리포트"
                         variant="gemini"
                     />
-                    <div className="grid min-h-0 min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(14rem,1fr)]">
-                        <MajorIndicatorChangesCard indicators={majorIndicatorChanges} />
-                        <ForeignExchangeRateCard rates={foreignExchangeRates} />
-                    </div>
-                </section>
+                </div>
+            </section>
 
-                <section className="grid min-h-0 min-w-0" style={fadeUpStyle('0.2')}>
-                    <ComingSoonCard
-                        body="주식 지수, 섹터 흐름, 주요 종목 이슈를 대시보드 신호와 함께 연결할 예정입니다."
-                        fill
-                        tall
-                        title="주식시장 소식"
+            <section className="dashboard-main-grid grid min-w-0 gap-3 px-3 sm:px-4 xl:grid-cols-[minmax(11rem,0.42fr)_minmax(0,1.2fr)_minmax(12rem,0.48fr)_minmax(12rem,0.48fr)]">
+                <section className="grid min-h-0 min-w-0 gap-3 xl:grid-rows-2" style={fadeUpStyle('0.08')}>
+                    <NewsListCard
+                        emptyText={newsConfigured ? '최근 7일 경제뉴스 대기' : '뉴스 수집 설정 확인 중'}
+                        items={importantNews.map((article) => ({
+                            href: article.originLink ?? article.link,
+                            meta: article.publisher ?? article.categoryName,
+                            title: article.title
+                        }))}
+                        kicker="ECONOMY"
+                        title="경제뉴스"
+                    />
+                    <NewsListCard
+                        emptyText="최근 7일 정책뉴스 대기"
+                        items={importantBriefings.map((article) => ({
+                            href: article.originalUrl ?? undefined,
+                            meta: article.ministry ?? article.category ?? '정책브리핑',
+                            title: article.title
+                        }))}
+                        kicker="POLICY"
+                        title="정책뉴스"
                     />
                 </section>
+
+                <section className="dashboard-chart-stack grid min-w-0 gap-3" style={fadeUpStyle('0.1')}>
+                    {usdKrwChart}
+                    {chartSupplement ? <div className="dashboard-chart-supplement min-w-0">{chartSupplement}</div> : null}
+                </section>
+
+                <aside className="dashboard-fx-column grid min-h-0 min-w-0 gap-3" style={fadeUpStyle('0.16')}>
+                    <ChangeComparisonCard rows={changeComparisonRows} />
+                    <ForeignExchangeRateCard className="dashboard-fx-full-card" rates={foreignExchangeRates} />
+                </aside>
+
+                <aside className="dashboard-market-indicator-column grid min-h-0 min-w-0 gap-3" style={fadeUpStyle('0.18')}>
+                    <ComingSoonCard
+                        body="주식 지수, 섹터 흐름, 주요 종목 이슈를 연결할 예정입니다."
+                        className="dashboard-side-full-card"
+                        fill
+                        title="주식시장 정보"
+                    />
+                    <MajorIndicatorChangesCard indicators={majorIndicatorChanges} />
+                </aside>
             </section>
 
             {dashboardLoadState === 'error' && !dashboard ? (
@@ -153,62 +198,108 @@ export function TodayFlowPage({
 // Sub Components
 // ==========================================
 
-function TodayPolicyBriefingCard({ count }: { count: number }) {
+function NewsListCard({
+                          emptyText,
+                          items,
+                          kicker,
+                          title
+                      }: {
+    emptyText: string;
+    items: Array<{ href?: string; meta?: string | null; title: string }>;
+    kicker: string;
+    title: string;
+}) {
+    const scrollShadow = useDashboardScrollShadow<HTMLOListElement>(items.length);
+
     return (
-        <article className="glass-card grid min-h-28 min-w-0 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-zinc-100 p-3 shadow-sm">
-            <div className="min-w-0">
-                <p className="truncate text-xs font-bold text-zinc-500">정책뉴스 업데이트</p>
+        <section className="glass-card grid h-[15rem] min-w-0 grid-rows-[auto_minmax(0,1fr)] border border-zinc-100 p-3 shadow-sm xl:h-full">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-teal-700">{kicker}</p>
+                    <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">{title}</h3>
+                </div>
+                <span className="text-[10px] font-bold text-zinc-500">{items.length}개</span>
             </div>
-            <div className="flex min-w-0 items-center justify-center gap-1 text-rose-700">
-                <span className="text-4xl font-black leading-none tracking-normal">{count}</span>
-                <span className="pt-3 text-sm font-extrabold">건</span>
-            </div>
-        </article>
+            {items.length === 0 ? (
+                <EmptyState text={emptyText} />
+            ) : (
+                <ol className={`news-card-list dashboard-scroll-shadow ${scrollShadow.shadowClassName} grid min-h-0 min-w-0 content-start gap-1 overflow-y-auto`} ref={scrollShadow.ref}>
+                    {items.map((item, index) => {
+                        const content = (
+                            <>
+                                <span className="shrink-0 text-[10px] font-bold text-teal-600">{String(index + 1).padStart(2, '0')}</span>
+                                <span className="min-w-0">
+                                    <NewsFlowTitle title={item.title} />
+                                    <span className="block truncate text-[9px] font-semibold leading-4 text-zinc-500">{item.meta ?? '-'}</span>
+                                </span>
+                            </>
+                        );
+                        return (
+                            <li key={`${title}-${item.title}-${index}`}>
+                                {item.href ? (
+                                    <a className="grid min-w-0 grid-cols-[1.7rem_minmax(0,1fr)] items-start gap-2 border border-zinc-100 bg-zinc-50/70 px-2.5 py-1.5 hover:border-teal-400 hover:bg-teal-500/10" href={item.href} rel="noreferrer" target="_blank">
+                                        {content}
+                                    </a>
+                                ) : (
+                                    <div className="grid min-w-0 grid-cols-[1.7rem_minmax(0,1fr)] items-start gap-2 border border-zinc-100 bg-zinc-50/70 px-2.5 py-1.5">
+                                        {content}
+                                    </div>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ol>
+            )}
+        </section>
     );
 }
 
-function DollarIndexCard({ latestPoint, metric, previousPoint }: { latestPoint: TimeSeriesPoint | null; metric: MetricSnapshot | null; previousPoint: TimeSeriesPoint | null }) {
-    const direction = getDirection(metric?.changeRate ?? null);
+function NewsFlowTitle({ title }: { title: string }) {
+    const containerRef = React.useRef<HTMLSpanElement | null>(null);
+    const textRef = React.useRef<HTMLSpanElement | null>(null);
+    const [isOverflowing, setIsOverflowing] = React.useState(false);
+
+    React.useLayoutEffect(() => {
+        const measure = () => {
+            const container = containerRef.current;
+            const text = textRef.current;
+            if (!container || !text) {
+                return;
+            }
+            setIsOverflowing(text.scrollWidth > container.clientWidth + 2);
+        };
+
+        measure();
+        window.addEventListener('resize', measure);
+        return () => window.removeEventListener('resize', measure);
+    }, [title]);
 
     return (
-        <article className="glass-card grid min-h-28 min-w-0 rounded-2xl border border-zinc-100 p-3 shadow-sm">
-            <div className="grid min-w-0 grid-cols-2 gap-2 text-[10px] font-bold text-zinc-400">
-                <div className="min-w-0">
-                    <p className="truncate">이전 기준일</p>
-                    <p className="mt-0.5 truncate text-zinc-700">{previousPoint?.baseDate ?? '-'}</p>
-                </div>
-                <div className="min-w-0 text-right">
-                    <p className="truncate">최근 기준일</p>
-                    <p className="mt-0.5 truncate text-zinc-700">{latestPoint?.baseDate ?? '-'}</p>
-                </div>
-            </div>
-            <div className="mt-2 min-w-0 self-end">
-                <p className="truncate text-xs font-bold text-zinc-500">달러인덱스</p>
-                <div className="mt-1 flex min-w-0 items-end gap-1.5">
-                    <p className="min-w-0 truncate text-2xl font-black leading-none tracking-normal text-zinc-950">{metric ? formatMetricValue(metric) : '-'}</p>
-                    <span className={`mb-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold ${getDirectionBadgeClass(direction)}`}>
-                        {formatPercentChange(metric?.changeRate ?? null)}
-                    </span>
-                </div>
-            </div>
-        </article>
+        <span className={`news-flow-title block text-[11px] font-extrabold leading-5 text-zinc-950 ${isOverflowing ? 'news-flow-title-overflow' : ''}`} ref={containerRef}>
+            <span className="news-flow-track">
+                <span ref={textRef}>{title}</span>
+                {isOverflowing ? <span aria-hidden="true">{title}</span> : null}
+            </span>
+        </span>
     );
 }
 
 function MajorIndicatorChangesCard({ indicators }: { indicators: DomesticIndicator[] }) {
+    const scrollShadow = useDashboardScrollShadow<HTMLDivElement>(indicators.length);
+
     return (
-        <section className="glass-card grid min-h-32 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-zinc-100 p-3 shadow-sm">
+        <section className="glass-card grid h-full min-h-32 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-zinc-100 p-3 shadow-sm">
             <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wider text-teal-700">DAILY INDICATORS</p>
-                    <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">오늘의 주요지표 변동</h3>
+                    <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">주요지표 변동</h3>
                 </div>
                 <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-500">{indicators.length}개</span>
             </div>
             {indicators.length === 0 ? (
                 <EmptyState text="시장 지표 데이터 대기" />
             ) : (
-                <div className="scrollbar-none grid min-h-0 min-w-0 content-start gap-1.5 overflow-y-auto pr-1">
+                <div className={`dashboard-scroll-shadow ${scrollShadow.shadowClassName} grid min-h-0 min-w-0 content-start gap-1.5 overflow-y-auto pr-1`} ref={scrollShadow.ref}>
                     {indicators.map((indicator) => {
                         const change = getNumericChange(indicator);
                         return (
@@ -218,8 +309,8 @@ function MajorIndicatorChangesCard({ indicators }: { indicators: DomesticIndicat
                                     <span className="mt-1 block truncate text-[9px] font-medium leading-none text-zinc-400">기준 {indicator.baseDate ?? '-'}</span>
                                 </span>
                                 <span className="grid justify-items-end gap-0.5">
-                                    <span className="whitespace-nowrap text-xs font-extrabold text-teal-700">{formatIndicatorMarketValue(indicator)}</span>
-                                    <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${getDirectionBadgeClass(change !== null && change > 0 ? 'up' : change !== null && change < 0 ? 'down' : 'unknown')}`}>
+                                    <span className="whitespace-nowrap text-xs font-extrabold text-white">{formatIndicatorMarketValue(indicator)}</span>
+                                    <span className={`text-[10px] font-extrabold ${getDirectionTextClass(change)}`}>
                                         {formatSignedNumber(change)}
                                     </span>
                                 </span>
@@ -232,81 +323,9 @@ function MajorIndicatorChangesCard({ indicators }: { indicators: DomesticIndicat
     );
 }
 
-function MiniSparkline({ caption, compact = false, fill = false, label, metric, series }: { caption: string; compact?: boolean; fill?: boolean; label: string; metric: MetricSnapshot | null; series: TimeSeriesPoint[] }) {
-    const chartData = series.slice(-48).map((point, index) => ({
-        ...point,
-        index,
-        label: formatMiniChartTime(point.baseDate)
-    }));
-    const latestValue = series[series.length - 1]?.value ?? null;
-    const firstValue = series[0]?.value ?? null;
-    const change = latestValue !== null && firstValue !== null && firstValue !== 0
-        ? ((latestValue - firstValue) / firstValue) * 100
-        : null;
-    const values = chartData.map((point) => point.value).filter(Number.isFinite);
-    const domainPadding = values.length > 0 ? Math.max((Math.max(...values) - Math.min(...values)) * 0.18, 0.6) : 1;
-    const yDomain: [number, number] | undefined = values.length > 0
-        ? [Math.min(...values) - domainPadding, Math.max(...values) + domainPadding]
-        : undefined;
-
-    return (
-        <div className={`glass-card relative overflow-hidden rounded-2xl border border-zinc-100 p-3 shadow-sm ${fill ? 'grid min-h-[19rem] grid-rows-[auto_minmax(0,1fr)] xl:h-full xl:min-h-0' : compact ? 'grid min-h-32 grid-rows-[auto_minmax(0,1fr)] xl:h-full xl:min-h-0' : ''}`}>
-            <div className="flex items-end justify-between gap-2">
-                <div className="min-w-0">
-                    <p className="truncate text-xs font-bold uppercase tracking-wider text-teal-700">{label}</p>
-                    <p className={`${compact ? 'mt-0.5 text-lg' : 'mt-1 text-2xl'} font-extrabold tracking-tight text-zinc-950`}>
-                        {latestValue === null ? '-' : `${formatValue(latestValue, 2)}원`}
-                    </p>
-                    <p className={`${compact ? 'mt-0.5 line-clamp-1 text-[11px] leading-4' : 'mt-1 text-xs leading-5'} font-semibold text-zinc-500`}>{caption}</p>
-                </div>
-                <div className="absolute right-3 top-3 grid justify-items-end gap-1">
-                    <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${getDirectionBadgeClass(getDirection(metric?.changeRate ?? null))}`}>
-                        전일대비 {formatPercentChange(metric?.changeRate ?? null)}
-                    </span>
-                    <span className={`rounded-md px-2 py-1 text-[11px] font-bold ${getDirectionBadgeClass(change !== null && change >= 0 ? 'up' : change !== null && change < 0 ? 'down' : 'unknown')}`}>
-                        3개월대비 {formatPercentChange(change)}
-                    </span>
-                </div>
-            </div>
-
-            <div className={`w-full ${fill ? 'mt-3 h-36 xl:h-full xl:min-h-0' : compact ? 'mt-2 h-full min-h-0' : 'mt-3 h-24 xl:h-24'}`}>
-                {chartData.length > 1 ? (
-                    <ResponsiveContainer height="100%" width="100%">
-                        <AreaChart data={chartData} margin={{ top: 5, right: 0, bottom: 0, left: 0 }}>
-                            <defs>
-                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#18a999" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#18a999" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <XAxis dataKey="index" hide />
-                            <YAxis domain={yDomain} hide />
-                            <Tooltip
-                                content={<MiniChartTooltip />}
-                                cursor={{ stroke: '#cbd5e1', strokeDasharray: '3 4' }}
-                                isAnimationActive={false}
-                            />
-                            <Area
-                                dataKey="value"
-                                fill="url(#colorValue)"
-                                fillOpacity={1}
-                                isAnimationActive={false}
-                                stroke="#18a999"
-                                strokeWidth={2.5}
-                                type="monotone"
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <div className="grid h-full place-items-center text-xs font-bold text-zinc-400 bg-zinc-50 rounded-xl">데이터 대기</div>
-                )}
-            </div>
-        </div>
-    );
-}
-
 function ComingSoonCard({
                             body,
+                            className = '',
                             compact = false,
                             fill = false,
                             tall = false,
@@ -314,6 +333,7 @@ function ComingSoonCard({
                             variant = 'default'
                         }: {
     body: string;
+    className?: string;
     compact?: boolean;
     fill?: boolean;
     tall?: boolean;
@@ -323,65 +343,77 @@ function ComingSoonCard({
     const isGemini = variant === 'gemini';
 
     return (
-        <section className={`relative overflow-hidden rounded-2xl border bg-white p-3 shadow-sm ${isGemini ? 'border-blue-100' : 'border-zinc-200'} ${fill ? 'min-h-64 xl:h-full xl:min-h-0' : tall ? 'min-h-[20rem]' : compact ? 'min-h-28' : ''}`}>
-            <div className={isGemini ? 'absolute inset-0 bg-[linear-gradient(135deg,rgba(66,133,244,0.12),rgba(168,85,247,0.10)_52%,rgba(251,188,5,0.12))]' : 'absolute inset-0 bg-[linear-gradient(135deg,rgba(248,250,252,0.88),rgba(255,255,255,0.72))] backdrop-blur-[1px]'} />
-            <div className={isGemini ? 'absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(66,133,244,0.18),transparent_26%),radial-gradient(circle_at_82%_74%,rgba(168,85,247,0.16),transparent_28%)]' : 'absolute inset-0 bg-[repeating-linear-gradient(110deg,rgba(17,24,39,0.04)_0,rgba(17,24,39,0.04)_1px,transparent_1px,transparent_12px)]'} />
-            <div className={`relative grid place-items-center rounded-xl px-4 text-center ${isGemini ? 'border border-white/80 bg-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]' : 'border border-dashed border-zinc-300 bg-white/60'} ${fill ? 'min-h-[15rem] xl:h-full xl:min-h-0' : tall ? 'min-h-[18.5rem]' : compact ? 'min-h-24' : 'min-h-24'}`}>
-                <div>
-                    <p className={isGemini ? 'text-xs font-bold uppercase tracking-wider text-blue-500' : 'text-xs font-bold uppercase tracking-wider text-zinc-400'}>COMING SOON</p>
-                    <h3 className={`mt-1 text-base font-extrabold ${isGemini ? 'bg-[linear-gradient(90deg,#4285f4,#a855f7,#fbbc05)] bg-clip-text text-transparent' : 'text-zinc-700'}`}>{title}</h3>
-                    <p className={`mx-auto max-w-56 text-xs font-semibold leading-5 ${isGemini ? 'text-zinc-500' : 'text-zinc-400'} ${compact ? 'mt-1 line-clamp-1' : 'mt-2'}`}>{body}</p>
+        <section className={`dashboard-coming-soon-card ${isGemini ? 'dashboard-coming-soon-card-gemini' : ''} ${fill ? 'dashboard-coming-soon-fill' : tall ? 'dashboard-coming-soon-tall' : compact ? 'dashboard-coming-soon-compact' : ''} ${className}`}>
+            <div className="dashboard-coming-soon-scanline" />
+            <div className="dashboard-coming-soon-content">
+                <div className="dashboard-coming-soon-header">
+                    <span>COMING SOON</span>
+                    <i aria-hidden="true" />
+                </div>
+                <div className="dashboard-coming-soon-body">
+                    <h3>{title}</h3>
+                    <p className={compact ? 'line-clamp-1' : ''}>{body}</p>
                 </div>
             </div>
         </section>
     );
 }
 
-function MiniChartTooltip({
-                              active,
-                              payload
-                          }: {
-    active?: boolean;
-    payload?: Array<{ payload?: { label: string; value: number } }>;
-}) {
-    const point = payload?.[0]?.payload;
-    if (!active || !point) {
-        return null;
-    }
-
+function ChangeComparisonCard({ rows }: { rows: ChangeComparisonRow[] }) {
     return (
-        <div className="rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-semibold text-zinc-600 shadow-lg shadow-zinc-950/10">
-            <p className="text-zinc-950">{point.label}</p>
-            <p className="mt-1 text-teal-700">{formatValue(point.value, 2)}원</p>
-        </div>
+        <section className="glass-card dashboard-change-comparison-card grid min-w-0 border border-zinc-100 p-3 shadow-sm">
+            <div className="mb-2 min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wider text-teal-700">CHANGE MAP</p>
+                <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">환율 · 달러인덱스</h3>
+            </div>
+            <div className="grid min-w-0 gap-1.5">
+                {rows.map((row) => (
+                    <article className="grid min-w-0 grid-cols-[2.2rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1.5 border border-zinc-100 bg-zinc-50/70 px-2 py-1.5" key={row.label}>
+                        <span className="text-[10px] font-extrabold text-white">{row.label}</span>
+                        <ChangeComparisonValue label="환율" value={row.usdKrwChangeRate} />
+                        <ChangeComparisonValue label="DXY" value={row.dollarIndexChangeRate} />
+                    </article>
+                ))}
+            </div>
+        </section>
     );
 }
 
-function ForeignExchangeRateCard({ rates }: { rates: ForeignExchangeRate[] }) {
+function ChangeComparisonValue({ label, value }: { label: string; value: number | null }) {
     return (
-        <section className="glass-card grid min-h-56 grid-rows-[auto_minmax(0,1fr)] rounded-2xl border border-zinc-100 p-3 shadow-sm xl:h-full xl:min-h-0">
+        <span className="grid min-w-0 gap-0.5 text-right">
+            <span className="text-[9px] font-medium leading-none text-zinc-500">{label}</span>
+            <span className={`text-[10px] font-extrabold leading-none ${getPercentTextClass(value)}`}>{formatChangePercent(value)}</span>
+        </span>
+    );
+}
+
+function ForeignExchangeRateCard({ className = '', rates }: { className?: string; rates: ForeignExchangeRate[] }) {
+    const scrollShadow = useDashboardScrollShadow<HTMLDivElement>(rates.length);
+
+    return (
+        <section className={`glass-card grid max-h-[17rem] min-h-56 grid-rows-[auto_minmax(0,1fr)] border border-zinc-100 p-3 shadow-sm ${className}`}>
             <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-wider text-teal-700">FX RATES</p>
-                    <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">각국 통화 환율</h3>
+                    <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">각국 통화환율</h3>
                 </div>
-                <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-500">{rates.length}개</span>
+                <span className="bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-zinc-500">{rates.length}개</span>
             </div>
             {rates.length === 0 ? (
                 <EmptyState text="환율 데이터 대기" />
             ) : (
-                <div className="scrollbar-none grid max-h-44 min-h-0 min-w-0 content-start gap-1.5 overflow-y-auto pr-1 xl:max-h-none">
+                <div className={`dashboard-fx-rate-list dashboard-scroll-shadow ${scrollShadow.shadowClassName} grid min-h-0 min-w-0 content-start gap-1 overflow-y-auto`} ref={scrollShadow.ref}>
                     {rates.map((rate) => (
-                        <article className="grid min-w-0 grid-cols-[1.8rem_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-zinc-100 bg-zinc-50/70 px-2.5 py-2" key={rate.currencyCode}>
-                            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-base shadow-sm" aria-hidden="true">
+                        <article className="dashboard-fx-rate-row grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)_auto] items-center gap-1.5 border border-zinc-100 bg-zinc-50/70 px-2 py-1.5" key={rate.currencyCode}>
+                            <span className="text-sm leading-none" aria-hidden="true">
                                 {getCurrencyFlag(rate.displayCode)}
                             </span>
-                            <span className="grid min-w-0 content-center">
-                                <span className="block truncate text-[9px] font-extrabold leading-none text-zinc-400">{rate.displayCode}</span>
-                                <span className="mt-0.5 block truncate text-[11px] font-bold leading-none text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</span>
-                                <span className="mt-1 block truncate text-[9px] font-medium leading-none text-zinc-400">{formatCompactRateDate(rate.fetchedAt)}</span>
+                            <span className="min-w-0">
+                                <span className="block truncate text-[10px] font-bold leading-4 text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</span>
+                                <span className="block truncate text-[9px] font-semibold leading-3 text-zinc-500">{formatCompactRateDate(rate.fetchedAt)}</span>
                             </span>
-                            <span className="whitespace-nowrap text-xs font-extrabold text-teal-700">{formatValue(rate.dealBasRate, 2)}원</span>
+                            <span className="whitespace-nowrap text-[11px] font-extrabold text-teal-700">{formatValue(rate.dealBasRate, 2)}</span>
                         </article>
                     ))}
                 </div>
@@ -392,6 +424,20 @@ function ForeignExchangeRateCard({ rates }: { rates: ForeignExchangeRate[] }) {
 
 function EmptyState({ text }: { text: string }) {
     return <div className="grid min-h-24 place-items-center rounded-xl bg-zinc-50 px-4 text-center text-sm font-medium text-zinc-500">{text}</div>;
+}
+
+function formatChangePercent(value: number | null) {
+    if (value === null || !Number.isFinite(value) || value === 0) {
+        return '-';
+    }
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
+function getPercentTextClass(value: number | null) {
+    if (value === null || !Number.isFinite(value) || value === 0) {
+        return 'text-zinc-500';
+    }
+    return value > 0 ? 'text-teal-400' : 'text-rose-400';
 }
 
 // ==========================================
@@ -475,10 +521,17 @@ function formatIndicatorMarketValue(indicator: DomesticIndicator) {
 }
 
 function formatSignedNumber(value: number | null) {
-    if (value === null || !Number.isFinite(value)) {
+    if (value === null || !Number.isFinite(value) || value === 0) {
         return '-';
     }
     return `${value >= 0 ? '+' : ''}${formatValue(value, 2)}`;
+}
+
+function getDirectionTextClass(value: number | null) {
+    if (value === null || !Number.isFinite(value) || value === 0) {
+        return 'text-zinc-500';
+    }
+    return value > 0 ? 'text-teal-400' : 'text-rose-400';
 }
 
 function getDirection(changeRate: number | null): Direction {
@@ -492,42 +545,6 @@ function getDirection(changeRate: number | null): Direction {
         return 'down';
     }
     return 'flat';
-}
-
-function getPositionBand(series: TimeSeriesPoint[], latestValue: number | null): PositionBand {
-    if (latestValue === null || series.length < 8) {
-        return 'unknown';
-    }
-    const values = series.slice(-260).map((point) => point.value).filter(Number.isFinite);
-    if (values.length < 8) {
-        return 'unknown';
-    }
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    if (max === min) {
-        return 'middle';
-    }
-    const ratio = (latestValue - min) / (max - min);
-    if (ratio >= 0.67) {
-        return 'top';
-    }
-    if (ratio <= 0.33) {
-        return 'bottom';
-    }
-    return 'middle';
-}
-
-function getThreeMonthFlowText(position: PositionBand) {
-    switch (position) {
-        case 'top':
-            return '최근 3개월 범위에서 높은 쪽에 있습니다.';
-        case 'bottom':
-            return '최근 3개월 범위에서 낮은 쪽에 있습니다.';
-        case 'middle':
-            return '최근 3개월 범위의 중간권에 있습니다.';
-        default:
-            return '최근 3개월 위치를 계산할 데이터가 더 필요합니다.';
-    }
 }
 
 function getDirectionLabel(direction: Direction) {
@@ -560,36 +577,85 @@ function formatPercentChange(value: number | null) {
     return `${value >= 0 ? '+' : ''}${formatValue(value, 2)}%`;
 }
 
+function getImportantRecentNews(items: NewsArticle[], limit: number) {
+    return getRecentPriorityItems(items, limit, (item) => [
+        item.title,
+        item.description ?? '',
+        item.aiSummary ?? '',
+        item.marketSentiment ?? ''
+    ].join(' '), (item) => (
+        (item.aiSummary ? 2 : 0) + (item.marketSentiment ? 1 : 0)
+    ));
+}
+
+function getImportantRecentBriefings(items: GovernmentBriefingArticle[], limit: number) {
+    return getRecentPriorityItems(items, limit, (item) => [
+        item.title,
+        item.subtitle ?? '',
+        item.ministry ?? '',
+        item.category ?? ''
+    ].join(' '), (item) => (
+        item.ministry ? 1 : 0
+    ));
+}
+
+function getRecentPriorityItems<T extends { fetchedAt: string; publishedAt?: string | null }>(
+    items: T[],
+    limit: number,
+    getText: (item: T) => string,
+    getBaseScore: (item: T) => number
+) {
+    const now = Date.now();
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const recentItems = items.filter((item) => {
+        const time = getItemTime(item);
+        return Number.isFinite(time) && now - time <= weekMs;
+    });
+    const candidates = recentItems.length > 0 ? recentItems : items;
+
+    return [...candidates]
+        .sort((a, b) => getPriorityScore(b, now, getText(b), getBaseScore(b)) - getPriorityScore(a, now, getText(a), getBaseScore(a)))
+        .slice(0, limit);
+}
+
+function getPriorityScore(item: { fetchedAt: string; publishedAt?: string | null }, now: number, text: string, baseScore: number) {
+    const normalizedText = text.toLowerCase();
+    const keywordScore = importantNewsKeywords.reduce((score, keyword) => (
+        normalizedText.includes(keyword.toLowerCase()) ? score + 2 : score
+    ), 0);
+    const ageHours = Math.max(0, (now - getItemTime(item)) / (60 * 60 * 1000));
+    const recencyScore = Math.max(0, 8 - ageHours / 12);
+    return baseScore + keywordScore + recencyScore;
+}
+
+const importantNewsKeywords = [
+    '환율',
+    '원/달러',
+    '달러',
+    '금리',
+    '물가',
+    '인플레이션',
+    '무역수지',
+    '경상수지',
+    '외환',
+    '유가',
+    '증시',
+    '채권',
+    'fomc',
+    'fed',
+    '한국은행',
+    '기획재정부',
+    '관세',
+    '수출',
+    '수입'
+];
+
 function sortByRecent<T extends { fetchedAt: string; publishedAt?: string | null }>(items: T[]) {
     return [...items].sort((a, b) => getItemTime(b) - getItemTime(a));
 }
 
 function getItemTime(item: { fetchedAt: string; publishedAt?: string | null }) {
     return new Date(item.publishedAt ?? item.fetchedAt).getTime();
-}
-
-function isToday(value: string | null, today: string) {
-    if (!value) {
-        return false;
-    }
-    return getSeoulDateString(new Date(value)) === today;
-}
-
-function formatMiniChartTime(value: string) {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return value.slice(5).replace('-', '.');
-    }
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return value.slice(11, 16) || value.slice(0, 10);
-    }
-
-    return new Intl.DateTimeFormat('ko-KR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Asia/Seoul'
-    }).format(date);
 }
 
 function formatCompactRateDate(value: string) {
@@ -621,7 +687,7 @@ function getCurrencyFlag(code: string) {
         USD: '🇺🇸'
     };
 
-    return flags[code] ?? '🏳️';
+    return flags[code] ?? '¤';
 }
 
 function getCurrencyShortLabel(code: string) {
