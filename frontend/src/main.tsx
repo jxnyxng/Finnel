@@ -838,8 +838,8 @@ function App() {
                     {isMainAppPage ? (
                         <button
                             aria-expanded={isMobileMenuOpen}
-                            aria-label="주요 화면 메뉴 열기"
-                            className="mobile-main-menu-button justify-self-end lg:hidden"
+                            aria-label={isMobileMenuOpen ? '주요 화면 메뉴 닫기' : '주요 화면 메뉴 열기'}
+                            className={`mobile-main-menu-button justify-self-end lg:hidden ${isMobileMenuOpen ? 'mobile-main-menu-button-open' : ''}`}
                             onClick={() => setIsMobileMenuOpen((current) => !current)}
                             type="button"
                         >
