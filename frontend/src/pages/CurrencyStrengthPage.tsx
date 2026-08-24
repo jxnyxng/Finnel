@@ -89,7 +89,7 @@ export function CurrencyStrengthPage({
                 <>
                     {/* 2. 컨트롤 영역: 0.1초 등장 */}
                     <FadeIn delay={0.1} className="pt-1.5">
-                        <div className="grid gap-2">
+                        <div className="mx-auto grid w-full max-w-[62rem] gap-2">
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex min-w-0 items-center gap-2">
                                     <p className="min-w-0 text-xs font-medium text-zinc-500">
@@ -139,7 +139,7 @@ export function CurrencyStrengthPage({
                         </div>
                     </FadeIn>
 
-                    <div className="grid gap-2">
+                    <div className="mx-auto grid w-full max-w-[62rem] gap-2" key={animationKey}>
                         {sortedRanks.map((rank, index) => {
                             const display = getAreaDisplay(rank.areaCode, rank.areaName);
                             const valuePosition = getScalePosition(rank.neerValue, minNeer, maxNeer);
@@ -152,14 +152,14 @@ export function CurrencyStrengthPage({
 
                             // 3. 리스트 영역: 0.15초부터 0.05초 간격으로 순차 등장 (스태거 효과)
                             return (
-                                <FadeIn key={rank.areaCode} delay={0.15 + index * 0.05}>
+                                <FadeIn key={rank.areaCode} delay={0.24 + index * 0.05}>
                                     <article
                                         className={`glass-list-card rounded-2xl px-3 py-2.5 shadow-sm sm:py-3 ${
                                             isKorea ? 'ring-2 ring-teal-300/55' : ''
                                         }`}
                                     >
                                         <div
-                                            className="grid grid-cols-[42px_38px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[52px_44px_minmax(0,1fr)_auto] lg:grid-cols-[64px_56px_minmax(140px,180px)_minmax(0,1fr)_105px_120px] lg:gap-3">
+                                            className="grid grid-cols-[42px_38px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[52px_44px_minmax(0,1fr)_auto] lg:grid-cols-[58px_50px_minmax(130px,168px)_minmax(0,1fr)_92px_96px] lg:gap-2.5">
                                             <div className="grid grid-cols-[12px_minmax(0,1fr)] items-center gap-1.5">
                                                 <RankMovementIcon movement={rankMovement}/>
                                                 <div
