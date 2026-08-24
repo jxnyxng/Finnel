@@ -731,6 +731,7 @@ body,
   gap: 0.22rem;
   line-height: 1;
   padding: 0 0 0.16rem;
+  white-space: nowrap;
 }
 
 .dashboard-chart-title-trigger:hover {
@@ -914,7 +915,7 @@ body,
 
 .usd-krw-chart-mode-control {
   margin-left: 0;
-  width: min(7.125rem, 21vw);
+  width: min(5.5rem, 18vw);
 }
 
 .chart-price-divider {
@@ -1063,6 +1064,12 @@ body,
 .dashboard-main-grid {
   align-items: stretch;
   min-height: 0;
+}
+
+@media (max-width: 1279px) {
+  .dashboard-mobile-coming-soon {
+    order: 80;
+  }
 }
 
 .dashboard-main-grid :is(.glass-card, .dashboard-coming-soon-card, .chart-grid-surface) {
@@ -1789,14 +1796,22 @@ body,
   padding: 0 0 0.2rem;
 }
 
+.service-guide-page {
+  min-height: calc(100svh - 3.25rem);
+}
+
 .service-guide-slide {
   min-height: 34rem;
-  height: calc(100svh - 4.75rem);
+  height: calc(100svh - 3.25rem);
 }
 
 @supports (height: 100dvh) {
+  .service-guide-page {
+    min-height: calc(100dvh - 3.25rem);
+  }
+
   .service-guide-slide {
-    height: calc(100svh - 4.75rem);
+    height: calc(100dvh - 3.25rem);
   }
 }
 
@@ -3615,19 +3630,106 @@ body,
 }
 
 .main-tab-button {
-  border: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 0 !important;
   transition:
     background-color 140ms ease,
+    border-color 140ms ease,
     color 140ms ease;
   width: 5.75rem;
 }
 
+.main-tab-button:hover {
+  background: rgba(82, 214, 199, 0.12);
+  border-color: rgba(82, 214, 199, 0.34) !important;
+}
+
 .main-tab-button-active {
-  background: var(--accent);
-  border: 0;
+  background: transparent;
+  border-color: transparent !important;
   box-shadow: none;
-  color: #001b18;
+  color: var(--accent) !important;
   filter: none;
+}
+
+.mobile-main-menu-button {
+  align-items: center;
+  border: 1px solid rgba(82, 214, 199, 0.24);
+  display: inline-grid;
+  gap: 0.22rem;
+  height: 2rem;
+  justify-items: center;
+  width: 2rem;
+}
+
+.mobile-main-menu-button span {
+  background: var(--accent);
+  display: block;
+  height: 2px;
+  width: 1rem;
+}
+
+.mobile-main-menu-button:hover {
+  background: rgba(82, 214, 199, 0.12);
+  border-color: rgba(82, 214, 199, 0.42);
+}
+
+.mobile-main-menu-overlay {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(82, 214, 199, 0.12), transparent 18rem),
+    #000;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+  top: 0;
+  transform: translateY(-0.35rem);
+  transition: opacity 160ms ease, transform 160ms ease;
+  z-index: 90;
+}
+
+.mobile-main-menu-overlay-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.mobile-main-menu-panel {
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  padding: 5rem 1.25rem 2rem;
+  width: 100%;
+}
+
+.mobile-main-menu-item {
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: clamp(1.35rem, 8vw, 2.4rem);
+  font-weight: 900;
+  line-height: 1;
+  padding: 0.8rem 1.2rem;
+  text-align: center;
+  width: min(18rem, calc(100vw - 3rem));
+}
+
+.mobile-main-menu-item:hover {
+  background: rgba(82, 214, 199, 0.12);
+  border-color: rgba(82, 214, 199, 0.34);
+  color: #e9fffb;
+}
+
+.mobile-main-menu-item-active {
+  color: var(--accent);
+}
+
+body.mobile-main-menu-open {
+  overflow: hidden;
 }
 
 .responsive-modal-overlay {
