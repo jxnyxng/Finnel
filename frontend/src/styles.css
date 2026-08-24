@@ -2420,7 +2420,7 @@ body,
   left: 50%;
   overflow: hidden;
   position: absolute;
-  top: calc(var(--home-deck-height) * 0.06);
+  top: calc(var(--home-deck-height) * 0.015);
   transform: translateX(-50%);
   width: clamp(28rem, 82vw, 72rem);
 }
@@ -3255,7 +3255,7 @@ body,
 }
 
 .home-hero-scroll-copy {
-  bottom: clamp(1.5rem, 5vh, 3rem);
+  bottom: clamp(2.2rem, 7vh, 4rem);
   font-size: 0.7rem;
   left: 50%;
   line-height: 1.45;
