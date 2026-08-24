@@ -196,6 +196,7 @@ export function TodayFlowPage({
                             title="주식시장 정보"
                         />
                     </div>
+                    {chartSupplement ? <div className="dashboard-trump-mobile-slot min-w-0">{chartSupplement}</div> : null}
                 </aside>
             </section>
 

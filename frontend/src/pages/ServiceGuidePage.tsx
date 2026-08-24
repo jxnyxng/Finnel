@@ -40,7 +40,7 @@ const slides = [
 
 export function ServiceGuidePage() {
     return (
-        <section className="service-guide-page relative left-1/2 -my-3 w-screen -translate-x-1/2 overflow-hidden">
+        <section className="service-guide-page relative left-1/2 w-screen -translate-x-1/2 overflow-hidden">
             {slides.map((slide, index) => (
                 <section
                     className="service-guide-slide relative overflow-hidden bg-black"

@@ -179,6 +179,7 @@ function App() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const [homeResetKey, setHomeResetKey] = React.useState(0);
     const isMainAppPage = activePage === 'home' || mainTabs.some((tab) => tab.key === activePage);
+    const isFullBleedPage = activePage === 'home' || activePage === 'serviceGuide';
     const mainTabNavRef = React.useRef<HTMLElement | null>(null);
     const mainTabButtonRefs = React.useRef<Partial<Record<MainTabKey, HTMLButtonElement | null>>>({});
     const tabSwipeStartRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -891,7 +892,7 @@ function App() {
                 ) : null}
             </header>
             <section
-                className={`flex w-full flex-col px-0 pb-2 sm:pb-3 ${activePage === 'home' ? 'gap-0 pt-0 sm:pt-0' : 'gap-2 pt-2 sm:gap-3 sm:pt-3'}`}
+                className={`flex w-full flex-col px-0 ${isFullBleedPage ? 'gap-0 pb-0 pt-0 sm:pb-0 sm:pt-0' : 'gap-2 pb-2 pt-2 sm:gap-3 sm:pb-3 sm:pt-3'}`}
                 onTouchEnd={handleTabSwipeEnd}
                 onTouchStart={handleTabSwipeStart}
             >
@@ -1241,7 +1242,7 @@ function App() {
                 ) : null}
 
             </section>
-            {activePage !== 'home' ? <AppFooter onDataSourcesClick={() => navigatePage('dataSources')} /> : null}
+            {activePage !== 'home' && activePage !== 'serviceGuide' ? <AppFooter onDataSourcesClick={() => navigatePage('dataSources')} /> : null}
             {isExchangeGuideOpen ? <ExchangeRateGuideModal onClose={() => setIsExchangeGuideOpen(false)} /> : null}
         </main>
     );
