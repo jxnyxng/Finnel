@@ -1097,6 +1097,20 @@ body,
   .dashboard-mobile-coming-soon {
     order: 80;
   }
+
+  .dashboard-gemini-desktop-slot {
+    display: none;
+  }
+}
+
+.dashboard-gemini-mobile-slot {
+  display: none;
+}
+
+@media (max-width: 1279px) {
+  .dashboard-gemini-mobile-slot {
+    display: block;
+  }
 }
 
 .dashboard-main-grid :is(.glass-card, .dashboard-coming-soon-card, .chart-grid-surface) {
@@ -3683,7 +3697,7 @@ body,
   align-items: center;
   border: 0;
   display: inline-grid;
-  gap: 0.14rem;
+  gap: 0.06rem;
   height: 1.9rem;
   justify-items: center;
   position: relative;
@@ -3704,7 +3718,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(1) {
-  transform: translateY(0.28rem) rotate(45deg);
+  transform: translateY(0.2rem) rotate(45deg);
 }
 
 .mobile-main-menu-button-open span:nth-child(2) {
@@ -3712,7 +3726,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(3) {
-  transform: translateY(-0.28rem) rotate(-45deg);
+  transform: translateY(-0.2rem) rotate(-45deg);
 }
 
 .mobile-main-menu-overlay {
