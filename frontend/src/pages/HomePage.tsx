@@ -222,7 +222,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
                             </FadeIn>
                             <FadeIn delay={0.2}>
                                 <h1 className="mx-auto mt-3 max-w-[760px] break-keep text-3xl font-black leading-[1.4] tracking-wider text-zinc-900 sm:text-4xl md:text-5xl md:leading-[1.3] md:tracking-[0.1em] transform scale-x-[1.06]">
-                                    흩어진 경제 신호들이 도착했어요!
+                                    흩어진 경제 신호들이 도착했어요
                                 </h1>
                             </FadeIn>
                             <FadeIn delay={0.3} className="mx-auto mt-6 hidden max-w-2xl items-center justify-center gap-4 text-teal-700 sm:flex" aria-hidden="true">
