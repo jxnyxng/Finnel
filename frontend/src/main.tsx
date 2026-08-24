@@ -176,6 +176,7 @@ function App() {
     const [governmentBriefingsSyncStatus, setGovernmentBriefingsSyncStatus] = React.useState<ContentSyncStatus | null>(null);
     const [nowMs, setNowMs] = React.useState(() => Date.now());
     const [isExchangeGuideOpen, setIsExchangeGuideOpen] = React.useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
     const [homeResetKey, setHomeResetKey] = React.useState(0);
     const isMainAppPage = activePage === 'home' || mainTabs.some((tab) => tab.key === activePage);
     const mainTabNavRef = React.useRef<HTMLElement | null>(null);
@@ -215,7 +216,10 @@ function App() {
     }, [navigatePage]);
 
     const goDashboard = React.useCallback(() => navigatePage('todayFlow'), [navigatePage]);
-    const navigateMainTab = React.useCallback((tabKey: MainTabKey) => navigatePage(tabKey), [navigatePage]);
+    const navigateMainTab = React.useCallback((tabKey: MainTabKey) => {
+        setIsMobileMenuOpen(false);
+        navigatePage(tabKey);
+    }, [navigatePage]);
     const navigateAdjacentMainTab = React.useCallback((direction: -1 | 1) => {
         const activeKey = getMainTabKey(activePage);
         if (!activeKey) {
@@ -288,6 +292,25 @@ function App() {
             left: Math.max(0, nextScrollLeft)
         });
     }, [activePage, isMainAppPage]);
+
+    React.useEffect(() => {
+        if (!isMobileMenuOpen) {
+            document.body.classList.remove('mobile-main-menu-open');
+            return;
+        }
+
+        document.body.classList.add('mobile-main-menu-open');
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsMobileMenuOpen(false);
+            }
+        };
+        window.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.body.classList.remove('mobile-main-menu-open');
+            window.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [isMobileMenuOpen]);
 
     const loadDashboard = React.useCallback(async (showLoading = false) => {
         if (showLoading) {
@@ -794,7 +817,7 @@ function App() {
       `}</style>
 
             <header className="border-b border-zinc-800 bg-black/95">
-                <div className="grid w-full grid-cols-1 items-center gap-2 px-3 py-2 sm:px-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-8">
+                <div className="grid w-full grid-cols-[auto_auto] items-center gap-2 px-3 py-2 sm:px-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-8">
                     <button
                         className="brand-lockup flex min-w-0 shrink-0 items-center justify-start gap-2 py-0.5 xl:gap-2.5"
                         onClick={handleBrandClick}
@@ -812,16 +835,29 @@ function App() {
               </span>
                         </span>
                     </button>
+                    {isMainAppPage ? (
+                        <button
+                            aria-expanded={isMobileMenuOpen}
+                            aria-label="주요 화면 메뉴 열기"
+                            className="mobile-main-menu-button justify-self-end lg:hidden"
+                            onClick={() => setIsMobileMenuOpen((current) => !current)}
+                            type="button"
+                        >
+                            <span aria-hidden="true" />
+                            <span aria-hidden="true" />
+                            <span aria-hidden="true" />
+                        </button>
+                    ) : null}
                 {isMainAppPage ? (
                     <nav
-                        className="scrollbar-none relative flex w-full max-w-full flex-nowrap justify-start gap-3 overflow-x-auto overflow-y-hidden lg:gap-4"
+                        className="scrollbar-none relative hidden w-full max-w-full flex-nowrap justify-start gap-1.5 overflow-x-auto overflow-y-hidden lg:flex xl:gap-2"
                         aria-label="주요 화면"
                         ref={mainTabNavRef}
                     >
                         {mainTabs.map((tab) => (
                             <button
-                                className={`main-tab-button relative z-10 inline-flex h-[25px] shrink-0 items-center justify-center rounded-none px-[13px] text-center text-[12px] font-bold leading-none sm:h-[28px] sm:px-[16px] sm:text-[13px] ${
-                                    activeMainTabKey === tab.key ? 'main-tab-button-active' : 'text-zinc-400 hover:bg-teal-500/10 hover:text-teal-200'
+                                className={`main-tab-button relative z-10 inline-flex h-[25px] shrink-0 items-center justify-center px-[11px] text-center text-[12px] font-bold leading-none sm:h-[28px] sm:px-[13px] sm:text-[13px] ${
+                                    activeMainTabKey === tab.key ? 'main-tab-button-active' : 'text-zinc-400 hover:text-teal-200'
                                 }`}
                                 key={tab.key}
                                 onClick={() => navigateMainTab(tab.key)}
@@ -836,6 +872,23 @@ function App() {
                     </nav>
                 ) : null}
                 </div>
+                {isMainAppPage ? (
+                    <div className={`mobile-main-menu-overlay lg:hidden ${isMobileMenuOpen ? 'mobile-main-menu-overlay-open' : ''}`} aria-hidden={!isMobileMenuOpen}>
+                        <nav aria-label="모바일 주요 화면" className="mobile-main-menu-panel">
+                            {mainTabs.map((tab) => (
+                                <button
+                                    className={`mobile-main-menu-item ${activeMainTabKey === tab.key ? 'mobile-main-menu-item-active' : ''}`}
+                                    key={tab.key}
+                                    onClick={() => navigateMainTab(tab.key)}
+                                    tabIndex={isMobileMenuOpen ? 0 : -1}
+                                    type="button"
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+                ) : null}
             </header>
             <section
                 className={`flex w-full flex-col px-0 pb-2 sm:pb-3 ${activePage === 'home' ? 'gap-0 pt-0 sm:pt-0' : 'gap-2 pt-2 sm:gap-3 sm:pt-3'}`}
@@ -1431,7 +1484,7 @@ function CalculatorPage({
             <FadeIn as="header" className="page-tab-header" delay={0}>
                 <div className="min-w-0">
                     <p className="page-tab-eyebrow">CALCULATORS</p>
-                    <h2 className="page-tab-title">환전계산기</h2>
+                    <h2 className="page-tab-title">환전계산</h2>
                     <p className="page-tab-description">
                         수수료와 은행별 스프레드를 제외한 기준 환율로 환전 금액과 환차익을 계산합니다.
                     </p>
@@ -1777,11 +1830,11 @@ function ExchangeRateConversionCalculator({
         <>
             <div className="calculator-card-header flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-3">
                 <div className="min-w-0">
-                    <h2 className="calculator-card-title">환전계산기</h2>
+                    <h2 className="calculator-card-title">환전계산</h2>
                     <p className="calculator-card-description">현재 기준 환율로 환전 금액을 계산합니다.</p>
                 </div>
                 {onClose ? <button
-                    aria-label="환전계산기 닫기"
+                    aria-label="환전계산 닫기"
                     className="grid h-7 w-7 shrink-0 place-items-center rounded border border-zinc-200 bg-zinc-50 text-sm font-semibold text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950"
                     onClick={onClose}
                     type="button"
