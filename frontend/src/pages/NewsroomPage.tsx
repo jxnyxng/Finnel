@@ -37,6 +37,7 @@ export function NewsroomPage({
                                  onLoadMore
                              }: NewsroomPageProps) {
     const [draftFilters, setDraftFilters] = React.useState(filters);
+    const [hasEnteredPage, setHasEnteredPage] = React.useState(false);
     const [isFilterOpen, setIsFilterOpen] = React.useState(false);
     const categoryScrollerRef = React.useRef<HTMLDivElement | null>(null);
     const categoryTabs = React.useMemo(
@@ -66,6 +67,10 @@ export function NewsroomPage({
     React.useEffect(() => {
         setDraftFilters(filters);
     }, [filters]);
+
+    React.useEffect(() => {
+        setHasEnteredPage(true);
+    }, []);
 
     const submitFilters = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -97,7 +102,6 @@ export function NewsroomPage({
         });
     };
     const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
-    const hasMore = page < totalPages;
     const articleListKey = `${totalCount}-${articles[0]?.link ?? ''}-${articles[articles.length - 1]?.link ?? ''}`;
     const selectedCategoryCount = selectedCategory === 'all'
         ? totalCount
@@ -110,12 +114,12 @@ export function NewsroomPage({
     };
 
     return (
-        <section className="grid min-w-0 gap-3">
+        <section className="news-tab-shell grid min-w-0 gap-3">
             {/* 1. 헤더: 0초 등장 */}
             <FadeIn as="header" delay={0} className="page-tab-header">
                 <div className="min-w-0">
-                    <p className="page-tab-eyebrow">NEWSROOM</p>
-                    <h2 className="page-tab-title">뉴스룸</h2>
+                    <p className="page-tab-eyebrow">NEWS SEARCH</p>
+                    <h2 className="page-tab-title">뉴스검색</h2>
                     <p className="page-tab-description">네이버 뉴스 검색 API에서 환율·원화 관련 기사를 수집해 최신 시장 이슈를 확인합니다.</p>
                 </div>
                 <div className="grid min-w-0 justify-items-start gap-1 md:justify-items-end">
@@ -129,10 +133,10 @@ export function NewsroomPage({
             {/* 2. 검색 및 필터 Form: 0.1초 등장 */}
             <FadeIn delay={0.1}>
                 <form className="grid min-w-0 gap-2" onSubmit={submitFilters}>
-                    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-1.5 lg:gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 lg:gap-2">
                         <button
                             aria-label="기간 필터"
-                            className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
+                            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
                                 isFilterOpen || filters.fromDate || filters.toDate ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
                             }`}
                             onClick={() => setIsFilterOpen((current) => !current)}
@@ -141,10 +145,24 @@ export function NewsroomPage({
                         >
                             ⚙
                         </button>
-                        <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+                        {isFilterOpen ? (
+                            <>
+                                <button
+                                    className={`h-9 shrink-0 rounded-full border px-3 text-xs font-semibold lg:h-8 ${
+                                        isTodayFilterActive ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
+                                    }`}
+                                    onClick={applyTodayFilter}
+                                    type="button"
+                                >
+                                    오늘
+                                </button>
+                                <DateFilterFields draftFilters={draftFilters} setDraftFilters={setDraftFilters} />
+                            </>
+                        ) : null}
+                        <label className="min-w-[14rem] flex-1 text-[10px] font-semibold text-zinc-500">
                             <span className="sr-only">제목</span>
                             <input
-                                className="glass-field h-9 rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
+                                className="glass-field h-9 w-full rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
                                 onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
                                 placeholder="제목 또는 설명 검색"
                                 type="search"
@@ -158,20 +176,6 @@ export function NewsroomPage({
                             초기화
                         </button>
                     </div>
-                    {isFilterOpen ? (
-                        <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
-                            <button
-                                className={`h-8 self-end rounded-full border px-3 text-xs font-semibold ${
-                                    isTodayFilterActive ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
-                                }`}
-                                onClick={applyTodayFilter}
-                                type="button"
-                            >
-                                오늘
-                            </button>
-                            <DateFilterFields draftFilters={draftFilters} setDraftFilters={setDraftFilters} />
-                        </div>
-                    ) : null}
                 </form>
             </FadeIn>
 
@@ -220,13 +224,12 @@ export function NewsroomPage({
                 ) : articles.length === 0 ? (
                     <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 뉴스가 없습니다.</div>
                 ) : (
-                    <div className="news-list-enter grid min-w-0 gap-2.5 sm:gap-3" key={articleListKey}>
+                    <div className={`${hasEnteredPage ? 'content-smooth-refresh' : 'news-list-enter'} grid min-w-0 gap-2.5 lg:grid-cols-2 sm:gap-3`} key={articleListKey}>
                         {articles.map((article, index) => {
-                            // 💡 첫 1페이지(처음 10개)에만 스태거 애니메이션 적용, 무한 스크롤 추가 로드분은 즉시 렌더링
                             const isInitialPageItem = index < 10;
                             const cardElement = <NewsArticleCard article={article} />;
 
-                            return isInitialPageItem ? (
+                            return isInitialPageItem && !hasEnteredPage ? (
                                 <FadeIn key={`${article.categoryCode}-${article.link}`} delay={0.35 + (index % 10) * 0.04}>
                                     {cardElement}
                                 </FadeIn>
@@ -238,11 +241,12 @@ export function NewsroomPage({
                         })}
                     </div>
                 )}
-                <InfiniteLoadMarker
+                <NewsPagination
+                    currentPage={page}
                     hasItems={articles.length > 0}
-                    hasMore={hasMore}
                     isLoading={isLoading}
-                    onLoadMore={() => onLoadMore(page + 1)}
+                    onPageChange={onLoadMore}
+                    totalPages={totalPages}
                 />
             </FadeIn>
         </section>
@@ -271,20 +275,20 @@ function DateFilterFields({
 }) {
     return (
         <>
-            <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
-                시작일
+            <label className="shrink-0 text-[10px] font-semibold text-zinc-500">
+                <span className="sr-only">시작일</span>
                 <input
-                    className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
+                    className="glass-field h-9 w-[8.75rem] rounded-full px-3 text-xs font-medium outline-none lg:h-8"
                     max={draftFilters.toDate || undefined}
                     onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
                     type="date"
                     value={draftFilters.fromDate}
                 />
             </label>
-            <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
-                종료일
+            <label className="shrink-0 text-[10px] font-semibold text-zinc-500">
+                <span className="sr-only">종료일</span>
                 <input
-                    className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
+                    className="glass-field h-9 w-[8.75rem] rounded-full px-3 text-xs font-medium outline-none lg:h-8"
                     min={draftFilters.fromDate || undefined}
                     onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
                     type="date"
@@ -345,7 +349,7 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
             role="link"
             tabIndex={0}
         >
-            <div className="grid sm:h-full sm:grid-cols-[128px_minmax(0,1fr)] md:grid-cols-[144px_minmax(0,1fr)]">
+            <div className="grid sm:h-full sm:grid-cols-[120px_minmax(0,1fr)] md:grid-cols-[132px_minmax(0,1fr)]">
                 <NewsThumbnail article={article} isNew={isNew} />
                 <div className="min-w-0 overflow-hidden p-3 sm:p-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -415,59 +419,77 @@ function NewsThumbnail({ article, isNew }: { article: NewsArticle; isNew: boolea
     }
 
     return (
-        <div className="relative grid h-28 w-full self-start place-items-center overflow-hidden bg-teal-50 text-center text-teal-800 sm:h-32 md:h-36">
+        <div className="relative grid h-28 w-full self-start place-items-center overflow-hidden border border-teal-300/20 bg-zinc-950 text-center text-teal-100 sm:h-32 md:h-36">
             {isNew ? <NewBadge /> : null}
             <div>
-        <span className="inline-grid h-10 w-10 place-items-center rounded-md bg-white">
-          <img alt="" aria-hidden="true" className="h-7 w-7" src="/assets/finnel_logo_rounded_final_deepnavy.svg" />
+        <span className="inline-grid h-10 w-10 place-items-center border border-teal-300/25 bg-teal-400/10">
+          <img alt="" aria-hidden="true" className="h-7 w-7" src="/assets/finnel_logo_rounded_final_white.svg" />
         </span>
-                <p className="mt-1 text-[11px] font-semibold leading-4">{article.categoryName}</p>
+                <p className="mt-2 border border-teal-300/25 bg-teal-400/10 px-2 py-0.5 text-[11px] font-semibold leading-4 text-teal-100">{article.categoryName}</p>
             </div>
         </div>
     );
 }
 
-function InfiniteLoadMarker({
-                                hasItems,
-                                hasMore,
-                                isLoading,
-                                onLoadMore
-                            }: {
+function NewsPagination({
+                            currentPage,
+                            hasItems,
+                            isLoading,
+                            onPageChange,
+                            totalPages
+                        }: {
+    currentPage: number;
     hasItems: boolean;
-    hasMore: boolean;
     isLoading: boolean;
-    onLoadMore: () => void;
+    onPageChange: (page: number) => void;
+    totalPages: number;
 }) {
-    const markerRef = React.useRef<HTMLDivElement | null>(null);
-
-    React.useEffect(() => {
-        const marker = markerRef.current;
-        if (!marker || !hasMore || isLoading) {
-            return undefined;
-        }
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry?.isIntersecting) {
-                    observer.disconnect();
-                    onLoadMore();
-                }
-            },
-            { rootMargin: '360px 0px' }
-        );
-        observer.observe(marker);
-        return () => observer.disconnect();
-    }, [hasMore, isLoading, onLoadMore]);
-
-    if (!hasItems) {
+    if (!hasItems || totalPages <= 1) {
         return null;
     }
 
+    const pageNumbers = getPaginationPages(currentPage, totalPages);
+
     return (
-        <div className="mt-4 grid min-h-12 place-items-center border-t border-white/10 pt-4 text-xs font-semibold text-white/45" ref={markerRef}>
-            {isLoading ? '뉴스를 더 불러오는 중입니다.' : hasMore ? '아래로 스크롤하면 더 불러옵니다.' : '마지막 뉴스입니다.'}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 border-t border-white/10 pt-4 text-xs font-semibold text-white/55">
+            <button
+                className="h-8 border border-white/10 bg-white/5 px-3 text-white/65 hover:border-teal-300/45 hover:text-teal-100 disabled:cursor-not-allowed disabled:opacity-35"
+                disabled={currentPage <= 1 || isLoading}
+                onClick={() => onPageChange(currentPage - 1)}
+                type="button"
+            >
+                이전
+            </button>
+            {pageNumbers.map((pageNumber) => (
+                <button
+                    className={`h-8 min-w-8 border px-2.5 ${
+                        pageNumber === currentPage ? 'border-teal-300/65 bg-teal-400/15 text-teal-100' : 'border-white/10 bg-white/5 text-white/60 hover:border-teal-300/45 hover:text-teal-100'
+                    } disabled:cursor-not-allowed disabled:opacity-35`}
+                    disabled={isLoading || pageNumber === currentPage}
+                    key={pageNumber}
+                    onClick={() => onPageChange(pageNumber)}
+                    type="button"
+                >
+                    {pageNumber}
+                </button>
+            ))}
+            <button
+                className="h-8 border border-white/10 bg-white/5 px-3 text-white/65 hover:border-teal-300/45 hover:text-teal-100 disabled:cursor-not-allowed disabled:opacity-35"
+                disabled={currentPage >= totalPages || isLoading}
+                onClick={() => onPageChange(currentPage + 1)}
+                type="button"
+            >
+                다음
+            </button>
+            <span className="ml-1 text-white/35">{currentPage}/{totalPages}</span>
         </div>
     );
+}
+
+function getPaginationPages(currentPage: number, totalPages: number) {
+    const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+    const end = Math.min(totalPages, start + 4);
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
 function formatNewsDate(value: string | null) {

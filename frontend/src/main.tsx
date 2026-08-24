@@ -83,6 +83,12 @@ axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
 type UsdKrwChartDisplayMode = 'line' | 'candlestick';
+type DashboardMainChartType = 'usdKrw' | 'dollarIndex';
+
+type CalculatorCurrencySelectOption = {
+    label: React.ReactNode;
+    value: string;
+};
 const pageRouteEntries = Object.entries(pageRoutes) as Array<[PageKey, string]>;
 const mainTabKeys = new Set<MainTabKey>(mainTabs.map((tab) => tab.key));
 const chartAdSlots = {
@@ -133,6 +139,7 @@ function App() {
     const [dxyRange, setDxyRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
     const [dollarIndexRange, setDollarIndexRange] = React.useState<Exclude<RangeKey, '1D'>>('3M');
     const [showBroadDollarIndex, setShowBroadDollarIndex] = React.useState(false);
+    const [dashboardMainChartType, setDashboardMainChartType] = React.useState<DashboardMainChartType>('usdKrw');
     const initialPage = getPageFromPath(window.location.pathname);
     const initialMainTabKey = getMainTabKey(initialPage);
     const [activeTab, setActiveTab] = React.useState<MainTabKey>(initialMainTabKey ?? 'dashboard');
@@ -612,6 +619,14 @@ function App() {
     const dollarIndexDomain = getValueDomain(visibleDollarIndexSeries, 1);
     const dollarIndexXDomain = getXDomain(visibleDollarIndexSeries, dollarIndexRange);
     const dollarIndexXTicks = getDailyXTicks(visibleDollarIndexSeries);
+    const activeDollarIndexSourceSeries = showBroadDollarIndex ? dollarIndexSeries : dxyIndexSeries;
+    const usdKrwSelectedRangeChangeRate = getSeriesChangeRate(visibleUsdKrwSeries);
+    const dollarIndexSelectedRangeChangeRate = getSeriesChangeRate(showBroadDollarIndex ? visibleDollarIndexSeries : visibleDxyIndexSeries);
+    const changeComparisonRows = longRangeOptions.map((option) => ({
+        dollarIndexChangeRate: getSeriesChangeRate(buildVisibleDailySeries(activeDollarIndexSourceSeries, option.key)),
+        label: option.label,
+        usdKrwChangeRate: getSeriesChangeRate(buildVisibleDailySeries(usdKrwSeries, option.key))
+    }));
     const remainingCooldownSeconds = getRemainingCooldownSeconds(syncStatus, nowMs);
     const remainingIntradayCooldownSeconds = getRemainingCooldownSeconds(intradayStatus, nowMs);
     const latestSyncLabel = getLatestSyncLabel(syncStatus, remainingCooldownSeconds);
@@ -663,15 +678,6 @@ function App() {
     const usdKrwChartStatusText = usdKrwRange === '1D'
         ? `${showUsdKrwCandlesticks ? '5분봉 캔들' : '5분봉 라인'} · ${intradayStatusLabel}`
         : `기준 환율 일별 · 최신 ${latestUsdKrwPoint?.dateValue.slice(0, 10) ?? '-'} · ${marketDailyStatus.label}`;
-    const exchangeGuideButton = (
-        <button
-            className="inline-flex h-6 shrink-0 items-center justify-center border border-transparent px-1 text-[11px] font-bold leading-none text-zinc-500 underline-offset-4 transition-colors hover:text-zinc-950 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-400"
-            onClick={() => setIsExchangeGuideOpen(true)}
-            type="button"
-        >
-            환율이란?
-        </button>
-    );
     const onePercentHigherUsdKrw = usdKrwMetric?.value === null || usdKrwMetric?.value === undefined ? null : usdKrwMetric.value * 1.01;
     const onePercentLowerUsdKrw = usdKrwMetric?.value === null || usdKrwMetric?.value === undefined ? null : usdKrwMetric.value * 0.99;
     const usdKrwPanelDetails = [
@@ -736,6 +742,12 @@ function App() {
             />
         </div>
     );
+    const dashboardMainChartSelector = (
+        <DashboardMainChartSelect
+            onChange={setDashboardMainChartType}
+            value={dashboardMainChartType}
+        />
+    );
 
     const changeNewsCategory = React.useCallback((category: string) => {
         setSelectedNewsCategory(category);
@@ -744,7 +756,8 @@ function App() {
     }, [loadNews, newsFilters]);
 
     const changeNewsPage = React.useCallback((page: number) => {
-        loadNews(selectedNewsCategory, page, true, newsFilters, page === 1 ? 'replace' : 'append');
+        setNewsPage(page);
+        loadNews(selectedNewsCategory, page, true, newsFilters, 'replace');
     }, [loadNews, newsFilters, selectedNewsCategory]);
 
     const applyNewsFilters = React.useCallback((filters: NewsFilters) => {
@@ -754,7 +767,8 @@ function App() {
     }, [loadNews, selectedNewsCategory]);
 
     const changeGovernmentBriefingsPage = React.useCallback((page: number) => {
-        loadGovernmentBriefings(selectedGovernmentBriefingCategory, page, true, governmentBriefingFilters, page === 1 ? 'replace' : 'append');
+        setGovernmentBriefingsPage(page);
+        loadGovernmentBriefings(selectedGovernmentBriefingCategory, page, true, governmentBriefingFilters, 'replace');
     }, [governmentBriefingFilters, loadGovernmentBriefings, selectedGovernmentBriefingCategory]);
 
     const changeGovernmentBriefingCategory = React.useCallback((category: string) => {
@@ -779,57 +793,55 @@ function App() {
         }
       `}</style>
 
-            <header className="py-1.5 sm:pb-1 sm:pt-2">
-                <div className="mx-auto grid w-full max-w-[82rem] grid-cols-1 items-center justify-items-center gap-x-2 gap-y-1 px-3 sm:px-4 xl:min-h-[48px] xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:justify-items-stretch xl:gap-x-3">
+            <header className="border-b border-zinc-800 bg-black/95">
+                <div className="grid w-full grid-cols-1 items-center gap-2 px-3 py-2 sm:px-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-8">
                     <button
-                        className="brand-lockup col-start-1 row-start-1 flex min-w-0 shrink-0 items-center justify-center gap-2 py-0.5 xl:justify-start xl:gap-2.5"
+                        className="brand-lockup flex min-w-0 shrink-0 items-center justify-start gap-2 py-0.5 xl:gap-2.5"
                         onClick={handleBrandClick}
                         type="button"
                     >
                         <img
                             alt=""
                             aria-hidden="true"
-                            className="brand-logo-mark h-[2.05rem] w-[2.05rem] shrink-0 lg:h-[2.35rem] lg:w-[2.35rem]"
-                            src="/assets/finnel_logo_rounded_final_deepnavy_withBG.svg"
+                            className="brand-logo-mark h-[1.9rem] w-[1.9rem] shrink-0 lg:h-[2.1rem] lg:w-[2.1rem]"
+                            src="/assets/finnel_logo_rounded_final_white.svg"
                         />
                         <span className="flex min-w-0 items-center">
               <span className="brand-name-en text-[1.22rem] leading-none lg:text-[1.38rem]">
                 <span className="brand-name-en-accent">fin</span>nel.kr
               </span>
-            </span>
+                        </span>
                     </button>
-                </div>
-            </header>
-            <section
-                className={`mx-auto flex w-full max-w-[82rem] flex-col px-3 pb-2 pt-0 sm:px-4 sm:pb-3 sm:pt-0 ${activePage === 'home' ? 'gap-0' : 'gap-1 sm:gap-2'}`}
-                onTouchEnd={handleTabSwipeEnd}
-                onTouchStart={handleTabSwipeStart}
-            >
                 {isMainAppPage ? (
                     <nav
-                        className="scrollbar-none relative flex w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 pb-2 pt-1.5 sm:pb-2.5 sm:pt-2"
+                        className="scrollbar-none relative flex w-full max-w-full flex-nowrap justify-start gap-3 overflow-x-auto overflow-y-hidden lg:gap-4"
                         aria-label="주요 화면"
                         ref={mainTabNavRef}
                     >
                         {mainTabs.map((tab) => (
-                            <React.Fragment key={tab.key}>
-                                {tab.key === 'dataSources' ? <span className="mx-1.5 block h-5 w-px shrink-0 self-center bg-zinc-200 md:mx-2 md:ml-auto" aria-hidden="true" /> : null}
-                                <button
-                                    className={`main-tab-button relative z-10 inline-flex h-[30px] shrink-0 items-center justify-center rounded-md px-[11px] text-center text-[12px] font-bold leading-none sm:h-[35px] sm:px-[13px] sm:text-[13px] ${
-                                        activeMainTabKey === tab.key ? 'main-tab-button-active' : 'border border-transparent text-zinc-500 hover:bg-zinc-100 hover:text-zinc-950'
-                                    }`}
-                                    onClick={() => navigateMainTab(tab.key)}
-                                    ref={(node) => {
-                                        mainTabButtonRefs.current[tab.key] = node;
-                                    }}
-                                    type="button"
-                                >
-                                    <span className="whitespace-nowrap">{tab.label}</span>
-                                </button>
-                            </React.Fragment>
+                            <button
+                                className={`main-tab-button relative z-10 inline-flex h-[25px] shrink-0 items-center justify-center rounded-none px-[13px] text-center text-[12px] font-bold leading-none sm:h-[28px] sm:px-[16px] sm:text-[13px] ${
+                                    activeMainTabKey === tab.key ? 'main-tab-button-active' : 'text-zinc-400 hover:bg-teal-500/10 hover:text-teal-200'
+                                }`}
+                                key={tab.key}
+                                onClick={() => navigateMainTab(tab.key)}
+                                ref={(node) => {
+                                    mainTabButtonRefs.current[tab.key] = node;
+                                }}
+                                type="button"
+                            >
+                                <span className="whitespace-nowrap">{tab.label}</span>
+                            </button>
                         ))}
                     </nav>
                 ) : null}
+                </div>
+            </header>
+            <section
+                className={`flex w-full flex-col px-0 pb-2 sm:pb-3 ${activePage === 'home' ? 'gap-0 pt-0 sm:pt-0' : 'gap-2 pt-2 sm:gap-3 sm:pt-3'}`}
+                onTouchEnd={handleTabSwipeEnd}
+                onTouchStart={handleTabSwipeStart}
+            >
 
                 {activePage === 'home' ? (
                     <FadeIn>
@@ -849,13 +861,123 @@ function App() {
                             dashboard={dashboard}
                             dashboardEmptyText={dashboardEmptyText}
                             dashboardLoadState={dashboardLoadState}
+                            changeComparisonRows={changeComparisonRows}
+                            foreignExchangeRates={foreignExchangeRates}
                             governmentBriefings={governmentBriefings}
                             governmentBriefingsConfigured={!hasGovernmentBriefingsLoaded || isGovernmentBriefingsConfigured}
                             governmentBriefingsSyncStatus={governmentBriefingsSyncStatus}
                             newsArticles={newsArticles}
                             newsConfigured={!hasNewsLoaded || isNewsConfigured}
                             newsSyncStatus={newsSyncStatus}
-                            foreignExchangeRates={foreignExchangeRates}
+                            chartSupplement={<DashboardTrumpSnsCard />}
+                            usdKrwChart={(
+                                dashboardMainChartType === 'usdKrw' ? (
+                                  <MarketChartSection
+                                    compactLayout
+                                    emptyText={dashboardEmptyText}
+                                    candlestickSeries={visibleUsdKrwCandles}
+                                    chartAction={usdKrwChartDisplayControl}
+                                    chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
+                                    desktopAdSlot={chartAdSlots.usdKrwDesktop}
+                                    headerStatus={usdKrwRange === '1D' ? usdKrwStatusNode : null}
+                                    helpAriaLabel="USD/KRW 그래프 안내"
+                                    helpContent={(
+                                        <>
+                                            <p className="mt-1">값이 높아질수록 1달러를 사는 데 더 많은 원화가 필요하므로 원화 약세로 해석합니다.</p>
+                                            <p className="mt-1">1일은 1분봉을 5분 단위로 집계한 흐름, 긴 기간은 일별 흐름을 봅니다. 최신값 점선은 현재 기준 환율 위치를 빠르게 비교하기 위한 표시입니다.</p>
+                                        </>
+                                    )}
+                                    helpTitle="USD/KRW 그래프"
+                                    hover={activeUsdKrwHover}
+                                    lineStroke="#18a999"
+                                    lineStrokeWidth={1.75}
+                                    metric={usdKrwMetric}
+                                    mobileAdSlot={chartAdSlots.usdKrwMobile}
+                                    onHoverChange={setActiveUsdKrwHover}
+                                    onRangeChange={setUsdKrwRange}
+                                    panelDetails={usdKrwPanelDetails}
+                                    plotLeft={28}
+                                    plotRight={66}
+                                    range={usdKrwRange}
+                                    rangeColumns={4}
+                                    rangeOptions={rangeOptions}
+                                    rangeSummary={<RangeChangeSummary changeRate={usdKrwSelectedRangeChangeRate} rangeLabel={getRangeLabel(usdKrwRange)} />}
+                                    referenceStroke="#18a999"
+                                    sectionLabelAction={dashboardMainChartSelector}
+                                    series={visibleUsdKrwSeries}
+                                    showExtremaLines
+                                    showLatestValueDot={showUsdKrwLatestValueDot && !showUsdKrwCandlesticks}
+                                    showLoadingOverlay={shouldCoverDashboardCharts}
+                                    statusClassName="text-teal-700"
+                                    statusText={usdKrwChartStatusText}
+                                    subtitle={null}
+                                    title="실시간 원달러 환율"
+                                    tooltipContent={showUsdKrwCandlesticks ? <UsdKrwCandlestickTooltip /> : <UsdKrwTooltip range={usdKrwRange} />}
+                                    usePointerHover
+                                    xAxisHeight={usdKrwRange === '1D' ? 22 : 24}
+                                    xAxisPadding={{ left: 0, right: 0 }}
+                                    xDomain={usdKrwXDomain}
+                                    xTickFormatter={(value) => usdKrwRange === '1D' ? formatUsdKrwXTick(value) : formatDailyXTick(value, usdKrwRange)}
+                                    xTicks={usdKrwXTicks}
+                                    yDomain={usdKrwDomain}
+                                  />
+                                ) : (
+                                  <MarketChartSection
+                                      compactLayout
+                                      emptyText={dashboardEmptyText}
+                                      desktopAdSlot={chartAdSlots.dollarIndexDesktop}
+                                      helpAriaLabel="달러인덱스 안내"
+                                      helpContent={(
+                                          <>
+                                              <p className="mt-1">7개 통화권 지수와 26개 교역 상대 지수로 달러 강도를 봅니다.</p>
+                                          </>
+                                      )}
+                                      helpTitle="달러인덱스"
+                                      helpWidthClassName="w-80"
+                                      hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
+                                      lineStroke="#18a999"
+                                      lineStrokeWidth={1.75}
+                                      keepHeaderSingleLineOnMobile
+                                      metric={activeDollarIndexMetric}
+                                      mobileAdSlot={chartAdSlots.dollarIndexMobile}
+                                      headerAction={activeDollarIndexHeaderAction}
+                                      headerActionPlacement="chartControls"
+                                      onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
+                                      onRangeChange={(range) => {
+                                          if (showBroadDollarIndex) {
+                                              setDollarIndexRange(range);
+                                          } else {
+                                              setDxyRange(range);
+                                          }
+                                      }}
+                                      panelDetails={activeDollarIndexPanelDetails}
+                                      plotLeft={28}
+                                      plotRight={66}
+                                      range={activeDollarIndexRange}
+                                      rangeColumns={3}
+                                      rangeOptions={longRangeOptions}
+                                      rangeSummary={<RangeChangeSummary changeRate={dollarIndexSelectedRangeChangeRate} rangeLabel={getRangeLabel(activeDollarIndexRange)} />}
+                                      referenceStroke="#18a999"
+                                      sectionLabelAction={dashboardMainChartSelector}
+                                      series={activeDollarIndexSeries}
+                                      showExtremaLines
+                                      showLatestValueDot={false}
+                                      showLoadingOverlay={shouldCoverDashboardCharts}
+                                      statusClassName="text-slate-600"
+                                      statusText={activeDollarIndexChartStatusText}
+                                      subtitle={null}
+                                      title="달러인덱스"
+                                      tooltipContent={<DollarIndexTooltip title={showBroadDollarIndex ? '26개 교역 상대 달러' : '7개 통화권 달러'} />}
+                                      usePointerHover
+                                      xAxisHeight={24}
+                                      xAxisPadding={{ left: 0, right: 0 }}
+                                      xDomain={showBroadDollarIndex ? dollarIndexXDomain : dxyIndexXDomain}
+                                      xTickFormatter={(value) => formatDailyXTick(value, activeDollarIndexRange)}
+                                      xTicks={showBroadDollarIndex ? dollarIndexXTicks : dxyIndexXTicks}
+                                      yDomain={showBroadDollarIndex ? dollarIndexDomain : dxyIndexDomain}
+                                  />
+                                )
+                            )}
                         />
                     </FadeIn>
                 ) : null}
@@ -863,7 +985,6 @@ function App() {
                 {activePage === 'dashboard' ? (
                     <FadeIn as="header" className="page-tab-header page-tab-header-no-divider page-content-enter">
                         <div className="relative min-w-0 md:col-span-2">
-                            <div className="absolute right-0 top-[-0.125rem]">{exchangeGuideButton}</div>
                             <p className="page-tab-eyebrow">FX DASHBOARD</p>
                             <h2 className="page-tab-title">환율현황</h2>
                             <p className="page-tab-description m-0 mt-1 max-w-none">원/달러 환율과 달러지수의 차트, 기준값, 기간별 변동 정보를 제공합니다.</p>
@@ -1067,7 +1188,7 @@ function App() {
                 ) : null}
 
             </section>
-            {activePage !== 'home' ? <AppFooter /> : null}
+            {activePage !== 'home' ? <AppFooter onDataSourcesClick={() => navigatePage('dataSources')} /> : null}
             {isExchangeGuideOpen ? <ExchangeRateGuideModal onClose={() => setIsExchangeGuideOpen(false)} /> : null}
         </main>
     );
@@ -1078,6 +1199,188 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <App />
     </React.StrictMode>
 );
+
+function RangeChangeSummary({ changeRate, rangeLabel }: { changeRate: number | null; rangeLabel: string }) {
+    return (
+        <span className="range-change-summary">
+            <span>{rangeLabel}동안</span>
+            <span className={getRangeChangeClass(changeRate)}>{formatRangeChangeRate(changeRate)}</span>
+        </span>
+    );
+}
+
+function getSeriesChangeRate(series: Array<{ value: number | null | undefined }>) {
+    const validSeries = series.filter((point): point is { value: number } => typeof point.value === 'number' && Number.isFinite(point.value));
+    const first = validSeries[0]?.value;
+    const latest = validSeries[validSeries.length - 1]?.value;
+    if (first === undefined || latest === undefined || first === 0) {
+        return null;
+    }
+    return ((latest - first) / first) * 100;
+}
+
+function formatRangeChangeRate(value: number | null) {
+    if (value === null || !Number.isFinite(value) || value === 0) {
+        return '-';
+    }
+    return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
+}
+
+function getRangeChangeClass(value: number | null) {
+    if (value === null || !Number.isFinite(value) || value === 0) {
+        return 'range-option-change-flat';
+    }
+    return value > 0 ? 'range-option-change-up' : 'range-option-change-down';
+}
+
+function DashboardMainChartSelect({
+                                      onChange,
+                                      value
+                                  }: {
+    onChange: (value: DashboardMainChartType) => void;
+    value: DashboardMainChartType;
+}) {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const rootRef = React.useRef<HTMLDivElement | null>(null);
+    const options: Array<{ label: string; value: DashboardMainChartType }> = [
+        { label: '원달러환율', value: 'usdKrw' },
+        { label: '달러인덱스', value: 'dollarIndex' }
+    ];
+    const selected = options.find((option) => option.value === value) ?? options[0];
+
+    React.useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const closeOnOutside = (event: PointerEvent) => {
+            if (!rootRef.current?.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        window.addEventListener('pointerdown', closeOnOutside);
+        return () => window.removeEventListener('pointerdown', closeOnOutside);
+    }, [isOpen]);
+
+    return (
+        <div className="dashboard-chart-title-filter" ref={rootRef}>
+            <button
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
+                className="dashboard-chart-title-trigger"
+                onClick={() => setIsOpen((current) => !current)}
+                type="button"
+            >
+                <span>{selected.label}</span>
+                <span aria-hidden="true">⌄</span>
+            </button>
+            {isOpen ? (
+                <div className="dashboard-chart-title-menu" role="listbox">
+                    {options.map((option) => (
+                        <button
+                            aria-selected={option.value === value}
+                            className="dashboard-chart-title-option"
+                            key={option.value}
+                            onClick={() => {
+                                onChange(option.value);
+                                setIsOpen(false);
+                            }}
+                            role="option"
+                            type="button"
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function CalculatorCurrencySelect({
+                                      ariaLabel,
+                                      onChange,
+                                      options,
+                                      value
+                                  }: {
+    ariaLabel: string;
+    onChange: (value: string) => void;
+    options: CalculatorCurrencySelectOption[];
+    value: string;
+}) {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const rootRef = React.useRef<HTMLDivElement | null>(null);
+    const selected = options.find((option) => option.value === value) ?? options[0];
+
+    React.useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const closeOnOutside = (event: PointerEvent) => {
+            if (!rootRef.current?.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        window.addEventListener('pointerdown', closeOnOutside);
+        return () => window.removeEventListener('pointerdown', closeOnOutside);
+    }, [isOpen]);
+
+    return (
+        <div className="calculator-select relative min-w-0" ref={rootRef}>
+            <button
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
+                aria-label={ariaLabel}
+                className="calculator-select-trigger glass-field h-9 w-full min-w-0 px-3 text-left text-sm font-semibold outline-none"
+                onClick={() => setIsOpen((current) => !current)}
+                type="button"
+            >
+                <span className="min-w-0 truncate">{selected?.label ?? '통화 선택'}</span>
+                <span className="shrink-0 text-[0.72rem] text-teal-100" aria-hidden="true">⌄</span>
+            </button>
+            {isOpen ? (
+                <div className="calculator-select-menu calculator-select-menu-wide" role="listbox">
+                    {options.map((option) => (
+                        <button
+                            aria-selected={option.value === value}
+                            className="calculator-select-option"
+                            key={option.value}
+                            onClick={() => {
+                                onChange(option.value);
+                                setIsOpen(false);
+                            }}
+                            role="option"
+                            type="button"
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function DashboardTrumpSnsCard() {
+    return (
+        <article className="dashboard-coming-soon-card dashboard-trump-sns-card">
+            <div className="dashboard-coming-soon-scanline" />
+            <div className="dashboard-coming-soon-content">
+                <div className="dashboard-coming-soon-header">
+                    <span>COMING SOON</span>
+                    <i aria-hidden="true" />
+                </div>
+                <div className="dashboard-coming-soon-body">
+                    <h3>트럼프 SNS 소식</h3>
+                    <p>발언, 정책 키워드, 환율 반응 연결 예정</p>
+                </div>
+            </div>
+        </article>
+    );
+}
 
 function shouldIgnoreTabSwipe(target: EventTarget | null) {
     if (!(target instanceof Element)) {
@@ -1095,9 +1398,37 @@ function CalculatorPage({
     calculatorMeta?: DailyDashboardResponse['exchangeRateCalculator'] | null;
     rates: ForeignExchangeRate[];
 }) {
+    const layoutRef = React.useRef<HTMLDivElement | null>(null);
+    const [layoutHeight, setLayoutHeight] = React.useState<number | null>(null);
+
+    React.useLayoutEffect(() => {
+        const updateLayoutHeight = () => {
+            const layout = layoutRef.current;
+
+            if (!layout) {
+                return;
+            }
+
+            const layoutTop = layout.getBoundingClientRect().top;
+            const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+            setLayoutHeight(Math.max(460, Math.floor(viewportHeight - layoutTop - 12)));
+        };
+
+        updateLayoutHeight();
+        const animationFrame = window.requestAnimationFrame(updateLayoutHeight);
+        window.addEventListener('resize', updateLayoutHeight);
+        window.visualViewport?.addEventListener('resize', updateLayoutHeight);
+
+        return () => {
+            window.cancelAnimationFrame(animationFrame);
+            window.removeEventListener('resize', updateLayoutHeight);
+            window.visualViewport?.removeEventListener('resize', updateLayoutHeight);
+        };
+    }, []);
+
     return (
-        <FadeIn as="section" className="page-content-enter grid gap-5">
-            <header className="page-tab-header">
+        <section className="grid gap-5">
+            <FadeIn as="header" className="page-tab-header" delay={0}>
                 <div className="min-w-0">
                     <p className="page-tab-eyebrow">CALCULATORS</p>
                     <h2 className="page-tab-title">환전계산기</h2>
@@ -1105,10 +1436,14 @@ function CalculatorPage({
                         수수료와 은행별 스프레드를 제외한 기준 환율로 환전 금액과 환차익을 계산합니다.
                     </p>
                 </div>
-            </header>
+            </FadeIn>
 
-            <div className="calculator-tab-layout grid min-w-0 gap-4 xl:grid-cols-[minmax(15rem,0.56fr)_minmax(34rem,1.44fr)] xl:items-start">
-                <section className="calculator-tab-panel min-w-0">
+            <div
+                className="calculator-tab-layout calculator-split-layout mx-auto grid w-full max-w-[76rem] min-w-0 gap-4 xl:grid-cols-[minmax(16rem,0.6fr)_minmax(34rem,1.4fr)] xl:items-stretch"
+                ref={layoutRef}
+                style={layoutHeight ? { height: `${layoutHeight}px` } : undefined}
+            >
+                <section className="calculator-tab-panel calculator-left-panel calculator-panel-enter-left glass-modal min-w-0 overflow-hidden text-sm shadow-xl">
                     <div className="calculator-tab-panel-header">
                         <div>
                             <p className="calculator-tab-panel-kicker">현재 기준</p>
@@ -1116,12 +1451,12 @@ function CalculatorPage({
                         </div>
                         <span className="calculator-tab-panel-badge">실시간 기준 환율</span>
                     </div>
-                    <section className="calculator-tab-conversion-card glass-card min-w-0 overflow-hidden rounded-2xl shadow-sm">
+                    <section className="calculator-tab-conversion-card min-w-0 overflow-y-auto">
                         <ExchangeRateConversionCalculator rates={rates} />
                     </section>
                 </section>
 
-                <section className="calculator-tab-panel min-w-0">
+                <aside className="calculator-side-panel calculator-panel-enter-right glass-modal min-w-0 overflow-hidden text-sm shadow-xl">
                     <div className="calculator-tab-panel-header">
                         <div>
                             <p className="calculator-tab-panel-kicker">과거 비교</p>
@@ -1135,9 +1470,9 @@ function CalculatorPage({
                         rates={rates}
                         variant="tab"
                     />
-                </section>
+                </aside>
             </div>
-        </FadeIn>
+        </section>
     );
 }
 
@@ -1376,10 +1711,7 @@ function ExchangeRateConversionCalculator({
     const [foreignInput, setForeignInput] = React.useState('100');
     const [krwInput, setKrwInput] = React.useState('');
     const [lastEdited, setLastEdited] = React.useState<'foreign' | 'krw'>('foreign');
-    const availableRates = React.useMemo(
-        () => [...rates].sort((a, b) => a.displayCode.localeCompare(b.displayCode)),
-        [rates]
-    );
+    const availableRates = React.useMemo(() => [...rates], [rates]);
 
     React.useEffect(() => {
         if (availableRates.length === 0) {
@@ -1393,6 +1725,13 @@ function ExchangeRateConversionCalculator({
     }, [availableRates, selectedCode]);
 
     const selectedRate = availableRates.find((rate) => rate.currencyCode === selectedCode) ?? availableRates[0] ?? null;
+    const currencyOptions = React.useMemo<CalculatorCurrencySelectOption[]>(
+        () => availableRates.map((rate) => ({
+            label: `${getCurrencyFlag(rate.displayCode)} ${rate.displayCode} · ${getCurrencyShortLabel(rate.displayCode)}`,
+            value: rate.currencyCode
+        })),
+        [availableRates]
+    );
 
     React.useEffect(() => {
         if (!selectedRate) {
@@ -1455,17 +1794,12 @@ function ExchangeRateConversionCalculator({
                 <div className="conversion-calculator-body grid gap-3 px-4 py-3">
                     <label className="grid gap-1.5">
                         <span className="text-[11px] font-semibold text-zinc-500">통화</span>
-                        <select
-                            className="glass-field h-9 w-full rounded-md px-3 text-sm font-semibold outline-none"
-                            onChange={(event) => handleCurrencyChange(event.target.value)}
+                        <CalculatorCurrencySelect
+                            ariaLabel="현재 기준 통화 선택"
+                            onChange={handleCurrencyChange}
+                            options={currencyOptions}
                             value={selectedRate.currencyCode}
-                        >
-                            {availableRates.map((rate) => (
-                                <option key={rate.currencyCode} value={rate.currencyCode}>
-                                    {getCurrencyFlag(rate.displayCode)} {rate.displayCode} · {getCurrencyShortLabel(rate.displayCode)}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </label>
 
                     <div className="conversion-amount-grid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">

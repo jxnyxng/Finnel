@@ -28,13 +28,11 @@ export const specialAreaDisplays: Record<string, { name: string; flag: string }>
 
 export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
   { key: 'todayFlow', label: '대시보드' },
-  { key: 'dashboard', label: '환율현황' },
   { key: 'koreaStatus', label: '경제지표' },
   { key: 'governmentBriefings', label: '정책뉴스' },
-  { key: 'newsroom', label: '뉴스룸' },
+  { key: 'newsroom', label: '뉴스검색' },
   { key: 'ranking', label: '화폐랭킹' },
-  { key: 'calculator', label: '환전계산기' },
-  { key: 'dataSources', label: '출처' }
+  { key: 'calculator', label: '환전계산기' }
 ];
 
 export const pageRoutes: Record<PageKey, string> = {

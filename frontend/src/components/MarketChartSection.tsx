@@ -21,7 +21,7 @@ import { GoogleAdSlot } from './AdSlot';
 
 type RangeSelectorOption<T extends RangeKey> = {
   key: T;
-  label: string;
+  label: ReactNode;
 };
 
 type AxisTickProps = {
@@ -43,6 +43,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   range: T;
   rangeColumns: 2 | 3 | 4;
   rangeOptions: Array<RangeSelectorOption<T>>;
+  rangeSummary?: ReactNode;
   onRangeChange: (range: T) => void;
   subtitle: ReactNode;
   keepHeaderSingleLineOnMobile?: boolean;
@@ -61,6 +62,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   yDomain: [number, number] | ['auto', 'auto'];
   tooltipContent: ReactElement;
   titleAction?: ReactNode;
+  sectionLabelAction?: ReactNode;
   usePointerHover?: boolean;
   hover: ChartHoverState | null;
   onHoverChange: (hover: ChartHoverState | null) => void;
@@ -74,6 +76,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   panelFooterText?: string;
   headerAction?: ReactNode;
   chartAction?: ReactNode;
+  chartBottomLeftAction?: ReactNode;
   headerActionPlacement?: 'header' | 'chartControls' | 'panel';
   headerStatus?: ReactNode;
   showLatestValueDot?: boolean;
@@ -81,6 +84,8 @@ type MarketChartSectionProps<T extends RangeKey> = {
   showLoadingOverlay?: boolean;
   desktopAdSlot?: string;
   mobileAdSlot?: string;
+  compactLayout?: boolean;
+  footerContent?: ReactNode;
 };
 
 export function MarketChartSection<T extends RangeKey>({
@@ -93,6 +98,7 @@ export function MarketChartSection<T extends RangeKey>({
   lineStroke,
   lineStrokeWidth = 2,
   metric,
+  sectionLabelAction,
   keepHeaderSingleLineOnMobile = false,
   onHoverChange,
   onRangeChange,
@@ -100,6 +106,7 @@ export function MarketChartSection<T extends RangeKey>({
   panelFooterText,
   headerAction,
   chartAction,
+  chartBottomLeftAction,
   headerActionPlacement = 'header',
   headerStatus,
   showLatestValueDot = false,
@@ -107,11 +114,14 @@ export function MarketChartSection<T extends RangeKey>({
   showLoadingOverlay = false,
   desktopAdSlot,
   mobileAdSlot,
+  compactLayout = false,
+  footerContent,
   plotLeft,
   plotRight,
   range,
   rangeColumns,
   rangeOptions,
+  rangeSummary,
   referenceStroke,
   series,
   chartVariant = 'line',
@@ -177,7 +187,7 @@ export function MarketChartSection<T extends RangeKey>({
     : undefined;
   const xDomainKey = `${xDomain[0]}:${xDomain[1]}`;
   const chartTopAction = chartAction ?? (headerActionPlacement === 'chartControls' ? headerAction : null);
-  const chartPlotTop = chartTopMarginPx + (chartTopAction ? 38 : 0);
+  const chartPlotTop = chartTopMarginPx + (!compactLayout && chartTopAction ? 38 : 0);
   const effectiveYDomain = getExtremaPaddedYDomain({
     enabled: showExtremaLines,
     plotHeight: plotBottom - chartPlotTop,
@@ -524,40 +534,75 @@ export function MarketChartSection<T extends RangeKey>({
       {headerStatus}
     </div>
   ) : null;
+  const compactHelpContent = compactLayout ? (
+    <div className="grid gap-2">
+      <p>기준값, 출처, 수집 상태</p>
+      {panelInfoDetails.length > 0 ? (
+        <dl className="grid gap-1.5 border-t border-zinc-200 pt-2">
+          {panelInfoDetails.map((item) => (
+            <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-2" key={item.label}>
+              <dt className="text-zinc-400">{item.label}</dt>
+              <dd className="min-w-0 text-right font-semibold text-zinc-700">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {panelFooterText ? <p className="text-zinc-500">{panelFooterText}</p> : null}
+    </div>
+  ) : helpContent;
+  const compactHeaderControls = compactLayout ? (
+    <div className="chart-compact-header-controls">
+      {chartTopAction}
+      <div className="chart-range-control chart-range-control-compact">
+        <RangeSelector compact columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="grid gap-2">
       <article className="glass-card min-w-0 rounded-2xl shadow-sm">
-        <div className="grid gap-4 p-3.5 sm:gap-5 sm:p-4">
-          <div className="relative grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 px-1">
-            <div className="grid min-w-0 gap-1">
+        <div className={`grid ${compactLayout ? 'gap-2 p-2.5 sm:p-3' : 'gap-4 p-3.5 sm:gap-5 sm:p-4'}`}>
+          <div className="relative grid min-w-0 gap-y-2 px-1">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3">
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <p className="text-xs font-semibold leading-none text-white/45">{sectionLabel}</p>
-                <ChartHelpTooltip ariaLabel={helpAriaLabel} placement="right" title={helpTitle} widthClassName={helpWidthClassName}>
-                  {helpContent}
-                </ChartHelpTooltip>
+                {sectionLabelAction ?? <p className="text-xs font-semibold leading-none text-white/45">{sectionLabel}</p>}
+                {!compactLayout ? (
+                  <ChartHelpTooltip ariaLabel={helpAriaLabel} placement="right" title={helpTitle} widthClassName={helpWidthClassName}>
+                    {compactHelpContent}
+                  </ChartHelpTooltip>
+                ) : null}
               </div>
+              <div className={`flex shrink-0 items-center justify-end gap-2 text-right ${keepHeaderSingleLineOnMobile ? 'flex-nowrap' : 'flex-wrap'}`}>
+                {statusText && statusTextPlacement === 'headerRight' ? <span className={`block max-w-[58vw] whitespace-nowrap text-right text-xs leading-5 sm:max-w-none ${statusClassName}`}>{statusText}</span> : null}
+                {subtitle ? (
+                  <p className="whitespace-nowrap text-left text-xs text-white/70 sm:text-right">
+                    {subtitle}
+                  </p>
+                ) : null}
+                {headerActionPlacement === 'header' ? headerAction : null}
+                {compactHeaderControls}
+                {compactLayout ? (
+                  <ChartHelpTooltip ariaLabel={helpAriaLabel} placement="right" title={helpTitle} widthClassName="w-72">
+                    {compactHelpContent}
+                  </ChartHelpTooltip>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <h2 className={`min-w-0 break-words text-[1.85rem] font-semibold leading-none tracking-normal text-white sm:text-4xl ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>
+                <h2 className={`min-w-0 break-words font-semibold leading-none tracking-normal text-white ${compactLayout ? 'text-[1.35rem] sm:text-2xl' : 'text-[1.85rem] sm:text-4xl'} ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>
                   {metric ? formatMetricValue(metric) : '-'}
                 </h2>
                 <span className="shrink-0 self-end pb-1 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
                 {titleAction}
               </div>
-            </div>
-            <div className={`flex shrink-0 items-center justify-end gap-2 text-right ${keepHeaderSingleLineOnMobile ? 'flex-nowrap' : 'flex-wrap'}`}>
-              {statusText && statusTextPlacement === 'headerRight' ? <span className={`block max-w-[58vw] whitespace-nowrap text-right text-xs leading-5 sm:max-w-none ${statusClassName}`}>{statusText}</span> : null}
-              {subtitle ? (
-                <p className="whitespace-nowrap text-left text-xs text-white/70 sm:text-right">
-                  {subtitle}
-                </p>
-              ) : null}
-              {headerActionPlacement === 'header' ? headerAction : null}
+              {rangeSummary ? <div className="chart-range-summary">{rangeSummary}</div> : null}
             </div>
           </div>
 
-          <div className="grid items-stretch gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_248px]">
-            <div className="order-1 grid min-w-0 justify-items-stretch gap-2 px-1 pb-1 pt-2 text-center lg:hidden">
+          <div className={`grid items-stretch gap-3 sm:gap-4 ${compactLayout ? '' : 'lg:grid-cols-[minmax(0,1fr)_248px]'}`}>
+            <div className={`order-1 min-w-0 justify-items-stretch gap-2 px-1 pb-1 pt-2 text-center lg:hidden ${compactLayout ? 'hidden' : 'grid'}`}>
               {chartControls}
               {headerStatusBox}
             </div>
@@ -571,7 +616,7 @@ export function MarketChartSection<T extends RangeKey>({
               onPointerUp={handlePointerUp}
               ref={chartSurfaceRef}
             >
-              {chartTopAction ? (
+              {!compactLayout && chartTopAction ? (
                 <div
                   className="chart-surface-action"
                   onPointerDown={(event) => event.stopPropagation()}
@@ -800,8 +845,13 @@ export function MarketChartSection<T extends RangeKey>({
                 </div>
               ) : null}
             </div>
+            {chartBottomLeftAction ? (
+              <div className="chart-below-left-action order-3 min-w-0 px-1">
+                {chartBottomLeftAction}
+              </div>
+            ) : null}
 
-            <aside className="order-2 hidden min-w-0 flex-col gap-2 lg:flex lg:min-h-96">
+            <aside className={`order-2 hidden min-w-0 flex-col gap-2 lg:min-h-96 ${compactLayout ? '' : 'lg:flex'}`}>
               <div className="px-0 pb-0 pt-0.5">
                 {chartControls}
               </div>
@@ -825,7 +875,7 @@ export function MarketChartSection<T extends RangeKey>({
               {renderAdSlot()}
             </aside>
 
-            <div className="glass-subcard order-3 min-w-0 rounded-2xl p-2.5 lg:hidden">
+            <div className={`glass-subcard order-3 min-w-0 rounded-2xl p-2.5 lg:hidden ${compactLayout ? 'hidden' : ''}`}>
               {headerActionPlacement === 'panel' && headerAction ? (
                 <div className="panel-action-row">
                   {headerAction}
@@ -841,10 +891,11 @@ export function MarketChartSection<T extends RangeKey>({
               </dl>
               {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
             </div>
-            <div className="order-4 lg:hidden">
+            <div className={`order-4 lg:hidden ${compactLayout ? 'hidden' : ''}`}>
               {renderMobileAdSlot()}
             </div>
           </div>
+          {footerContent ? <div className="chart-card-footer-content">{footerContent}</div> : null}
         </div>
       </article>
     </div>

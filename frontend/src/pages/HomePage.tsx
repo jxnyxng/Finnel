@@ -34,6 +34,12 @@ type HomePageProps = {
     onGoDashboard?: (tabName?: string) => void;
 };
 
+type CalculatorSelectOption = {
+    label: React.ReactNode;
+    menuLabel?: React.ReactNode;
+    value: string;
+};
+
 export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePageProps) {
     const [activeSection, setActiveSection] = React.useState(0);
     const [visitedSections, setVisitedSections] = React.useState<Set<number>>(new Set([0]));
@@ -308,7 +314,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
                         </h2>
                         <div className="mt-8 grid justify-items-center sm:mt-10">
                             <button
-                                className="inline-flex h-12 items-center justify-center rounded-full border border-zinc-900 bg-zinc-900 px-8 text-[0.95rem] font-bold tracking-wide text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-zinc-800 hover:shadow-xl sm:h-14 sm:px-10 sm:text-lg"
+                                className="home-primary-cta"
                                 onClick={() => onGoDashboard?.('todayFlow')}
                                 type="button"
                             >
@@ -517,6 +523,76 @@ function ExchangeCalculatorPreview({ className = '' }: { className?: string }) {
                     <strong>+68,200원</strong>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function CalculatorSelect({
+                              ariaLabel,
+                              className = '',
+                              menuClassName = '',
+                              onChange,
+                              options,
+                              value
+                          }: {
+    ariaLabel: string;
+    className?: string;
+    menuClassName?: string;
+    onChange: (value: string) => void;
+    options: CalculatorSelectOption[];
+    value: string;
+}) {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const rootRef = React.useRef<HTMLDivElement | null>(null);
+    const selectedOption = options.find((option) => option.value === value) ?? options[0];
+
+    React.useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+
+        const closeOnOutside = (event: PointerEvent) => {
+            if (!rootRef.current?.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+
+        window.addEventListener('pointerdown', closeOnOutside);
+        return () => window.removeEventListener('pointerdown', closeOnOutside);
+    }, [isOpen]);
+
+    return (
+        <div className={`calculator-select relative min-w-0 ${className}`} ref={rootRef}>
+            <button
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
+                aria-label={ariaLabel}
+                className="calculator-select-trigger glass-field h-9 w-full min-w-0 px-2 text-left text-sm font-semibold outline-none"
+                onClick={() => setIsOpen((current) => !current)}
+                type="button"
+            >
+                <span className="min-w-0 truncate">{selectedOption?.label ?? '선택'}</span>
+                <span className="shrink-0 text-[0.72rem] text-teal-100" aria-hidden="true">⌄</span>
+            </button>
+            {isOpen ? (
+                <div className={`calculator-select-menu ${menuClassName}`} role="listbox">
+                    {options.map((option) => (
+                        <button
+                            aria-selected={option.value === value}
+                            className="calculator-select-option"
+                            key={option.value}
+                            onClick={() => {
+                                onChange(option.value);
+                                setIsOpen(false);
+                            }}
+                            role="option"
+                            type="button"
+                        >
+                            {option.menuLabel ?? option.label}
+                        </button>
+                    ))}
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -755,6 +831,26 @@ export function ExchangeProfitCalculator({
     const availableDays = buildDayOptions(selectedDateParts.year, selectedDateParts.month, earliestAllowedDate, latestAllowedDate);
     const selectedDisplayCode = selectedRate?.displayCode ?? currentRate?.displayCode ?? '';
     const isTabLayout = variant === 'tab';
+    const currencyOptions = React.useMemo<CalculatorSelectOption[]>(() => [
+        { label: '통화 선택', value: '' },
+        ...rates.map((rate) => ({
+            label: `${getCurrencyFlag(rate.displayCode)} ${rate.displayCode}`,
+            menuLabel: `${getCurrencyFlag(rate.displayCode)} ${rate.displayCode} · ${getCurrencyKoreanName(rate.displayCode)}`,
+            value: rate.currencyCode
+        }))
+    ], [rates]);
+    const yearOptions = React.useMemo<CalculatorSelectOption[]>(
+        () => availableYears.map((year) => ({ label: `${year}년`, value: String(year) })),
+        [availableYears]
+    );
+    const monthOptions = React.useMemo<CalculatorSelectOption[]>(
+        () => availableMonths.map((month) => ({ label: `${month}월`, value: String(month) })),
+        [availableMonths]
+    );
+    const dayOptions = React.useMemo<CalculatorSelectOption[]>(
+        () => availableDays.map((day) => ({ label: `${day}일`, value: String(day) })),
+        [availableDays]
+    );
 
     const updateDatePart = (part: 'year' | 'month' | 'day', value: number) => {
         const nextParts = {
@@ -823,8 +919,8 @@ export function ExchangeProfitCalculator({
                     </label>
                     <label className="grid gap-2 text-[10px] font-semibold text-white/55">
             <span className="flex min-h-6 items-center justify-between gap-2 break-keep">
-              <span>{amountInputMode === 'foreign' ? '환전한 외화 금액' : '당시 사용한 원화 금액'}</span>
-              <span className="relative grid h-6 w-[4.75rem] grid-cols-2 rounded-full border border-white/10 bg-white/10 p-0.5 shadow-sm" ref={amountInputModeContainerRef}>
+              <span>{amountInputMode === 'foreign' ? '환전한 외화 금액' : '지불한 원화 금액'}</span>
+              <span className="relative grid h-6 w-[5.75rem] grid-cols-2 rounded-full border border-white/10 bg-white/10 p-0.5 shadow-sm" ref={amountInputModeContainerRef}>
                 <MovingTabIndicator compact contained indicator={amountInputModeIndicator} isMoving={isAmountInputModeIndicatorMoving} />
                   {(['foreign', 'krw'] as const).map((mode) => (
                       <button
@@ -1018,39 +1114,59 @@ export function ExchangeProfitCalculator({
         </span>
             </div>
 
-            <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(13.5rem,15rem)] xl:items-stretch">
-                <div className="grid min-w-0 grid-rows-[auto_minmax(0,1fr)]">
-                    <div className="grid gap-3 sm:grid-cols-2">
+            <div className="calculator-profit-tab-body mt-3 grid gap-4">
+                <div className="grid min-w-0 content-start gap-4">
+                    <div className="grid gap-3">
+                        <div className="grid gap-3 sm:grid-cols-[minmax(10rem,0.78fr)_minmax(0,1.22fr)]">
+                            <label className="grid gap-2 text-[10px] font-semibold text-white/55">
+                                <span className="flex h-5 items-center gap-2">통화 선택</span>
+                                <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
+                                    <span className="grid h-9 place-items-center border border-white/15 bg-white/10 text-xl" aria-hidden="true">
+                                      {selectedRate ? getCurrencyFlag(selectedRate.displayCode) : '💱'}
+                                    </span>
+                                    <CalculatorSelect
+                                        ariaLabel="통화 선택"
+                                        menuClassName="calculator-select-menu-wide"
+                                        onChange={setCurrencyCode}
+                                        options={currencyOptions}
+                                        value={currencyCode}
+                                    />
+                                </div>
+                            </label>
+                            <label className="grid gap-2 text-[10px] font-semibold text-white/55">
+                                <span className="flex h-5 items-center">환전한 날짜</span>
+                                <div className="calculator-date-segment grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)] gap-1.5">
+                                    <CalculatorSelect
+                                        ariaLabel="환전 연도"
+                                        onChange={(value) => updateDatePart('year', Number(value))}
+                                        options={yearOptions}
+                                        value={String(selectedDateParts.year)}
+                                    />
+                                    <CalculatorSelect
+                                        ariaLabel="환전 월"
+                                        onChange={(value) => updateDatePart('month', Number(value))}
+                                        options={monthOptions}
+                                        value={String(selectedDateParts.month)}
+                                    />
+                                    <CalculatorSelect
+                                        ariaLabel="환전 일"
+                                        onChange={(value) => updateDatePart('day', Number(value))}
+                                        options={dayOptions}
+                                        value={String(selectedDateParts.day)}
+                                    />
+                                </div>
+                            </label>
+                        </div>
                         <label className="grid gap-2 text-[10px] font-semibold text-white/55">
-              <span className="flex h-5 items-center gap-2">
-                통화
-              </span>
-                            <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-2">
-                <span className="grid h-9 place-items-center rounded-md border border-white/15 bg-white/10 text-xl" aria-hidden="true">
-                  {selectedRate ? getCurrencyFlag(selectedRate.displayCode) : '💱'}
-                </span>
-                                <select
-                                    className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
-                                    onChange={(event) => setCurrencyCode(event.target.value)}
-                                    value={currencyCode}
-                                >
-                                    <option value="">통화 선택</option>
-                                    {rates.map((rate) => (
-                                        <option key={rate.currencyCode} value={rate.currencyCode}>
-                                            {getCurrencyFlag(rate.displayCode)} {rate.displayCode} · {getCurrencyKoreanName(rate.displayCode)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </label>
-                        <label className="grid gap-2 text-[10px] font-semibold text-white/55">
-              <span className="flex min-h-6 items-center justify-between gap-2 break-keep">
-                <span>{amountInputMode === 'foreign' ? '환전한 외화 금액' : '당시 사용한 원화 금액'}</span>
-                <span className="relative grid h-6 w-[4.75rem] grid-cols-2 rounded-full border border-white/10 bg-white/10 p-0.5 shadow-sm" ref={amountInputModeContainerRef}>
+                            <span className="flex h-5 items-center break-keep">
+                                {amountInputMode === 'foreign' ? '환전한 외화 금액' : '지불한 원화 금액'}
+                            </span>
+                            <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+                <span className="calculator-mode-segment relative grid h-9 w-[5.75rem] grid-cols-2 border border-white/10 bg-white/10 p-0.5 shadow-sm" ref={amountInputModeContainerRef}>
                   <MovingTabIndicator compact contained indicator={amountInputModeIndicator} isMoving={isAmountInputModeIndicatorMoving} />
                     {(['foreign', 'krw'] as const).map((mode) => (
                         <button
-                            className={`relative z-10 h-5 rounded-full px-2 text-[10px] font-extrabold leading-5 transition-colors duration-150 ${
+                            className={`relative z-10 h-8 rounded-full px-2 text-[0.7rem] font-extrabold leading-8 transition-colors duration-150 ${
                                 activeAmountInputModeLabelKey === mode ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'
                             }`}
                             key={mode}
@@ -1069,8 +1185,6 @@ export function ExchangeProfitCalculator({
                         </button>
                     ))}
                 </span>
-              </span>
-                            <span className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                 <input
                     className="glass-field h-9 min-w-0 rounded-md px-3 text-center text-sm font-semibold outline-none"
                     inputMode="decimal"
@@ -1090,44 +1204,41 @@ export function ExchangeProfitCalculator({
                 </span>
               </span>
                         </label>
-                        <label className="grid gap-2 text-[10px] font-semibold text-white/55 sm:col-span-2">
-                            <span className="flex h-5 items-center">환전한 날짜</span>
-                            <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)] gap-1.5">
-                                <select
-                                    aria-label="환전 연도"
-                                    className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
-                                    onChange={(event) => updateDatePart('year', Number(event.target.value))}
-                                    value={selectedDateParts.year}
-                                >
-                                    {availableYears.map((year) => (
-                                        <option key={year} value={year}>{year}년</option>
-                                    ))}
-                                </select>
-                                <select
-                                    aria-label="환전 월"
-                                    className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
-                                    onChange={(event) => updateDatePart('month', Number(event.target.value))}
-                                    value={selectedDateParts.month}
-                                >
-                                    {availableMonths.map((month) => (
-                                        <option key={month} value={month}>{month}월</option>
-                                    ))}
-                                </select>
-                                <select
-                                    aria-label="환전 일"
-                                    className="glass-field h-9 min-w-0 rounded-md px-2 text-sm font-semibold outline-none"
-                                    onChange={(event) => updateDatePart('day', Number(event.target.value))}
-                                    value={selectedDateParts.day}
-                                >
-                                    {availableDays.map((day) => (
-                                        <option key={day} value={day}>{day}일</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </label>
                     </div>
 
-                    <div className="mt-3 grid min-h-[12.5rem] grid-rows-[auto_minmax(0,1fr)] rounded-xl border border-white/10 bg-white/10 p-3 xl:min-h-0">
+                    <section className="grid content-start gap-2 break-keep">
+                        <div className="grid gap-2 border border-white/10 bg-white/7 p-3 sm:grid-cols-2">
+                            <RateSnapshotCard
+                                fallbackDate={exchangeDate}
+                                isEditing={editingRateKey === 'historical'}
+                                label="당시 적용 환율"
+                                manualValue={manualHistoricalRate}
+                                onManualValueChange={setManualHistoricalRate}
+                                onResetManualValue={() => setManualHistoricalRate('')}
+                                onStartEditing={() => setEditingRateKey('historical')}
+                                onStopEditing={() => setEditingRateKey(null)}
+                                rate={effectiveHistoricalRate}
+                            />
+                            <RateSnapshotCard
+                                fallbackDate={latestAllowedDate}
+                                isEditing={editingRateKey === 'current'}
+                                label="현재 적용 환율"
+                                manualValue={manualCurrentRate}
+                                onManualValueChange={setManualCurrentRate}
+                                onResetManualValue={() => setManualCurrentRate('')}
+                                onStartEditing={() => setEditingRateKey('current')}
+                                onStopEditing={() => setEditingRateKey(null)}
+                                rate={effectiveCurrentRate}
+                            />
+                        </div>
+                        {isLoading ? (
+                            <p className="bg-black/15 px-2.5 py-1.5 text-[10px] leading-4 text-white/45">
+                                과거 환율을 조회하고 있습니다.
+                            </p>
+                        ) : null}
+                    </section>
+
+                    <div className="grid min-h-[12.5rem] grid-rows-[auto_minmax(0,1fr)] border border-white/10 bg-white/10 p-4 xl:min-h-0">
                         <p className="text-left text-[11px] font-semibold text-white/55">계산 결과</p>
                         <div className="grid min-w-0 content-center gap-3 pt-3 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,10rem)] sm:items-center">
                             <div className="grid min-w-0 place-items-center sm:place-items-start">
@@ -1143,7 +1254,7 @@ export function ExchangeProfitCalculator({
                                     )}
                                 </p>
                             </div>
-                            <div className="grid min-w-0 place-items-center gap-3 self-stretch overflow-hidden rounded-lg bg-black/15 p-3 text-center sm:w-[10rem] break-keep">
+                            <div className="grid min-w-0 place-items-center gap-3 self-stretch overflow-hidden bg-black/15 p-3 text-center sm:w-[10rem] break-keep">
                                 <div className="min-w-0 max-w-full">
                                     <p className="text-[9px] font-semibold text-white/45">환차익/환차손</p>
                                     <p className={`mt-1 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-extrabold tracking-tight ${resultTone}`} title={formatKrw(profit)}>
@@ -1161,48 +1272,6 @@ export function ExchangeProfitCalculator({
                     </div>
                 </div>
 
-                <aside className="grid content-start gap-2 break-keep">
-                    <div className="rounded-xl border border-white/10 bg-white/7 px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                            <p className="text-[11px] font-semibold text-teal-100">계산에 사용한 환율</p>
-                            <span className="shrink-0 text-[10px] font-semibold text-white/40">
-                {isLoading ? '조회 중' : `${selectedRate ? getCurrencyFlag(selectedRate.displayCode) : '💱'} 저장 환율`}
-              </span>
-                        </div>
-                        <p className="mt-1 text-[10px] font-medium leading-4 text-white/45">
-                            기준 환율 숫자를 클릭하면 직접 입력값으로 계산해 볼 수 있습니다.
-                        </p>
-                        {isLoading ? (
-                            <p className="mt-1.5 rounded-lg bg-black/15 px-2.5 py-1.5 text-[10px] leading-4 text-white/45">
-                                과거 환율을 조회하고 있습니다.
-                            </p>
-                        ) : null}
-                    </div>
-                    <div className="grid gap-2 rounded-xl border border-white/10 bg-white/7 p-3">
-                        <RateSnapshotCard
-                            fallbackDate={exchangeDate}
-                            isEditing={editingRateKey === 'historical'}
-                            label="당시 적용 환율"
-                            manualValue={manualHistoricalRate}
-                            onManualValueChange={setManualHistoricalRate}
-                            onResetManualValue={() => setManualHistoricalRate('')}
-                            onStartEditing={() => setEditingRateKey('historical')}
-                            onStopEditing={() => setEditingRateKey(null)}
-                            rate={effectiveHistoricalRate}
-                        />
-                        <RateSnapshotCard
-                            fallbackDate={latestAllowedDate}
-                            isEditing={editingRateKey === 'current'}
-                            label="현재 적용 환율"
-                            manualValue={manualCurrentRate}
-                            onManualValueChange={setManualCurrentRate}
-                            onResetManualValue={() => setManualCurrentRate('')}
-                            onStartEditing={() => setEditingRateKey('current')}
-                            onStopEditing={() => setEditingRateKey(null)}
-                            rate={effectiveCurrentRate}
-                        />
-                    </div>
-                </aside>
             </div>
         </FadeIn>
     );

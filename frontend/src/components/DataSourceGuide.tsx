@@ -13,7 +13,7 @@ const sourceIcons: Record<string, string> = {
 
 export function DataSourceGuide({ dataSources }: { dataSources: DataSourceInfo[] }) {
   return (
-    <section className="grid min-w-0 gap-4">
+    <section className="standard-tab-shell grid min-w-0 gap-4">
       <header className="page-tab-header">
         <div className="min-w-0">
           <p className="page-tab-eyebrow">DATA SOURCES</p>

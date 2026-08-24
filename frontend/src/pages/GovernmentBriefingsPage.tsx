@@ -40,6 +40,7 @@ export function GovernmentBriefingsPage({
                                             totalPages
                                         }: GovernmentBriefingsPageProps) {
     const [draftFilters, setDraftFilters] = React.useState(filters);
+    const [hasEnteredPage, setHasEnteredPage] = React.useState(false);
     const [isFilterOpen, setIsFilterOpen] = React.useState(false);
     const [selectedArticle, setSelectedArticle] = React.useState<GovernmentBriefingArticle | null>(null);
     const [contentTheme, setContentTheme] = React.useState<BriefingContentThemeKey>('dark');
@@ -72,6 +73,10 @@ export function GovernmentBriefingsPage({
         setDraftFilters(filters);
     }, [filters]);
 
+    React.useEffect(() => {
+        setHasEnteredPage(true);
+    }, []);
+
     const submitFilters = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         onFiltersApply({
@@ -102,7 +107,6 @@ export function GovernmentBriefingsPage({
         });
     };
     const isTodayFilterActive = filters.fromDate === getSeoulDateString(new Date()) && filters.toDate === getSeoulDateString(new Date());
-    const hasMore = page < totalPages;
     const selectedCategoryCount = selectedCategory === 'all'
         ? totalCount
         : categories.find((category) => category.code === selectedCategory)?.articleCount ?? 0;
@@ -114,7 +118,7 @@ export function GovernmentBriefingsPage({
     };
 
     return (
-        <section className="grid min-w-0 gap-3">
+        <section className="news-tab-shell grid min-w-0 gap-3">
             {/* 1. 헤더: 0초 등장 */}
             <FadeIn as="header" className="page-tab-header" delay={0}>
                 <div className="min-w-0">
@@ -134,10 +138,10 @@ export function GovernmentBriefingsPage({
             {/* 2. 필터 영역: 0.1초 등장 */}
             <FadeIn delay={0.1}>
                 <form className="grid min-w-0 gap-2" onSubmit={submitFilters}>
-                    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-1.5 lg:gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5 lg:gap-2">
                         <button
                             aria-label="기간 필터"
-                            className={`grid h-9 w-9 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
+                            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border text-sm font-semibold lg:h-8 lg:w-8 ${
                                 isFilterOpen || filters.fromDate || filters.toDate ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
                             }`}
                             onClick={() => setIsFilterOpen((current) => !current)}
@@ -146,10 +150,24 @@ export function GovernmentBriefingsPage({
                         >
                             ⚙
                         </button>
-                        <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
+                        {isFilterOpen ? (
+                            <>
+                                <button
+                                    className={`h-9 shrink-0 rounded-full border px-3 text-xs font-semibold lg:h-8 ${
+                                        isTodayFilterActive ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
+                                    }`}
+                                    onClick={applyTodayFilter}
+                                    type="button"
+                                >
+                                    오늘
+                                </button>
+                                <DateFilterFields draftFilters={draftFilters} setDraftFilters={setDraftFilters} />
+                            </>
+                        ) : null}
+                        <label className="min-w-[14rem] flex-1 text-[10px] font-semibold text-zinc-500">
                             <span className="sr-only">검색어</span>
                             <input
-                                className="glass-field h-9 rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
+                                className="glass-field h-9 w-full rounded-full px-3 text-sm font-medium outline-none lg:h-8 lg:text-xs"
                                 onChange={(event) => setDraftFilters((current) => ({ ...current, keyword: event.target.value }))}
                                 placeholder="제목, 부제목, 본문 검색"
                                 type="search"
@@ -163,20 +181,6 @@ export function GovernmentBriefingsPage({
                             초기화
                         </button>
                     </div>
-                    {isFilterOpen ? (
-                        <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
-                            <button
-                                className={`h-8 self-end rounded-full border px-3 text-xs font-semibold ${
-                                    isTodayFilterActive ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
-                                }`}
-                                onClick={applyTodayFilter}
-                                type="button"
-                            >
-                                오늘
-                            </button>
-                            <DateFilterFields draftFilters={draftFilters} setDraftFilters={setDraftFilters} />
-                        </div>
-                    ) : null}
                 </form>
             </FadeIn>
 
@@ -225,9 +229,8 @@ export function GovernmentBriefingsPage({
                 ) : articles.length === 0 ? (
                     <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정책뉴스가 없습니다.</div>
                 ) : (
-                    <div className="grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
+                    <div className={`${hasEnteredPage ? 'content-smooth-refresh' : ''} grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4`}>
                         {articles.map((article, index) => {
-                            // 💡 첫 1페이지(처음 12개)에만 애니메이션 적용, 추가 로드분은 즉시 렌더링
                             const isInitialPageItem = index < 12;
                             const cardElement = (
                                 <GovernmentBriefingCard
@@ -236,7 +239,7 @@ export function GovernmentBriefingsPage({
                                 />
                             );
 
-                            return isInitialPageItem ? (
+                            return isInitialPageItem && !hasEnteredPage ? (
                                 <FadeIn className="h-full" key={`${article.originalUrl ?? article.title}-${article.publishedAt ?? ''}`} delay={0.35 + (index % 12) * 0.05}>
                                     {cardElement}
                                 </FadeIn>
@@ -248,11 +251,12 @@ export function GovernmentBriefingsPage({
                         })}
                     </div>
                 )}
-                <InfiniteLoadMarker
+                <BriefingPagination
+                    currentPage={page}
                     hasItems={articles.length > 0}
-                    hasMore={hasMore}
                     isLoading={isLoading}
-                    onLoadMore={() => onLoadMore(page + 1)}
+                    onPageChange={onLoadMore}
+                    totalPages={totalPages}
                 />
             </FadeIn>
 
@@ -275,20 +279,20 @@ function DateFilterFields({
 }) {
     return (
         <>
-            <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
-                시작일
+            <label className="shrink-0 text-[10px] font-semibold text-zinc-500">
+                <span className="sr-only">시작일</span>
                 <input
-                    className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
+                    className="glass-field h-9 w-[8.75rem] rounded-full px-3 text-xs font-medium outline-none lg:h-8"
                     max={draftFilters.toDate || undefined}
                     onChange={(event) => setDraftFilters((current) => ({ ...current, fromDate: event.target.value }))}
                     type="date"
                     value={draftFilters.fromDate}
                 />
             </label>
-            <label className="grid gap-1 text-[10px] font-semibold text-zinc-500">
-                종료일
+            <label className="shrink-0 text-[10px] font-semibold text-zinc-500">
+                <span className="sr-only">종료일</span>
                 <input
-                    className="glass-field h-8 rounded-md px-2 text-xs font-medium outline-none"
+                    className="glass-field h-9 w-[8.75rem] rounded-full px-3 text-xs font-medium outline-none lg:h-8"
                     min={draftFilters.fromDate || undefined}
                     onChange={(event) => setDraftFilters((current) => ({ ...current, toDate: event.target.value }))}
                     type="date"
@@ -369,15 +373,15 @@ function GovernmentBriefingCard({
                         src={imageUrl}
                     />
                 ) : (
-                    <div className="grid h-full place-items-center bg-white px-5 text-center">
+                    <div className="grid h-full place-items-center border border-teal-300/20 bg-zinc-950 px-5 text-center">
                         <div className="grid w-full max-w-[14rem] place-items-center">
                             <img
                                 alt=""
                                 className="h-auto max-h-12 w-full object-contain"
                                 loading="lazy"
-                                src="/assets/korea-policy-briefing-logo.png"
+                                src="/assets/korea-policy-briefing-logo-on-dark.png"
                             />
-                            <p className="mt-2 text-[11px] font-semibold text-zinc-700">{categoryLabel}</p>
+                            <p className="mt-2 border border-teal-300/25 bg-teal-400/10 px-2 py-0.5 text-[11px] font-semibold text-teal-100">{categoryLabel}</p>
                         </div>
                     </div>
                 )}
@@ -459,21 +463,21 @@ const briefingContentThemes: Array<{
     checkClassName: string;
     swatchClassName: string;
 }> = [
-    { key: 'dark', label: '회색 본문', checkClassName: 'text-zinc-900', swatchClassName: 'bg-zinc-200' },
-    { key: 'paper', label: '흰색 본문', checkClassName: 'text-stone-900', swatchClassName: 'bg-[#f2eee2]' },
-    { key: 'memo', label: '노란색 본문', checkClassName: 'text-stone-900', swatchClassName: 'bg-[#e4d59a]' }
+    { key: 'dark', label: '다크그레이 본문', checkClassName: 'text-white', swatchClassName: 'briefing-theme-swatch-dark' },
+    { key: 'paper', label: '흰색 본문', checkClassName: 'text-stone-900', swatchClassName: 'briefing-theme-swatch-paper' },
+    { key: 'memo', label: '노란색 본문', checkClassName: 'text-stone-900', swatchClassName: 'briefing-theme-swatch-memo' }
 ];
 
 function getBriefingContentThemeClassName(theme: BriefingContentThemeKey) {
     if (theme === 'memo') {
-        return 'bg-[#e4d59a] text-stone-900 shadow-amber-950/10';
+        return 'briefing-content-theme-memo';
     }
 
     if (theme === 'dark') {
-        return 'bg-zinc-100 text-zinc-800 shadow-zinc-950/5';
+        return 'briefing-content-theme-dark';
     }
 
-    return 'bg-[#f2eee2] text-stone-800 shadow-stone-950/10';
+    return 'briefing-content-theme-paper';
 }
 
 function GovernmentBriefingModal({
@@ -625,47 +629,65 @@ function isBriefingNoticeParagraph(paragraph: string) {
     return /^문의\s*:/.test(paragraph) || paragraph.startsWith('정책브리핑의 자료는');
 }
 
-function InfiniteLoadMarker({
+function BriefingPagination({
+                                currentPage,
                                 hasItems,
-                                hasMore,
                                 isLoading,
-                                onLoadMore
+                                onPageChange,
+                                totalPages
                             }: {
+    currentPage: number;
     hasItems: boolean;
-    hasMore: boolean;
     isLoading: boolean;
-    onLoadMore: () => void;
+    onPageChange: (page: number) => void;
+    totalPages: number;
 }) {
-    const markerRef = React.useRef<HTMLDivElement | null>(null);
-
-    React.useEffect(() => {
-        const marker = markerRef.current;
-        if (!marker || !hasMore || isLoading) {
-            return undefined;
-        }
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry?.isIntersecting) {
-                    observer.disconnect();
-                    onLoadMore();
-                }
-            },
-            { rootMargin: '360px 0px' }
-        );
-        observer.observe(marker);
-        return () => observer.disconnect();
-    }, [hasMore, isLoading, onLoadMore]);
-
-    if (!hasItems) {
+    if (!hasItems || totalPages <= 1) {
         return null;
     }
 
+    const pageNumbers = getPaginationPages(currentPage, totalPages);
+
     return (
-        <div className="mt-4 grid min-h-12 place-items-center border-t border-white/10 pt-4 text-xs font-semibold text-white/45" ref={markerRef}>
-            {isLoading ? '정책뉴스를 더 불러오는 중입니다.' : hasMore ? '아래로 스크롤하면 더 불러옵니다.' : '마지막 정책뉴스입니다.'}
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 border-t border-white/10 pt-4 text-xs font-semibold text-white/55">
+            <button
+                className="h-8 border border-white/10 bg-white/5 px-3 text-white/65 hover:border-teal-300/45 hover:text-teal-100 disabled:cursor-not-allowed disabled:opacity-35"
+                disabled={currentPage <= 1 || isLoading}
+                onClick={() => onPageChange(currentPage - 1)}
+                type="button"
+            >
+                이전
+            </button>
+            {pageNumbers.map((pageNumber) => (
+                <button
+                    className={`h-8 min-w-8 border px-2.5 ${
+                        pageNumber === currentPage ? 'border-teal-300/65 bg-teal-400/15 text-teal-100' : 'border-white/10 bg-white/5 text-white/60 hover:border-teal-300/45 hover:text-teal-100'
+                    } disabled:cursor-not-allowed disabled:opacity-35`}
+                    disabled={isLoading || pageNumber === currentPage}
+                    key={pageNumber}
+                    onClick={() => onPageChange(pageNumber)}
+                    type="button"
+                >
+                    {pageNumber}
+                </button>
+            ))}
+            <button
+                className="h-8 border border-white/10 bg-white/5 px-3 text-white/65 hover:border-teal-300/45 hover:text-teal-100 disabled:cursor-not-allowed disabled:opacity-35"
+                disabled={currentPage >= totalPages || isLoading}
+                onClick={() => onPageChange(currentPage + 1)}
+                type="button"
+            >
+                다음
+            </button>
+            <span className="ml-1 text-white/35">{currentPage}/{totalPages}</span>
         </div>
     );
+}
+
+function getPaginationPages(currentPage: number, totalPages: number) {
+    const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+    const end = Math.min(totalPages, start + 4);
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
 function formatBriefingDate(value: string | null) {
