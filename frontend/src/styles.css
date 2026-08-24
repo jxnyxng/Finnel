@@ -1107,9 +1107,23 @@ body,
   display: none;
 }
 
+.dashboard-mobile-coming-soon-stack {
+  display: none;
+}
+
 @media (max-width: 1279px) {
   .dashboard-gemini-mobile-slot {
     display: block;
+  }
+
+  .dashboard-mobile-coming-soon-stack {
+    display: grid;
+    gap: 3rem;
+    margin-top: 0.25rem;
+  }
+
+  .dashboard-stock-coming-soon-card {
+    display: none;
   }
 }
 
@@ -3697,7 +3711,7 @@ body,
   align-items: center;
   border: 0;
   display: inline-grid;
-  gap: 0.06rem;
+  gap: 0.015rem;
   height: 1.9rem;
   justify-items: center;
   position: relative;
@@ -3718,7 +3732,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(1) {
-  transform: translateY(0.2rem) rotate(45deg);
+  transform: translateY(0.15rem) rotate(45deg);
 }
 
 .mobile-main-menu-button-open span:nth-child(2) {
@@ -3726,7 +3740,7 @@ body,
 }
 
 .mobile-main-menu-button-open span:nth-child(3) {
-  transform: translateY(-0.2rem) rotate(-45deg);
+  transform: translateY(-0.15rem) rotate(-45deg);
 }
 
 .mobile-main-menu-overlay {
