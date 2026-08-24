@@ -142,7 +142,7 @@ export function ExchangeRateGuidePage({ showHeader = true }: { showHeader?: bool
     const [openIndex, setOpenIndex] = React.useState(0);
 
     return (
-        <section className="grid min-w-0 gap-4">
+        <section className="standard-tab-shell grid min-w-0 gap-4">
             {showHeader ? (
                 <FadeIn as="header" className="page-tab-header" delay={0}>
                     <div className="min-w-0">

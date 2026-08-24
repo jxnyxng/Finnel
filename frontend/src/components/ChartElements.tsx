@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { chartHeightPx } from '../constants';
 import { MovingTabIndicator, useMovingTabIndicator } from './MovingTabs';
 import type { ChartCandlestickPoint, ChartHoverState, ChartPoint, RangeKey } from '../types';
@@ -172,32 +173,76 @@ export function ChartHelpTooltip({
   widthClassName?: string;
 }) {
   const [isTooltipOpen, setIsTooltipOpen] = React.useState(false);
+  const [tooltipPosition, setTooltipPosition] = React.useState<{ left: number; top: number } | null>(null);
+  const buttonRef = React.useRef<HTMLButtonElement | null>(null);
 
   const hideTooltip = React.useCallback(() => {
     setIsTooltipOpen(false);
   }, []);
 
+  React.useLayoutEffect(() => {
+    if (!isTooltipOpen) {
+      return;
+    }
+
+    const updateTooltipPosition = () => {
+      const button = buttonRef.current;
+
+      if (!button) {
+        return;
+      }
+
+      const rect = button.getBoundingClientRect();
+      const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+      const estimatedTooltipWidth = widthClassName.includes('w-80') ? 320 : widthClassName.includes('w-72') ? 288 : 256;
+      const preferredLeft = placement === 'right' ? rect.right - estimatedTooltipWidth : rect.left;
+      setTooltipPosition({
+        left: Math.min(Math.max(12, preferredLeft), Math.max(12, viewportWidth - estimatedTooltipWidth - 12)),
+        top: rect.bottom + 8
+      });
+    };
+
+    updateTooltipPosition();
+    const animationFrame = window.requestAnimationFrame(updateTooltipPosition);
+    window.addEventListener('resize', updateTooltipPosition);
+    window.addEventListener('scroll', updateTooltipPosition, true);
+    window.visualViewport?.addEventListener('resize', updateTooltipPosition);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', updateTooltipPosition);
+      window.removeEventListener('scroll', updateTooltipPosition, true);
+      window.visualViewport?.removeEventListener('resize', updateTooltipPosition);
+    };
+  }, [isTooltipOpen, placement]);
+
   return (
-    <div className="relative inline-flex">
+    <div className="chart-help-tooltip-root relative z-[120] inline-flex">
       <button
         aria-label={ariaLabel}
-        className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
+        className="flex h-[1.9rem] w-[1.9rem] items-center justify-center rounded-full border border-zinc-300 text-[11px] font-semibold text-zinc-500 hover:border-teal-600 hover:text-teal-700"
         onBlur={hideTooltip}
         onFocus={() => setIsTooltipOpen(true)}
         onMouseEnter={() => setIsTooltipOpen(true)}
         onMouseLeave={hideTooltip}
+        ref={buttonRef}
         type="button"
       >
         i
       </button>
-      {isTooltipOpen ? (
+      {isTooltipOpen && tooltipPosition ? createPortal(
         <div
-          className={`chart-help-tooltip chart-help-tooltip-${placement} pointer-events-none absolute top-full z-50 mt-2 max-h-[min(22rem,calc(100vh-8rem))] overflow-y-auto rounded-md border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-lg ${widthClassName}`}
+          className={`chart-help-tooltip chart-help-tooltip-portal pointer-events-none fixed z-[10000] max-h-[min(22rem,calc(100vh-8rem))] overflow-y-auto rounded-md p-3 text-xs leading-5 shadow-lg ${widthClassName}`}
           role="tooltip"
+          style={{
+            left: tooltipPosition.left,
+            top: tooltipPosition.top
+          }}
         >
           <p className="font-semibold text-zinc-900">{title}</p>
           {children}
-        </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   );
@@ -205,7 +250,7 @@ export function ChartHelpTooltip({
 
 type RangeSelectorOption<T extends string> = {
   key: T;
-  label: string;
+  label: React.ReactNode;
 };
 
 export function RangeSelector<T extends string>({
