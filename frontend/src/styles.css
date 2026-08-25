@@ -16,11 +16,11 @@
   --text-tertiary: #9d9285;
   --text-muted: #58635f;
   --current-value: #ffffff;
-  --change-up: #3b82f6;
-  --change-down: #ef4444;
+  --change-up: #ef4444;
+  --change-down: #3b82f6;
   --card-border-width: 1.6px;
   --card-border: rgba(255, 255, 255, 0.16);
-  --card-border-soft: rgba(255, 255, 255, 0.11);
+  --card-border-soft: rgba(255, 255, 255,  0.11);
   --border: #1c2724;
   --border-strong: #2d3f3b;
   --brand-navy: #17345f;
@@ -4069,7 +4069,7 @@ body,
 }
 
 .mobile-main-menu-overlay {
-  align-items: center;
+  align-items: flex-start;
   background:
     radial-gradient(circle at 50% 22%, rgba(127, 243, 228, 0.12), transparent 18rem),
     #080909;
@@ -4085,6 +4085,9 @@ body,
   transform: translateY(-0.35rem);
   transition: opacity 160ms ease, transform 160ms ease;
   z-index: 90;
+
+  overflow-y: auto;
+  overscroll-behavior: none;
 }
 
 .mobile-main-menu-overlay-open {
@@ -4099,6 +4102,7 @@ body,
   justify-items: center;
   padding: 5rem 1.25rem 2rem;
   width: 100%;
+  margin: auto 0;
 }
 
 .mobile-main-menu-item {
