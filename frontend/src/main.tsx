@@ -873,6 +873,7 @@ function App() {
                     </nav>
                 ) : null}
                 </div>
+            </header>
                 {isMainAppPage ? (
                     <div className={`mobile-main-menu-overlay lg:hidden ${isMobileMenuOpen ? 'mobile-main-menu-overlay-open' : ''}`} aria-hidden={!isMobileMenuOpen}>
                         <nav aria-label="모바일 주요 화면" className="mobile-main-menu-panel">
@@ -890,7 +891,6 @@ function App() {
                         </nav>
                     </div>
                 ) : null}
-            </header>
             <section
                 className={`app-content-shell flex w-full flex-col px-0 ${isFullBleedPage ? 'gap-0 pb-0 pt-0 sm:pb-0 sm:pt-0' : 'gap-2 pb-2 pt-1 sm:gap-3 sm:pb-3 sm:pt-2'}`}
                 onTouchEnd={handleTabSwipeEnd}
