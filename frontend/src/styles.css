@@ -979,13 +979,22 @@ body,
   width: min(7.125rem, 21vw);
 }
 
-.chart-range-control-compact > div,
+.chart-range-control-compact > div {
+  height: 1.9rem;
+}
+
 .usd-krw-chart-mode-control > div,
 .dollar-index-mode-control > div {
   height: 1.72rem;
 }
 
-.chart-range-control-compact button,
+.chart-range-control-compact button {
+  height: 1.6rem;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+  font-size: 0.68rem;
+}
+
 .usd-krw-chart-mode-control button,
 .dollar-index-mode-control button {
   height: 1.44rem;
