@@ -384,7 +384,7 @@ function ChangeComparisonCard({ rows }: { rows: ChangeComparisonRow[] }) {
         <section className="glass-card dashboard-change-comparison-card grid min-w-0 border border-zinc-100 p-3 shadow-sm">
             <div className="mb-2 min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wider text-teal-700">CHANGE MAP</p>
-                <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">환율 · 달러인덱스</h3>
+                <h3 className="mt-0.5 text-sm font-extrabold text-zinc-950">환율 · 달러인덱스 변동표</h3>
             </div>
             <div className="change-comparison-table-wrap min-w-0 overflow-hidden border border-zinc-100 bg-zinc-50/70">
                 <table className="change-comparison-table w-full table-fixed border-collapse">
