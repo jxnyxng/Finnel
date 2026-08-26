@@ -1011,7 +1011,7 @@ export function ExchangeProfitCalculator({
             </span>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-2 gap-2 divide-x divide-white/10">
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
                         <RateSnapshotCard
                             fallbackDate={exchangeDate}
                             isEditable={false}
@@ -1023,6 +1023,7 @@ export function ExchangeProfitCalculator({
                             onStartEditing={() => undefined}
                             onStopEditing={() => undefined}
                             rate={historicalRate}
+                            showMeta={false}
                         />
                         <RateSnapshotCard
                             fallbackDate={latestAllowedDate}
@@ -1035,6 +1036,7 @@ export function ExchangeProfitCalculator({
                             onStartEditing={() => undefined}
                             onStopEditing={() => undefined}
                             rate={currentRate}
+                            showMeta={false}
                         />
                     </div>
 
@@ -1045,37 +1047,16 @@ export function ExchangeProfitCalculator({
                     ) : null}
                 </div>
 
-                <div className="mt-3 min-h-[7.5rem] rounded-xl border border-white/10 bg-white/10 p-3 lg:minh-[8.4rem]">
+                <div className="mt-3 min-h-[7.5rem] rounded-xl border border-white/10 bg-white/10 p-3 lg:min-h-[8.4rem]">
                     <p className="text-left text-[11px] font-semibold text-white/55">계산 결과</p>
-                    <div className="mt-2 grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(9.5rem,9.5rem)] sm:items-center">
-                        <div className="min-w-0">
-                            <p className="grid min-h-14 content-center justify-items-start gap-1 text-white break-keep" title={hasResult ? formatResultSentence(historicalKrw, currentKrw) : '환전 시점과 금액을 입력해 주세요.'}>
-                                {!hasResult ? (
-                                    <span className="text-[0.9rem] font-extrabold text-white/58">환전 시점과 금액을 입력해 주세요.</span>
-                                ) : (
-                                    <>
-                                        <span className="block max-w-full truncate text-[0.88rem] font-extrabold leading-none text-white/75">{formatKrw(historicalKrw)}</span>
-                                        <span className="block text-base font-black leading-none text-white/45" aria-hidden="true">↓</span>
-                                        <span className="block max-w-full truncate text-[1.5rem] font-extrabold leading-none text-teal-100 tracking-tight sm:text-2xl">{formatKrw(currentKrw)}</span>
-                                    </>
-                                )}
-                            </p>
-                        </div>
-                        <div className="grid min-w-0 place-items-center gap-1.5 overflow-hidden rounded-lg bg-black/15 p-2.5 text-center sm:w-[9.5rem] break-keep">
-                            <div className="min-w-0 max-w-full">
-                                <p className="text-[9px] font-semibold text-white/45">환차익/환차손</p>
-                                <p className={`mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-extrabold tracking-tight ${resultTone}`} title={formatKrw(profit)}>
-                                    {profit === null ? '-' : `${profit >= 0 ? '+' : ''}${formatKrw(profit)}`}
-                                </p>
-                            </div>
-                            <div className="min-w-0 max-w-full">
-                                <p className="text-[9px] font-semibold text-white/45">수익률</p>
-                                <p className={`mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-extrabold tracking-tight ${resultTone}`}>
-                                    {returnRate === null ? '-' : `${returnRate >= 0 ? '+' : ''}${returnRate.toFixed(2)}%`}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <CalculationResultPanel
+                        currentKrw={currentKrw}
+                        hasResult={hasResult}
+                        historicalKrw={historicalKrw}
+                        profit={profit}
+                        resultTone={resultTone}
+                        returnRate={returnRate}
+                    />
                 </div>
             </FadeIn>
         );
@@ -1207,7 +1188,7 @@ export function ExchangeProfitCalculator({
                     </div>
 
                     <section className="grid content-start gap-2 break-keep">
-                        <div className="grid gap-2 border border-white/10 bg-white/7 p-3 sm:grid-cols-2">
+                        <div className="grid gap-2 sm:grid-cols-2">
                             <RateSnapshotCard
                                 fallbackDate={exchangeDate}
                                 isEditing={editingRateKey === 'historical'}
@@ -1218,6 +1199,7 @@ export function ExchangeProfitCalculator({
                                 onStartEditing={() => setEditingRateKey('historical')}
                                 onStopEditing={() => setEditingRateKey(null)}
                                 rate={effectiveHistoricalRate}
+                                showMeta={false}
                             />
                             <RateSnapshotCard
                                 fallbackDate={latestAllowedDate}
@@ -1229,6 +1211,7 @@ export function ExchangeProfitCalculator({
                                 onStartEditing={() => setEditingRateKey('current')}
                                 onStopEditing={() => setEditingRateKey(null)}
                                 rate={effectiveCurrentRate}
+                                showMeta={false}
                             />
                         </div>
                         {isLoading ? (
@@ -1240,35 +1223,14 @@ export function ExchangeProfitCalculator({
 
                     <div className="grid min-h-[12.5rem] grid-rows-[auto_minmax(0,1fr)] border border-white/10 bg-white/10 p-4 xl:min-h-0">
                         <p className="text-left text-[11px] font-semibold text-white/55">계산 결과</p>
-                        <div className="grid min-w-0 content-center gap-3 pt-3 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,10rem)] sm:items-center">
-                            <div className="grid min-w-0 place-items-center sm:place-items-start">
-                                <p className="grid min-h-24 content-center justify-items-center gap-2 text-center text-white sm:justify-items-start sm:text-left break-keep" title={hasResult ? formatResultSentence(historicalKrw, currentKrw) : '환전 시점과 금액을 입력해 주세요.'}>
-                                    {!hasResult ? (
-                                        <span className="text-[0.9rem] font-extrabold text-white/58">환전 시점과 금액을 입력해 주세요.</span>
-                                    ) : (
-                                        <>
-                                            <span className="block max-w-full truncate text-sm font-extrabold leading-none text-white/75">{formatKrw(historicalKrw)}</span>
-                                            <span className="block text-base font-black leading-none text-white/45" aria-hidden="true">↓</span>
-                                            <span className="block max-w-full truncate text-[1.5rem] font-extrabold leading-none text-teal-100 tracking-tight sm:text-2xl">{formatKrw(currentKrw)}</span>
-                                        </>
-                                    )}
-                                </p>
-                            </div>
-                            <div className="grid min-w-0 place-items-center gap-3 self-stretch overflow-hidden bg-black/15 p-3 text-center sm:w-[10rem] break-keep">
-                                <div className="min-w-0 max-w-full">
-                                    <p className="text-[9px] font-semibold text-white/45">환차익/환차손</p>
-                                    <p className={`mt-1 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-extrabold tracking-tight ${resultTone}`} title={formatKrw(profit)}>
-                                        {profit === null ? '-' : `${profit >= 0 ? '+' : ''}${formatKrw(profit)}`}
-                                    </p>
-                                </div>
-                                <div className="min-w-0 max-w-full">
-                                    <p className="text-[9px] font-semibold text-white/45">수익률</p>
-                                    <p className={`mt-0.5 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm font-extrabold tracking-tight ${resultTone}`}>
-                                        {returnRate === null ? '-' : `${returnRate >= 0 ? '+' : ''}${returnRate.toFixed(2)}%`}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        <CalculationResultPanel
+                            currentKrw={currentKrw}
+                            hasResult={hasResult}
+                            historicalKrw={historicalKrw}
+                            profit={profit}
+                            resultTone={resultTone}
+                            returnRate={returnRate}
+                        />
                     </div>
                 </div>
 
@@ -1287,7 +1249,8 @@ function RateSnapshotCard({
                               onResetManualValue,
                               onStartEditing,
                               onStopEditing,
-                              rate
+                              rate,
+                              showMeta = true
                           }: {
     fallbackDate: string;
     isEditable?: boolean;
@@ -1299,6 +1262,7 @@ function RateSnapshotCard({
     onStartEditing: () => void;
     onStopEditing: () => void;
     rate: ForeignExchangeRate | null;
+    showMeta?: boolean;
 }) {
     const displayCode = rate?.displayCode ?? '';
     const currencyLabel = displayCode ? getCurrencyKoreanName(displayCode) : '통화';
@@ -1363,10 +1327,59 @@ function RateSnapshotCard({
                     )}
                 </div>
             </div>
-            <p className="mt-1.5 truncate text-[10px] font-medium text-white/35">
-                {isManual ? '직접 입력' : rate?.source ?? '저장 환율 없음'} · {rate && !isManual ? formatSnapshotUpdatedAt(new Date(rate.fetchedAt)) : '-'}
-            </p>
+            {showMeta ? (
+                <p className="mt-1.5 truncate text-[10px] font-medium text-white/35">
+                    {isManual ? '직접 입력' : rate?.source ?? '저장 환율 없음'} · {rate && !isManual ? formatSnapshotUpdatedAt(new Date(rate.fetchedAt)) : '-'}
+                </p>
+            ) : null}
         </article>
+    );
+}
+
+function CalculationResultPanel({
+                                    currentKrw,
+                                    hasResult,
+                                    historicalKrw,
+                                    profit,
+                                    resultTone,
+                                    returnRate
+                                }: {
+    currentKrw: number | null;
+    hasResult: boolean;
+    historicalKrw: number | null;
+    profit: number | null;
+    resultTone: string;
+    returnRate: number | null;
+}) {
+    return (
+        <div className="calculator-result-grid mt-2 grid min-w-0 content-center gap-2 pt-1 sm:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] sm:items-stretch">
+            <div className="calculator-result-box grid min-w-0 content-center gap-2 bg-black/15 p-3 break-keep" title={hasResult ? formatResultSentence(historicalKrw, currentKrw) : '환전 시점과 금액을 입력해 주세요.'}>
+                <p className="text-[10px] font-semibold text-white/45">금액 변동</p>
+                {!hasResult ? (
+                    <p className="calculator-number-wrap text-[0.9rem] font-extrabold leading-snug text-white/58">환전 시점과 금액을 입력해 주세요.</p>
+                ) : (
+                    <div className="grid min-w-0 gap-1.5">
+                        <p className="calculator-number-wrap text-sm font-extrabold leading-tight text-white/75 tabular-nums">{formatKrw(historicalKrw)}</p>
+                        <span className="text-base font-black leading-none text-white/45" aria-hidden="true">↓</span>
+                        <p className="calculator-number-wrap text-[1.35rem] font-extrabold leading-tight text-teal-100 tracking-tight tabular-nums sm:text-2xl">{formatKrw(currentKrw)}</p>
+                    </div>
+                )}
+            </div>
+            <div className="calculator-result-box grid min-w-0 gap-2 bg-black/15 p-3 text-left break-keep">
+                <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-white/45">환차익/환차손</p>
+                    <p className={`calculator-number-wrap mt-1 text-sm font-extrabold leading-tight tracking-tight tabular-nums ${resultTone}`} title={formatKrw(profit)}>
+                        {profit === null ? '-' : `${profit >= 0 ? '+' : ''}${formatKrw(profit)}`}
+                    </p>
+                </div>
+                <div className="min-w-0 border-t border-white/10 pt-2">
+                    <p className="text-[10px] font-semibold text-white/45">수익률</p>
+                    <p className={`calculator-number-wrap mt-1 text-sm font-extrabold leading-tight tracking-tight tabular-nums ${resultTone}`}>
+                        {returnRate === null ? '-' : `${returnRate >= 0 ? '+' : ''}${returnRate.toFixed(2)}%`}
+                    </p>
+                </div>
+            </div>
+        </div>
     );
 }
 
