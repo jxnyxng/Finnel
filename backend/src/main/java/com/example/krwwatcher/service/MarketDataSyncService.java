@@ -78,7 +78,6 @@ public class MarketDataSyncService {
     );
     private static final int CURRENT_EXCHANGE_RATE_BATCH_SIZE = 4;
     private static final Duration CURRENT_EXCHANGE_RATE_STALE_AFTER = Duration.ofMinutes(60);
-    private static final int MIN_NON_USD_DAILY_EXCHANGE_RATE_COUNT = 9;
     private static final Duration STALE_RUNNING_TTL = Duration.ofHours(2);
     private static final Set<String> CORE_SOURCE_NAMES = Set.of(
         "exchange",
@@ -555,7 +554,7 @@ public class MarketDataSyncService {
         LocalDate targetDate = LocalDate.now(SEOUL_ZONE);
         int currentRows = syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE);
         int historicalRows = syncExchangeRatesFromFred();
-        int latestDailyRows = syncLatestExchangeRatesFromKoreaexim(targetDate);
+        int latestDailyRows = syncRecentExchangeRatesFromKoreaexim(targetDate);
 
         if (currentRows > 0 || historicalRows > 0 || latestDailyRows > 0 || hasAnyCurrentForeignExchangeRate()) {
             return currentRows + historicalRows + latestDailyRows;
@@ -564,23 +563,32 @@ public class MarketDataSyncService {
         return 0;
     }
 
-    private int syncLatestExchangeRatesFromKoreaexim(LocalDate targetDate) {
+    private int syncRecentExchangeRatesFromKoreaexim(LocalDate targetDate) {
         if (koreaeximExchangeClient == null) {
             return 0;
         }
 
-        try {
-            List<KoreaeximExchangeClient.ExchangeRatePayload> payloads = koreaeximExchangeClient.fetchLatestExchangeRates(targetDate, MAJOR_EXCHANGE_RATE_PREFIXES);
-            return payloads.stream()
-                .mapToInt(payload -> upsertExchangeRate(payload.baseDate(), payload.currencyCode(), payload.currencyName(), payload.dealBasRate(), "KOREAEXIM"))
-                .sum();
-        } catch (RuntimeException exception) {
-            return 0;
+        LocalDate startDate = targetDate.minusDays(13);
+        int rows = 0;
+        for (LocalDate date = startDate; !date.isAfter(targetDate); date = date.plusDays(1)) {
+            if (!isKoreanBusinessDay(date)) {
+                continue;
+            }
+
+            try {
+                rows += koreaeximExchangeClient.fetchExchangeRates(date, MAJOR_EXCHANGE_RATE_PREFIXES).stream()
+                    .mapToInt(payload -> upsertExchangeRate(payload.baseDate(), payload.currencyCode(), payload.currencyName(), payload.dealBasRate(), "KOREAEXIM"))
+                    .sum();
+            } catch (RuntimeException exception) {
+                // Koreaexim may not expose data for every recent business day yet; keep the rest of the window eligible.
+            }
         }
+
+        return rows;
     }
 
     private int syncDailyExchangeRateBackfill() {
-        return backfillMissingWeekdaysFromIntraday() + backfillMissingMajorExchangeRateWeekdaysFromKoreaexim();
+        return backfillMissingWeekdaysFromIntraday() + syncRecentExchangeRatesFromKoreaexim(LocalDate.now(SEOUL_ZONE).minusDays(1));
     }
 
     private int backfillMissingWeekdaysFromIntraday() {
@@ -604,53 +612,9 @@ public class MarketDataSyncService {
         return rows;
     }
 
-    private int backfillMissingMajorExchangeRateWeekdaysFromKoreaexim() {
-        if (koreaeximExchangeClient == null) {
-            return 0;
-        }
-
-        LocalDate today = LocalDate.now(SEOUL_ZONE);
-        LocalDate startDate = today.minusDays(14);
-        LocalDate endDate = today.minusDays(1);
-        int rows = 0;
-        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            BusinessDayService.KoreanBusinessDayStatus businessDayStatus = businessDayService.koreanBusinessDayStatus(date);
-            if (businessDayStatus != BusinessDayService.KoreanBusinessDayStatus.BUSINESS_DAY || hasMajorNonUsdDailyExchangeRates(date)) {
-                continue;
-            }
-
-            rows += koreaeximExchangeClient.fetchExchangeRates(date, MAJOR_EXCHANGE_RATE_PREFIXES).stream()
-                .filter(payload -> !"USD".equals(payload.currencyCode()))
-                .mapToInt(payload -> upsertExchangeRate(payload.baseDate(), payload.currencyCode(), payload.currencyName(), payload.dealBasRate(), "KOREAEXIM"))
-                .sum();
-        }
-
-        return rows;
-    }
-
-    private boolean hasMajorNonUsdDailyExchangeRates(LocalDate baseDate) {
-        Integer count = jdbcTemplate.queryForObject(
-            """
-                SELECT COUNT(DISTINCT currency_code)
-                FROM exchange_rates
-                WHERE base_date = ?
-                  AND currency_code <> 'USD'
-                  AND (
-                      currency_code LIKE 'JPY%'
-                      OR currency_code LIKE 'EUR%'
-                      OR currency_code LIKE 'CNY%'
-                      OR currency_code LIKE 'GBP%'
-                      OR currency_code LIKE 'AUD%'
-                      OR currency_code LIKE 'CAD%'
-                      OR currency_code LIKE 'CHF%'
-                      OR currency_code LIKE 'HKD%'
-                      OR currency_code LIKE 'SGD%'
-                  )
-                """,
-            Integer.class,
-            baseDate
-        );
-        return count != null && count >= MIN_NON_USD_DAILY_EXCHANGE_RATE_COUNT;
+    private boolean isKoreanBusinessDay(LocalDate date) {
+        return businessDayService == null
+            || businessDayService.koreanBusinessDayStatus(date) == BusinessDayService.KoreanBusinessDayStatus.BUSINESS_DAY;
     }
 
     private int upsertDailyUsdKrw(LocalDate baseDate, java.math.BigDecimal rate, String source) {

@@ -125,7 +125,7 @@ class ExchangeRateSeparationTest {
     }
 
     @Test
-    void dailyBackfillStoresMissingNonUsdExchangeRatesFromKoreaexim() {
+    void recentKoreaeximSyncStoresMissingUsdAndMajorExchangeRates() {
         LocalDate missingDate = latestWeekdayInBackfillWindow();
         BusinessDayService businessDayService = org.mockito.Mockito.mock(BusinessDayService.class);
         KoreaeximExchangeClient koreaeximExchangeClient = org.mockito.Mockito.mock(KoreaeximExchangeClient.class);
@@ -152,11 +152,13 @@ class ExchangeRateSeparationTest {
             jdbcTemplate
         );
 
-        Integer rows = ReflectionTestUtils.invokeMethod(syncService, "backfillMissingMajorExchangeRateWeekdaysFromKoreaexim");
+        Integer rows = ReflectionTestUtils.invokeMethod(syncService, "syncRecentExchangeRatesFromKoreaexim", missingDate);
 
-        assertThat(rows).isEqualTo(2);
-        Integer usdRows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM exchange_rates WHERE currency_code = 'USD'", Integer.class);
-        assertThat(usdRows).isZero();
+        assertThat(rows).isEqualTo(3);
+        BigDecimal usdRate = jdbcTemplate.queryForObject("SELECT deal_bas_rate FROM exchange_rates WHERE currency_code = 'USD' AND base_date = ?", BigDecimal.class, missingDate);
+        assertThat(usdRate).isEqualByComparingTo("1390.0000");
+        String usdSource = jdbcTemplate.queryForObject("SELECT source FROM exchange_rates WHERE currency_code = 'USD' AND base_date = ?", String.class, missingDate);
+        assertThat(usdSource).isEqualTo("KOREAEXIM");
         BigDecimal eurRate = jdbcTemplate.queryForObject("SELECT deal_bas_rate FROM exchange_rates WHERE currency_code = 'EUR' AND base_date = ?", BigDecimal.class, missingDate);
         assertThat(eurRate).isEqualByComparingTo("1620.1200");
         BigDecimal jpyRate = jdbcTemplate.queryForObject("SELECT deal_bas_rate FROM exchange_rates WHERE currency_code = 'JPY(100)' AND base_date = ?", BigDecimal.class, missingDate);
