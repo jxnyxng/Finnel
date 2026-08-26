@@ -3,6 +3,7 @@ package com.example.krwwatcher.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -499,18 +500,25 @@ class MarketDataSyncRunStateTest {
         when(fredClient.fetchObservations(eq("DEXKOUS"), any())).thenReturn(List.of(
             new FredClient.FredObservationPayload(LocalDate.of(2026, 7, 24), new BigDecimal("1460.7600"))
         ));
-        when(koreaeximExchangeClient.fetchLatestExchangeRates(any(), any())).thenReturn(List.of(
-            new KoreaeximExchangeClient.ExchangeRatePayload(LocalDate.of(2026, 8, 1), "USD", "US Dollar", new BigDecimal("1390.1200")),
-            new KoreaeximExchangeClient.ExchangeRatePayload(LocalDate.of(2026, 8, 1), "EUR", "Euro", new BigDecimal("1605.3400"))
-        ));
+        LocalDate koreaeximDate = LocalDate.now().minusDays(1);
+        when(koreaeximExchangeClient.fetchExchangeRates(any(), any())).thenAnswer(invocation -> {
+            LocalDate requestDate = invocation.getArgument(0);
+            if (!koreaeximDate.equals(requestDate)) {
+                return List.of();
+            }
+            return List.of(
+                new KoreaeximExchangeClient.ExchangeRatePayload(koreaeximDate, "USD", "US Dollar", new BigDecimal("1390.1200")),
+                new KoreaeximExchangeClient.ExchangeRatePayload(koreaeximDate, "EUR", "Euro", new BigDecimal("1605.3400"))
+            );
+        });
 
         Integer rows = ReflectionTestUtils.invokeMethod(marketDataSyncService, "syncExchangeRates");
 
         assertThat(rows).isEqualTo(3);
-        assertThat(findExchangeRateDate("USD")).isEqualTo(LocalDate.of(2026, 8, 1));
-        assertThat(findExchangeRateValue("USD", LocalDate.of(2026, 8, 1))).isEqualByComparingTo("1390.1200");
-        assertThat(findExchangeRateDate("EUR")).isEqualTo(LocalDate.of(2026, 8, 1));
-        verify(koreaeximExchangeClient).fetchLatestExchangeRates(any(), any());
+        assertThat(findExchangeRateDate("USD")).isEqualTo(koreaeximDate);
+        assertThat(findExchangeRateValue("USD", koreaeximDate)).isEqualByComparingTo("1390.1200");
+        assertThat(findExchangeRateDate("EUR")).isEqualTo(koreaeximDate);
+        verify(koreaeximExchangeClient, atLeastOnce()).fetchExchangeRates(any(), any());
     }
 
     @Test
