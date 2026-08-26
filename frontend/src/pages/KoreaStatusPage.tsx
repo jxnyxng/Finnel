@@ -8,6 +8,7 @@ import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingT
 import type { DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
 import { formatMetricUnit, formatValue } from '../utils/format';
 import { lockBodyScroll } from '../utils/scrollLock';
+import { getSeoulDateString } from '../utils/time';
 
 type KoreaStatusPageProps = {
     errorMessage?: string | null;
@@ -395,10 +396,11 @@ function PolicyIndicatorTable({
             {indicators.map((indicator) => {
                 const isPending = indicator.status === '연동 필요';
                 const isSelected = selectedCode === indicator.code;
+                const isHealthy = indicator.freshnessStatus === 'FRESH' && !isPending;
                 return (
                     <article
                         aria-label={`${indicator.title} 상세 보기`}
-                        className={`economic-indicator-compact-row group/row min-w-0 cursor-pointer border transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-white/10 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-teal-100/45 motion-reduce:transition-none ${
+                        className={`economic-indicator-compact-row group/row relative min-w-0 cursor-pointer border transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-white/10 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-teal-100/45 motion-reduce:transition-none ${
                             isSelected ? 'border-teal-300/65 bg-teal-400/12 shadow-[0_0_0_1px_rgba(82,214,199,0.22)]' : isPending ? 'border-amber-300/40 bg-amber-400/10' : 'border-white/10 bg-white/5'
                         }`}
                         key={indicator.code}
@@ -412,26 +414,31 @@ function PolicyIndicatorTable({
                         role="button"
                         tabIndex={0}
                     >
-                        <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                                <h4 className="min-w-0 truncate text-xs font-extrabold text-white">{indicator.title}</h4>
-                                <span className="shrink-0 border border-white/10 bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold text-white/55">{indicator.category}</span>
+                        <span
+                            aria-label={isHealthy ? '정상' : collectionStatusLabel(indicator)}
+                            className={`absolute right-0 top-0 h-2.5 w-2.5 border-l border-b ${isHealthy ? 'border-emerald-200/45 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.65)]' : 'border-red-200/45 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.65)]'}`}
+                            title={isHealthy ? '정상' : collectionStatusLabel(indicator)}
+                        />
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pr-2">
+                            <div className="min-w-0">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <h4 className="min-w-0 truncate text-xs font-extrabold text-white">{indicator.title}</h4>
+                                    <span className="shrink-0 border border-white/10 bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold text-white/55">{indicator.category}</span>
+                                </div>
+                                <div className="mt-1 grid min-w-0 grid-cols-[minmax(0,auto)_auto] items-center justify-start gap-2 text-[10px] font-medium text-white/45">
+                                    <span className="min-w-0 truncate">{formatIndicatorSource(indicator.source)}</span>
+                                    <span className="shrink-0 whitespace-nowrap text-white/50">(최신값 기준 : {formatCompactBaseDate(indicator.baseDate)})</span>
+                                </div>
                             </div>
-                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium text-white/45">
-                                <span className="truncate">{formatIndicatorSource(indicator.source)}</span>
-                                <span>{formatCollectedAt(indicator)}</span>
-                            </div>
-                        </div>
-                        <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-                            <div className="min-w-0 whitespace-nowrap text-xs font-extrabold leading-none text-white md:text-right">
-                                {formatIndicatorValue(indicator)}
-                                <span className="ml-1 text-[11px] font-semibold text-white/45">{formatMetricUnit(indicator.unit)}</span>
-                            </div>
-                            <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-white/50 md:justify-end">
-                                <span>기준 {indicator.baseDate ?? '-'}</span>
-                                <span className={`border px-1.5 py-0.5 ${isPending ? 'border-amber-300/35 text-amber-100' : 'border-teal-300/25 text-teal-100'}`}>
-                                    {collectionStatusLabel(indicator)}
-                                </span>
+                            <div className="min-w-0 text-right">
+                                <div className="min-w-0">
+                                    <p className="truncate text-base font-black leading-5 tracking-tight text-white tabular-nums sm:text-lg">
+                                        {formatIndicatorValue(indicator)}
+                                    </p>
+                                    <p className="mt-0.5 truncate text-[10px] font-semibold leading-3 text-white/45">
+                                        {formatMetricUnit(indicator.unit)}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </article>
@@ -586,7 +593,13 @@ function IndicatorInfoPanel({
                     </button>
                 </div>
                 {hasChart ? (
-                    <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                    <dl className="mt-5 grid gap-2 border border-zinc-200 bg-white p-3 text-[11px] shadow-sm sm:grid-cols-2">
+                        <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+                        <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
+                    </dl>
+                ) : null}
+                {hasChart ? (
+                    <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <p className="text-xs font-semibold text-zinc-800">지표 흐름</p>
@@ -607,11 +620,15 @@ function IndicatorInfoPanel({
                     </div>
                 ) : null}
                 <dl className="mt-3 grid gap-2 border border-zinc-200 bg-white p-3 text-[11px] shadow-sm md:grid-cols-2">
-                    <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
-                    <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
-                    <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
+                    {!hasChart ? (
+                        <>
+                            <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+                            <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
+                        </>
+                    ) : null}
+                    <InfoPanelRow label="직전 기준" value={indicator.previousBaseDate ?? '-'} />
                     <InfoPanelRow label="출처" value={formatIndicatorSource(indicator.source)} />
-                    <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
+                    <InfoPanelRow label="최근 확인" value={formatCollectedAt(indicator)} />
                     <InfoPanelRow label="최신성" value={indicator.freshnessReason ?? collectionStatusLabel(indicator)} />
                 </dl>
                 {(indicator.componentFreshnesses ?? []).length > 0 ? (
@@ -622,7 +639,7 @@ function IndicatorInfoPanel({
                                 <div className="grid gap-x-3 gap-y-1 bg-zinc-50 p-2 text-[10px] text-zinc-500 2xl:grid-cols-[minmax(0,1fr)_86px_86px_56px]" key={component.code}>
                                     <span className="min-w-0 font-semibold text-zinc-800">{component.title}</span>
                                     <span>기준 {component.baseDate ?? '-'}</span>
-                                    <span>수집 {component.fetchedAt ? component.fetchedAt.slice(0, 10) : '-'}</span>
+                                    <span>확인 {formatCollectedDate(component.fetchedAt)}</span>
                                     <span>{component.freshnessReason ?? component.freshnessStatus}</span>
                                 </div>
                             ))}
@@ -758,23 +775,20 @@ function DomesticIndicatorHistoryChart({
         );
     }
 
-    const chartData = history.points.map((point) => ({
-        ...point,
-        label: formatHistoryTick(point.baseDate)
-    }));
     const yDomain = getHistoryValueDomain(history.points);
 
     return (
         <div className="mt-4">
             <div className="chart-grid-surface h-72 rounded-2xl px-3 py-4">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 4 }}>
+                    <LineChart data={history.points} margin={{ top: 12, right: 16, bottom: 0, left: 4 }}>
                         <XAxis
-                            dataKey="label"
+                            dataKey="baseDate"
                             tick={{ fontSize: 10, fill: 'rgba(75,85,99,0.82)' }}
                             tickLine={false}
                             axisLine={false}
                             minTickGap={28}
+                            tickFormatter={formatHistoryTick}
                         />
                         <YAxis
                             tick={{ fontSize: 10, fill: 'rgba(75,85,99,0.82)' }}
@@ -918,6 +932,10 @@ function formatHistoryTick(baseDate: string) {
     return baseDate.slice(2, 7).replace('-', '.');
 }
 
+function formatCompactBaseDate(value: string | null) {
+    return value ?? '-';
+}
+
 function formatIndicatorSource(source: string | null): string {
     if (!source) {
         return '-';
@@ -966,7 +984,11 @@ function formatIndicatorSource(source: string | null): string {
 }
 
 function formatCollectedAt(indicator: DomesticIndicator) {
-    return indicator.fetchedAt ? indicator.fetchedAt.slice(0, 10) : '-';
+    return formatCollectedDate(indicator.fetchedAt);
+}
+
+function formatCollectedDate(value: string | null) {
+    return value ? getSeoulDateString(new Date(value)) : '-';
 }
 
 function collectionStatusLabel(indicator: DomesticIndicator) {
