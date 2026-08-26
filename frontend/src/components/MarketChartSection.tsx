@@ -552,12 +552,12 @@ export function MarketChartSection<T extends RangeKey>({
   ) : helpContent;
   const compactHeaderControls = compactLayout ? (
     <div className="chart-compact-header-controls">
-      {chartTopAction}
       <div className="chart-range-control chart-range-control-compact">
         <RangeSelector compact columns={rangeColumns} onChange={onRangeChange} options={rangeOptions} value={range} />
       </div>
     </div>
   ) : null;
+  const compactSummaryAction = compactLayout ? chartTopAction : null;
 
   return (
     <div className="grid gap-2">
@@ -597,7 +597,12 @@ export function MarketChartSection<T extends RangeKey>({
                 <span className="shrink-0 self-end pb-1 text-xs font-medium text-white/60">{metric ? formatMetricUnit(metric.unit) : ''}</span>
                 {titleAction}
               </div>
-              {rangeSummary ? <div className="chart-range-summary">{rangeSummary}</div> : null}
+              {rangeSummary ? (
+                <div className="chart-range-summary-row">
+                  {compactSummaryAction ? <div className="chart-summary-action">{compactSummaryAction}</div> : null}
+                  <div className="chart-range-summary">{rangeSummary}</div>
+                </div>
+              ) : null}
             </div>
           </div>
 

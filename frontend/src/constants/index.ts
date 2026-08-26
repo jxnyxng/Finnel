@@ -37,7 +37,7 @@ export const mainTabs: Array<{ key: MainTabKey; label: string }> = [
 
 export const pageRoutes: Record<PageKey, string> = {
   home: '/',
-  todayFlow: '/today-flow',
+  todayFlow: '/dashboard',
   dashboard: '/exchange-rate',
   koreaStatus: '/indicators',
   governmentBriefings: '/policy-briefings',

@@ -979,26 +979,50 @@ body,
   width: min(7.125rem, 21vw);
 }
 
-.chart-range-control-compact > div,
-.usd-krw-chart-mode-control > div,
-.dollar-index-mode-control > div {
+.chart-range-control-compact > div {
   height: 1.9rem;
 }
 
-.chart-range-control-compact button,
-.usd-krw-chart-mode-control button,
-.dollar-index-mode-control button {
+.usd-krw-chart-mode-control > div,
+.dollar-index-mode-control > div {
+  height: 1.72rem;
+}
+
+.chart-range-control-compact button {
   height: 1.6rem;
   padding-left: 0.45rem;
   padding-right: 0.45rem;
   font-size: 0.68rem;
 }
 
+.usd-krw-chart-mode-control button,
+.dollar-index-mode-control button {
+  height: 1.44rem;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+  font-size: 0.68rem;
+}
+
+.chart-range-summary-row {
+  align-items: stretch;
+  display: inline-flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.chart-summary-action {
+  align-items: stretch;
+  display: inline-flex;
+  min-width: 0;
+}
+
 .chart-range-summary {
   align-self: center;
   border: 1px solid rgba(127, 243, 228, 0.28);
   display: inline-flex;
-  padding: 0.24rem 0.42rem;
+  min-height: 1.72rem;
+  padding: 0.17rem 0.42rem;
 }
 
 .range-change-summary {
@@ -1099,12 +1123,12 @@ body,
 
 .dollar-index-mode-control {
   margin-left: 0;
-  width: min(7.125rem, 21vw);
+  width: min(7.125rem, 27vw);
 }
 
 .usd-krw-chart-mode-control {
   margin-left: 0;
-  width: min(5.5rem, 18vw);
+  width: min(7.125rem, 27vw);
 }
 
 .chart-price-divider {
@@ -1469,7 +1493,7 @@ body,
 }
 
 .news-flow-title-overflow .news-flow-track {
-  animation: news-title-flow 9s linear infinite;
+  animation: news-title-flow var(--news-title-flow-duration, 9s) linear infinite;
 }
 
 @keyframes news-title-flow {
@@ -2083,6 +2107,7 @@ body,
 .service-guide-page {
   background: #080909;
   min-height: 100svh;
+  overflow: visible;
 }
 
 .service-guide-slide {
@@ -2107,6 +2132,14 @@ body,
   min-height: max(100svh, 42rem);
 }
 
+@media (max-width: 767px) {
+  .service-guide-slide {
+    height: auto;
+    min-height: calc(100svh - var(--app-header-height));
+    overflow: visible;
+  }
+}
+
 @supports (height: 100dvh) {
   .service-guide-page {
     min-height: 100dvh;
@@ -2115,6 +2148,13 @@ body,
   .service-guide-slide {
     height: 100dvh;
     min-height: max(100dvh, 42rem);
+  }
+
+  @media (max-width: 767px) {
+    .service-guide-slide {
+      height: auto;
+      min-height: calc(100dvh - var(--app-header-height));
+    }
   }
 }
 

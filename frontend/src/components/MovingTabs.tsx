@@ -3,12 +3,13 @@ import React from 'react';
 export type MovingTabIndicatorState = {
   containerHeight: number;
   height: number;
+  inset: number;
   left: number;
   top: number;
   width: number;
 };
 
-const emptyIndicator: MovingTabIndicatorState = { containerHeight: 0, height: 0, left: 0, top: 0, width: 0 };
+const emptyIndicator: MovingTabIndicatorState = { containerHeight: 0, height: 0, inset: 0, left: 0, top: 0, width: 0 };
 const movingTabMotionMs = 180;
 
 export function MovingTabIndicator({
@@ -26,13 +27,20 @@ export function MovingTabIndicator({
     return null;
   }
 
+  const edgeInset = contained ? Math.max(0, indicator.inset) : 0;
   const compactInset = 0;
-  const height = compact ? Math.max(0, indicator.height - compactInset * 2) : indicator.height;
-  const left = compact ? indicator.left + compactInset : indicator.left;
-  const top = compact
-    ? Math.max(0, (indicator.containerHeight - height) / 2)
-    : indicator.top;
-  const width = compact
+  const height = contained
+    ? Math.max(0, indicator.containerHeight - edgeInset * 2)
+    : compact
+      ? Math.max(0, indicator.height - compactInset * 2)
+      : indicator.height;
+  const left = compact && !contained ? indicator.left + compactInset : indicator.left;
+  const top = contained
+    ? edgeInset
+    : compact
+      ? Math.max(0, (indicator.containerHeight - height) / 2)
+      : indicator.top;
+  const width = compact && !contained
     ? Math.max(0, indicator.width - compactInset * 2)
     : indicator.width;
 
@@ -90,6 +98,7 @@ export function useMovingTabIndicator<T extends string>({
     const nextIndicator = {
       containerHeight: container.clientHeight,
       height: button.offsetHeight,
+      inset: Number.parseFloat(window.getComputedStyle(container).paddingLeft || '0') || 0,
       left: button.offsetLeft,
       top: button.offsetTop,
       width: button.offsetWidth
@@ -98,6 +107,7 @@ export function useMovingTabIndicator<T extends string>({
       if (
         current.height === nextIndicator.height &&
         current.containerHeight === nextIndicator.containerHeight &&
+        current.inset === nextIndicator.inset &&
         current.left === nextIndicator.left &&
         current.top === nextIndicator.top &&
         current.width === nextIndicator.width
