@@ -413,21 +413,26 @@ function PolicyIndicatorTable({
                         role="button"
                         tabIndex={0}
                     >
-                        <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                                <h4 className="min-w-0 truncate text-xs font-extrabold text-white">{indicator.title}</h4>
-                                <span className="shrink-0 border border-white/10 bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold text-white/55">{indicator.category}</span>
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                            <div className="min-w-0">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <h4 className="min-w-0 truncate text-xs font-extrabold text-white">{indicator.title}</h4>
+                                    <span className="shrink-0 border border-white/10 bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold text-white/55">{indicator.category}</span>
+                                </div>
+                                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium text-white/45">
+                                    <span className="truncate">{formatIndicatorSource(indicator.source)}</span>
+                                </div>
                             </div>
-                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium text-white/45">
-                                <span className="truncate">{formatIndicatorSource(indicator.source)}</span>
-                                <span>{formatCollectedAt(indicator)}</span>
+                            <div className="min-w-0 max-w-[42vw] text-right sm:max-w-[12rem]">
+                                <p className="truncate text-lg font-black leading-5 tracking-tight text-white tabular-nums sm:text-xl">
+                                    {formatIndicatorValue(indicator)}
+                                </p>
+                                <p className="mt-0.5 truncate text-[10px] font-semibold leading-3 text-white/45">
+                                    {formatMetricUnit(indicator.unit)}
+                                </p>
                             </div>
                         </div>
-                        <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-                            <div className="min-w-0 whitespace-nowrap text-xs font-extrabold leading-none text-white md:text-right">
-                                {formatIndicatorValue(indicator)}
-                                <span className="ml-1 text-[11px] font-semibold text-white/45">{formatMetricUnit(indicator.unit)}</span>
-                            </div>
+                        <div className="flex min-w-0 items-center justify-end gap-3">
                             <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-white/50 md:justify-end">
                                 <span>기준 {indicator.baseDate ?? '-'}</span>
                                 <span className={`border px-1.5 py-0.5 ${isPending ? 'border-amber-300/35 text-amber-100' : 'border-teal-300/25 text-teal-100'}`}>
@@ -622,7 +627,7 @@ function IndicatorInfoPanel({
                     ) : null}
                     <InfoPanelRow label="직전 기준" value={indicator.previousBaseDate ?? '-'} />
                     <InfoPanelRow label="출처" value={formatIndicatorSource(indicator.source)} />
-                    <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
+                    <InfoPanelRow label="최근 확인" value={formatCollectedAt(indicator)} />
                     <InfoPanelRow label="최신성" value={indicator.freshnessReason ?? collectionStatusLabel(indicator)} />
                 </dl>
                 {(indicator.componentFreshnesses ?? []).length > 0 ? (
@@ -633,7 +638,7 @@ function IndicatorInfoPanel({
                                 <div className="grid gap-x-3 gap-y-1 bg-zinc-50 p-2 text-[10px] text-zinc-500 2xl:grid-cols-[minmax(0,1fr)_86px_86px_56px]" key={component.code}>
                                     <span className="min-w-0 font-semibold text-zinc-800">{component.title}</span>
                                     <span>기준 {component.baseDate ?? '-'}</span>
-                                    <span>수집 {formatCollectedDate(component.fetchedAt)}</span>
+                                    <span>확인 {formatCollectedDate(component.fetchedAt)}</span>
                                     <span>{component.freshnessReason ?? component.freshnessStatus}</span>
                                 </div>
                             ))}
