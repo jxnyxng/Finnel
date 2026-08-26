@@ -8,6 +8,7 @@ import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingT
 import type { DomesticIndicator, DomesticIndicatorHistoryResponse, HistoryRangeKey, TimeSeriesPoint } from '../types';
 import { formatMetricUnit, formatValue } from '../utils/format';
 import { lockBodyScroll } from '../utils/scrollLock';
+import { getSeoulDateString } from '../utils/time';
 
 type KoreaStatusPageProps = {
     errorMessage?: string | null;
@@ -586,7 +587,13 @@ function IndicatorInfoPanel({
                     </button>
                 </div>
                 {hasChart ? (
-                    <div className="mt-5 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+                    <dl className="mt-5 grid gap-2 border border-zinc-200 bg-white p-3 text-[11px] shadow-sm sm:grid-cols-2">
+                        <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+                        <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
+                    </dl>
+                ) : null}
+                {hasChart ? (
+                    <div className="mt-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <p className="text-xs font-semibold text-zinc-800">지표 흐름</p>
@@ -596,10 +603,6 @@ function IndicatorInfoPanel({
                             </div>
                             <HistoryRangeSelector history={history} value={historyRange} onChange={setHistoryRange} />
                         </div>
-                        <dl className="mt-3 grid gap-2 border border-zinc-200 bg-white p-3 text-[11px] shadow-sm sm:grid-cols-2">
-                            <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
-                            <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
-                        </dl>
                         <div>
                             <DomesticIndicatorHistoryChart
                                 history={history}
@@ -630,7 +633,7 @@ function IndicatorInfoPanel({
                                 <div className="grid gap-x-3 gap-y-1 bg-zinc-50 p-2 text-[10px] text-zinc-500 2xl:grid-cols-[minmax(0,1fr)_86px_86px_56px]" key={component.code}>
                                     <span className="min-w-0 font-semibold text-zinc-800">{component.title}</span>
                                     <span>기준 {component.baseDate ?? '-'}</span>
-                                    <span>수집 {component.fetchedAt ? component.fetchedAt.slice(0, 10) : '-'}</span>
+                                    <span>수집 {formatCollectedDate(component.fetchedAt)}</span>
                                     <span>{component.freshnessReason ?? component.freshnessStatus}</span>
                                 </div>
                             ))}
@@ -971,7 +974,11 @@ function formatIndicatorSource(source: string | null): string {
 }
 
 function formatCollectedAt(indicator: DomesticIndicator) {
-    return indicator.fetchedAt ? indicator.fetchedAt.slice(0, 10) : '-';
+    return formatCollectedDate(indicator.fetchedAt);
+}
+
+function formatCollectedDate(value: string | null) {
+    return value ? getSeoulDateString(new Date(value)) : '-';
 }
 
 function collectionStatusLabel(indicator: DomesticIndicator) {
