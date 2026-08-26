@@ -2107,7 +2107,10 @@ body,
 .service-guide-page {
   background: #080909;
   min-height: 100svh;
+  overscroll-behavior-y: auto;
   overflow: visible;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
 }
 
 .service-guide-slide {
