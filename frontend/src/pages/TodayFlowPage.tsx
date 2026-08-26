@@ -276,6 +276,7 @@ function NewsFlowTitle({ title }: { title: string }) {
     const containerRef = React.useRef<HTMLSpanElement | null>(null);
     const textRef = React.useRef<HTMLSpanElement | null>(null);
     const [isOverflowing, setIsOverflowing] = React.useState(false);
+    const [animationDuration, setAnimationDuration] = React.useState('9s');
 
     React.useLayoutEffect(() => {
         const measure = () => {
@@ -284,7 +285,16 @@ function NewsFlowTitle({ title }: { title: string }) {
             if (!container || !text) {
                 return;
             }
-            setIsOverflowing(text.scrollWidth > container.clientWidth + 2);
+            const nextIsOverflowing = text.scrollWidth > container.clientWidth + 2;
+            setIsOverflowing(nextIsOverflowing);
+
+            if (nextIsOverflowing) {
+                const track = text.parentElement;
+                const gap = track ? Number.parseFloat(window.getComputedStyle(track).columnGap || '0') || 0 : 0;
+                const scrollDistance = text.scrollWidth + gap;
+                const seconds = Math.min(24, Math.max(9.5, scrollDistance / 28));
+                setAnimationDuration(`${seconds.toFixed(2)}s`);
+            }
         };
 
         measure();
@@ -293,7 +303,11 @@ function NewsFlowTitle({ title }: { title: string }) {
     }, [title]);
 
     return (
-        <span className={`news-flow-title block text-[11px] font-extrabold leading-5 text-zinc-950 ${isOverflowing ? 'news-flow-title-overflow' : ''}`} ref={containerRef}>
+        <span
+            className={`news-flow-title block text-[11px] font-extrabold leading-5 text-zinc-950 ${isOverflowing ? 'news-flow-title-overflow' : ''}`}
+            ref={containerRef}
+            style={{ '--news-title-flow-duration': animationDuration } as React.CSSProperties}
+        >
             <span className="news-flow-track">
                 <span ref={textRef}>{title}</span>
                 {isOverflowing ? <span aria-hidden="true">{title}</span> : null}
