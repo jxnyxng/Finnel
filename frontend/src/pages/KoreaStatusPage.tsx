@@ -396,10 +396,11 @@ function PolicyIndicatorTable({
             {indicators.map((indicator) => {
                 const isPending = indicator.status === '연동 필요';
                 const isSelected = selectedCode === indicator.code;
+                const isHealthy = indicator.freshnessStatus === 'FRESH' && !isPending;
                 return (
                     <article
                         aria-label={`${indicator.title} 상세 보기`}
-                        className={`economic-indicator-compact-row group/row min-w-0 cursor-pointer border transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-white/10 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-teal-100/45 motion-reduce:transition-none ${
+                        className={`economic-indicator-compact-row group/row relative min-w-0 cursor-pointer border transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-white/10 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-teal-100/45 motion-reduce:transition-none ${
                             isSelected ? 'border-teal-300/65 bg-teal-400/12 shadow-[0_0_0_1px_rgba(82,214,199,0.22)]' : isPending ? 'border-amber-300/40 bg-amber-400/10' : 'border-white/10 bg-white/5'
                         }`}
                         key={indicator.code}
@@ -413,7 +414,12 @@ function PolicyIndicatorTable({
                         role="button"
                         tabIndex={0}
                     >
-                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                        <span
+                            aria-label={isHealthy ? '정상' : collectionStatusLabel(indicator)}
+                            className={`absolute right-0 top-0 h-2.5 w-2.5 border-l border-b ${isHealthy ? 'border-emerald-200/45 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.65)]' : 'border-red-200/45 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.65)]'}`}
+                            title={isHealthy ? '정상' : collectionStatusLabel(indicator)}
+                        />
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pr-2">
                             <div className="min-w-0">
                                 <div className="flex min-w-0 items-center gap-2">
                                     <h4 className="min-w-0 truncate text-xs font-extrabold text-white">{indicator.title}</h4>
@@ -423,21 +429,12 @@ function PolicyIndicatorTable({
                                     <span className="truncate">{formatIndicatorSource(indicator.source)}</span>
                                 </div>
                             </div>
-                            <div className="min-w-0 max-w-[42vw] text-right sm:max-w-[12rem]">
-                                <p className="truncate text-lg font-black leading-5 tracking-tight text-white tabular-nums sm:text-xl">
+                            <div className="grid min-w-0 grid-cols-[auto_minmax(0,auto)] items-center gap-2 text-right">
+                                <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-white/45">기준 {indicator.baseDate ?? '-'}</span>
+                                <p className="max-w-[34vw] truncate text-base font-black leading-5 tracking-tight text-white tabular-nums sm:max-w-[9.5rem] sm:text-lg">
                                     {formatIndicatorValue(indicator)}
+                                    <span className="ml-1 text-[10px] font-semibold text-white/45">{formatMetricUnit(indicator.unit)}</span>
                                 </p>
-                                <p className="mt-0.5 truncate text-[10px] font-semibold leading-3 text-white/45">
-                                    {formatMetricUnit(indicator.unit)}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex min-w-0 items-center justify-end gap-3">
-                            <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-white/50 md:justify-end">
-                                <span>기준 {indicator.baseDate ?? '-'}</span>
-                                <span className={`border px-1.5 py-0.5 ${isPending ? 'border-amber-300/35 text-amber-100' : 'border-teal-300/25 text-teal-100'}`}>
-                                    {collectionStatusLabel(indicator)}
-                                </span>
                             </div>
                         </div>
                     </article>
