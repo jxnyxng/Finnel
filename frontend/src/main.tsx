@@ -1185,6 +1185,7 @@ function App() {
                             onLoadMore={changeNewsPage}
                             page={newsPage}
                             selectedCategory={selectedNewsCategory}
+                            inFeedAdSlot={import.meta.env.VITE_ADSENSE_SLOT_NEWSROOM_IN_FEED}
                             totalCount={newsTotalCount}
                             totalPages={newsTotalPages}
                         />
@@ -1205,6 +1206,7 @@ function App() {
                             onLoadMore={changeGovernmentBriefingsPage}
                             page={governmentBriefingsPage}
                             selectedCategory={selectedGovernmentBriefingCategory}
+                            inFeedAdSlot={import.meta.env.VITE_ADSENSE_SLOT_POLICY_BRIEFINGS_IN_FEED}
                             totalCount={governmentBriefingsTotalCount}
                             totalPages={governmentBriefingsTotalPages}
                         />

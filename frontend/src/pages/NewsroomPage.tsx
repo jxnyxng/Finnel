@@ -1,5 +1,6 @@
 import React from 'react';
 import axios from 'axios';
+import { GoogleAdSlot } from '../components/AdSlot';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { NewsArticle, NewsCategory, NewsFilters } from '../types';
@@ -12,6 +13,7 @@ type NewsroomPageProps = {
     filters: NewsFilters;
     isLoading: boolean;
     isPendingInitialLoad?: boolean;
+    inFeedAdSlot?: string;
     page: number;
     selectedCategory: string;
     totalCount: number;
@@ -26,6 +28,7 @@ export function NewsroomPage({
                                  categories,
                                  configured,
                                  filters,
+                                 inFeedAdSlot,
                                  isLoading,
                                  isPendingInitialLoad = false,
                                  page,
@@ -228,14 +231,18 @@ export function NewsroomPage({
                         {articles.map((article, index) => {
                             const isInitialPageItem = index < 10;
                             const cardElement = <NewsArticleCard article={article} />;
+                            const shouldRenderAdAfterCard = index === 3 || (articles.length >= 10 && index === 7);
 
-                            return isInitialPageItem && !hasEnteredPage ? (
-                                <FadeIn key={`${article.categoryCode}-${article.link}`} delay={0.35 + (index % 10) * 0.04}>
-                                    {cardElement}
-                                </FadeIn>
-                            ) : (
+                            return (
                                 <React.Fragment key={`${article.categoryCode}-${article.link}`}>
-                                    {cardElement}
+                                    {isInitialPageItem && !hasEnteredPage ? (
+                                        <FadeIn delay={0.35 + (index % 10) * 0.04}>
+                                            {cardElement}
+                                        </FadeIn>
+                                    ) : (
+                                        cardElement
+                                    )}
+                                    {shouldRenderAdAfterCard ? <NewsInFeedAd slot={inFeedAdSlot} /> : null}
                                 </React.Fragment>
                             );
                         })}
@@ -250,6 +257,16 @@ export function NewsroomPage({
                 />
             </FadeIn>
         </section>
+    );
+}
+
+function NewsInFeedAd({ slot }: { slot?: string }) {
+    return (
+        <GoogleAdSlot
+            className="lg:col-span-2"
+            minHeightClassName="min-h-28 sm:min-h-32"
+            slot={slot}
+        />
     );
 }
 

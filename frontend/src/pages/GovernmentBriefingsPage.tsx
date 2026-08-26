@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { GoogleAdSlot } from '../components/AdSlot';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { GovernmentBriefingArticle, GovernmentBriefingCategory, GovernmentBriefingFilters } from '../types';
@@ -15,6 +16,7 @@ type GovernmentBriefingsPageProps = {
     filters: GovernmentBriefingFilters;
     isLoading: boolean;
     isPendingInitialLoad?: boolean;
+    inFeedAdSlot?: string;
     page: number;
     selectedCategory: string;
     totalCount: number;
@@ -29,6 +31,7 @@ export function GovernmentBriefingsPage({
                                             categories,
                                             configured,
                                             filters,
+                                            inFeedAdSlot,
                                             isLoading,
                                             isPendingInitialLoad = false,
                                             onCategoryChange,
@@ -232,6 +235,7 @@ export function GovernmentBriefingsPage({
                     <div className={`${hasEnteredPage ? 'content-smooth-refresh' : ''} grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4`}>
                         {articles.map((article, index) => {
                             const isInitialPageItem = index < 12;
+                            const shouldRenderAdAfterCard = index === 3 || (articles.length >= 12 && index === 7);
                             const cardElement = (
                                 <GovernmentBriefingCard
                                     article={article}
@@ -239,14 +243,19 @@ export function GovernmentBriefingsPage({
                                 />
                             );
 
-                            return isInitialPageItem && !hasEnteredPage ? (
-                                <FadeIn className="h-full" key={`${article.originalUrl ?? article.title}-${article.publishedAt ?? ''}`} delay={0.35 + (index % 12) * 0.05}>
-                                    {cardElement}
-                                </FadeIn>
-                            ) : (
-                                <div className="h-full" key={`${article.originalUrl ?? article.title}-${article.publishedAt ?? ''}`}>
-                                    {cardElement}
-                                </div>
+                            return (
+                                <React.Fragment key={`${article.originalUrl ?? article.title}-${article.publishedAt ?? ''}`}>
+                                    {isInitialPageItem && !hasEnteredPage ? (
+                                        <FadeIn className="h-full" delay={0.35 + (index % 12) * 0.05}>
+                                            {cardElement}
+                                        </FadeIn>
+                                    ) : (
+                                        <div className="h-full">
+                                            {cardElement}
+                                        </div>
+                                    )}
+                                    {shouldRenderAdAfterCard ? <GovernmentBriefingInFeedAd slot={inFeedAdSlot} /> : null}
+                                </React.Fragment>
                             );
                         })}
                     </div>
@@ -267,6 +276,16 @@ export function GovernmentBriefingsPage({
                 onContentThemeChange={setContentTheme}
             />
         </section>
+    );
+}
+
+function GovernmentBriefingInFeedAd({ slot }: { slot?: string }) {
+    return (
+        <GoogleAdSlot
+            className="sm:col-span-2 xl:col-span-4"
+            minHeightClassName="min-h-28 sm:min-h-32"
+            slot={slot}
+        />
     );
 }
 
