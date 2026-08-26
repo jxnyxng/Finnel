@@ -933,7 +933,7 @@ function formatHistoryTick(baseDate: string) {
 }
 
 function formatCompactBaseDate(value: string | null) {
-    return value ? value.replace(/-/g, '.') : '-';
+    return value ?? '-';
 }
 
 function formatIndicatorSource(source: string | null): string {
