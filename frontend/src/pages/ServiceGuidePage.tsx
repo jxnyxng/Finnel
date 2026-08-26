@@ -43,7 +43,7 @@ export function ServiceGuidePage() {
         <section className="service-guide-page relative left-1/2 w-screen -translate-x-1/2">
             {slides.map((slide, index) => (
                 <section
-                    className="service-guide-slide relative overflow-hidden"
+                    className="service-guide-slide relative"
                     key={slide.title}
                 >
                     <div
@@ -56,7 +56,7 @@ export function ServiceGuidePage() {
                     <div className="service-guide-slide-dim absolute inset-0" />
                     <div className={`service-guide-slide-gradient absolute inset-0 ${index % 2 === 0 ? 'service-guide-slide-gradient-right' : 'service-guide-slide-gradient-left'}`} />
 
-                    <div className="relative z-10 flex h-full items-center justify-center px-6 py-10 md:px-14 md:py-12">
+                    <div className="service-guide-slide-content relative z-10 flex items-center justify-center px-6 py-10 md:px-14 md:py-12">
                         <div className={`flex w-full max-w-[88vw] flex-col md:max-w-[60vw] ${slide.placement}`}>
 
                             {/* 1. 상단 말머리 (Eyebrow): 0.1초 등장 */}

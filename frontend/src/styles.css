@@ -2106,15 +2106,17 @@ body,
 
 .service-guide-page {
   background: #080909;
-  min-height: 100svh;
+  min-height: calc(100svh - var(--app-header-height));
   overscroll-behavior-y: auto;
-  overflow: visible;
+  overflow-x: clip;
+  overflow-y: visible;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
 }
 
 .service-guide-slide {
   background: #080909;
+  overflow: clip;
 }
 
 .service-guide-slide-dim {
@@ -2131,39 +2133,59 @@ body,
 
 .service-guide-slide {
   display: grid;
-  height: 100svh;
-  min-height: max(100svh, 42rem);
+  height: auto;
+  min-height: max(calc(100svh - var(--app-header-height)), 42rem);
 }
 
-@media (max-width: 767px) {
-  .service-guide-slide {
-    height: auto;
-    min-height: calc(100svh - var(--app-header-height));
-    overflow: visible;
-  }
+.service-guide-slide-content {
+  min-height: inherit;
 }
 
 @supports (height: 100dvh) {
   .service-guide-page {
-    min-height: 100dvh;
+    min-height: calc(100dvh - var(--app-header-height));
   }
 
   .service-guide-slide {
-    height: 100dvh;
-    min-height: max(100dvh, 42rem);
+    min-height: max(calc(100dvh - var(--app-header-height)), 42rem);
+  }
+}
+
+@media (max-width: 767px) {
+  .service-guide-page {
+    min-height: auto;
+    overscroll-behavior-y: initial;
+    overflow: visible;
+    touch-action: auto;
+    -webkit-overflow-scrolling: auto;
   }
 
+  .service-guide-slide {
+    display: block;
+    min-height: auto;
+    overflow: hidden;
+  }
+
+  .service-guide-slide-content {
+    min-height: auto;
+  }
+}
+
+@supports (height: 100dvh) {
   @media (max-width: 767px) {
+    .service-guide-page {
+      min-height: auto;
+    }
+
     .service-guide-slide {
-      height: auto;
-      min-height: calc(100dvh - var(--app-header-height));
+      min-height: auto;
     }
   }
 }
 
 @media (min-width: 1024px) {
   .service-guide-slide {
-    min-height: max(100dvh, 46rem);
+    min-height: max(calc(100dvh - var(--app-header-height)), 46rem);
   }
 }
 
