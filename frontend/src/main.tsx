@@ -756,7 +756,7 @@ function App() {
         : advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-';
     const activeDollarIndexChartStatusText = `일별 지수 · 최신 ${activeDollarIndexLatestBaseDate} · ${marketDailyStatus.label}`;
     const activeDollarIndexHeaderAction = (
-        <div className="dollar-index-mode-control w-[6.75rem] shrink-0">
+        <div className="dollar-index-mode-control shrink-0">
             <RangeSelector
                 columns={2}
                 compact
@@ -994,8 +994,7 @@ function App() {
                                       keepHeaderSingleLineOnMobile
                                       metric={activeDollarIndexMetric}
                                       mobileAdSlot={chartAdSlots.dollarIndexMobile}
-                                      headerAction={activeDollarIndexHeaderAction}
-                                      headerActionPlacement="chartControls"
+                                      chartAction={activeDollarIndexHeaderAction}
                                       onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
                                       onRangeChange={(range) => {
                                           if (showBroadDollarIndex) {
