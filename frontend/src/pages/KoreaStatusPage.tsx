@@ -429,12 +429,16 @@ function PolicyIndicatorTable({
                                     <span className="truncate">{formatIndicatorSource(indicator.source)}</span>
                                 </div>
                             </div>
-                            <div className="grid min-w-0 grid-cols-[auto_minmax(0,auto)] items-center gap-2 text-right">
-                                <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold text-white/45">기준 {indicator.baseDate ?? '-'}</span>
-                                <p className="max-w-[34vw] truncate text-base font-black leading-5 tracking-tight text-white tabular-nums sm:max-w-[9.5rem] sm:text-lg">
-                                    {formatIndicatorValue(indicator)}
-                                    <span className="ml-1 text-[10px] font-semibold text-white/45">{formatMetricUnit(indicator.unit)}</span>
-                                </p>
+                            <div className="grid min-w-0 grid-cols-[5.9rem_minmax(4.8rem,8.8rem)] items-center gap-2 text-right">
+                                <span className="whitespace-nowrap text-[10px] font-semibold text-white/45">기준 {indicator.baseDate ?? '-'}</span>
+                                <div className="min-w-0">
+                                    <p className="truncate text-base font-black leading-5 tracking-tight text-white tabular-nums sm:text-lg">
+                                        {formatIndicatorValue(indicator)}
+                                    </p>
+                                    <p className="mt-0.5 truncate text-[10px] font-semibold leading-3 text-white/45">
+                                        {formatMetricUnit(indicator.unit)}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </article>
