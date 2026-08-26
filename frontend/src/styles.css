@@ -2572,6 +2572,23 @@ body,
   margin-top: 0.75rem;
 }
 
+.calculator-result-grid {
+  min-width: 0;
+}
+
+.calculator-result-box {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.calculator-number-wrap {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
 @media (min-width: 1024px) {
   .calculator-tab-conversion-card {
     min-height: 0;
