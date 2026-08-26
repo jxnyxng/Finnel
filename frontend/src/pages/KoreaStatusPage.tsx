@@ -425,12 +425,12 @@ function PolicyIndicatorTable({
                                     <h4 className="min-w-0 truncate text-xs font-extrabold text-white">{indicator.title}</h4>
                                     <span className="shrink-0 border border-white/10 bg-white/8 px-1.5 py-0.5 text-[10px] font-semibold text-white/55">{indicator.category}</span>
                                 </div>
-                                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-medium text-white/45">
-                                    <span className="truncate">{formatIndicatorSource(indicator.source)}</span>
+                                <div className="mt-1 grid min-w-0 grid-cols-[minmax(0,auto)_auto] items-center justify-start gap-2 text-[10px] font-medium text-white/45">
+                                    <span className="min-w-0 truncate">{formatIndicatorSource(indicator.source)}</span>
+                                    <span className="shrink-0 whitespace-nowrap text-white/50">(최신값 기준 : {formatCompactBaseDate(indicator.baseDate)})</span>
                                 </div>
                             </div>
-                            <div className="grid min-w-0 grid-cols-[5.9rem_minmax(4.8rem,8.8rem)] items-center gap-2 text-right">
-                                <span className="whitespace-nowrap text-[10px] font-semibold text-white/45">기준 {indicator.baseDate ?? '-'}</span>
+                            <div className="min-w-0 text-right">
                                 <div className="min-w-0">
                                     <p className="truncate text-base font-black leading-5 tracking-tight text-white tabular-nums sm:text-lg">
                                         {formatIndicatorValue(indicator)}
@@ -930,6 +930,10 @@ function formatHistoryAxisValue(value: number, unit: string) {
 
 function formatHistoryTick(baseDate: string) {
     return baseDate.slice(2, 7).replace('-', '.');
+}
+
+function formatCompactBaseDate(value: string | null) {
+    return value ? value.replace(/-/g, '.') : '-';
 }
 
 function formatIndicatorSource(source: string | null): string {
