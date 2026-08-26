@@ -175,6 +175,7 @@ public class DashboardService {
             : availableRanges.stream().reduce((first, second) -> second).orElse(requestedRange);
         LocalDate startDate = endDate.minusYears(historyRange.years());
         List<TimeSeriesPoint> points = findDomesticIndicatorHistoryPoints(code, startDate, endDate);
+        LocalDate responseEndDate = points.isEmpty() ? endDate : points.get(points.size() - 1).baseDate();
         DomesticIndicatorMetadata metadata = domesticIndicatorMetadata(code);
         BigDecimal averageValue = average(points);
 
@@ -184,7 +185,7 @@ public class DashboardService {
             metadata.unit(),
             historyRange.key(),
             startDate,
-            endDate,
+            responseEndDate,
             averageValue,
             availableRanges.stream().map(HistoryRange::key).toList(),
             points
@@ -992,20 +993,24 @@ public class DashboardService {
 
     private List<TimeSeriesPoint> findDomesticIndicatorHistoryPoints(String code, LocalDate startDate, LocalDate endDate) {
         return switch (code) {
-            case "USD_KRW" -> jdbcTemplate.query(
-                """
-                    SELECT base_date, deal_bas_rate
-                    FROM exchange_rates
-                    WHERE currency_code = ?
-                      AND base_date >= ?
-                      AND base_date <= ?
-                    ORDER BY base_date ASC
-                    """,
-                (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("deal_bas_rate")),
-                "USD",
+            case "USD_KRW" -> mergeLatestUsdKrwIntradayHistoryPoint(
+                jdbcTemplate.query(
+                    """
+                        SELECT base_date, deal_bas_rate
+                        FROM exchange_rates
+                        WHERE currency_code = ?
+                          AND base_date >= ?
+                          AND base_date <= ?
+                        ORDER BY base_date ASC
+                        """,
+                    (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("deal_bas_rate")),
+                    "USD",
+                    startDate,
+                    endDate
+                ).stream().filter(point -> isWeekday(point.baseDate())).toList(),
                 startDate,
                 endDate
-            ).stream().filter(point -> isWeekday(point.baseDate())).toList();
+            );
             case "KR_POLICY_RATE" -> findInterestRateHistory("KR", "POLICY_RATE", startDate, endDate);
             case "US_POLICY_RATE" -> findInterestRateHistory("US", "POLICY_RATE", startDate, endDate);
             case "KR_US_RATE_GAP" -> findRateGapHistory(startDate, endDate);
@@ -1046,6 +1051,45 @@ public class DashboardService {
                 );
             default -> throw new IllegalArgumentException("Unsupported domestic indicator code: " + code);
         };
+    }
+
+    private List<TimeSeriesPoint> mergeLatestUsdKrwIntradayHistoryPoint(List<TimeSeriesPoint> dailyPoints, LocalDate startDate, LocalDate endDate) {
+        TimeSeriesPoint latestIntradayPoint = findLatestUsdKrwIntradayHistoryPoint(startDate, endDate);
+        if (latestIntradayPoint == null) {
+            return dailyPoints;
+        }
+
+        if (dailyPoints.isEmpty()) {
+            return List.of(latestIntradayPoint);
+        }
+
+        TimeSeriesPoint latestDailyPoint = dailyPoints.get(dailyPoints.size() - 1);
+        List<TimeSeriesPoint> mergedPoints = new ArrayList<>(dailyPoints);
+        if (latestIntradayPoint.baseDate().isAfter(latestDailyPoint.baseDate())) {
+            mergedPoints.add(latestIntradayPoint);
+        } else if (latestIntradayPoint.baseDate().isEqual(latestDailyPoint.baseDate())) {
+            mergedPoints.set(mergedPoints.size() - 1, latestIntradayPoint);
+        }
+
+        return mergedPoints;
+    }
+
+    private TimeSeriesPoint findLatestUsdKrwIntradayHistoryPoint(LocalDate startDate, LocalDate endDate) {
+        return jdbcTemplate.query(
+            """
+                SELECT DATE(observed_at) AS base_date, close_rate
+                FROM intraday_exchange_rates
+                WHERE currency_pair = ?
+                  AND DATE(observed_at) >= ?
+                  AND DATE(observed_at) <= ?
+                ORDER BY observed_at DESC
+                LIMIT 1
+                """,
+            (rs, rowNum) -> new TimeSeriesPoint(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("close_rate")),
+            "USD/KRW",
+            startDate,
+            endDate
+        ).stream().findFirst().orElse(null);
     }
 
     private boolean isWeekday(LocalDate date) {

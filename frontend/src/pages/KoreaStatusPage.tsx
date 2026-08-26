@@ -758,23 +758,20 @@ function DomesticIndicatorHistoryChart({
         );
     }
 
-    const chartData = history.points.map((point) => ({
-        ...point,
-        label: formatHistoryTick(point.baseDate)
-    }));
     const yDomain = getHistoryValueDomain(history.points);
 
     return (
         <div className="mt-4">
             <div className="chart-grid-surface h-72 rounded-2xl px-3 py-4">
                 <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 4 }}>
+                    <LineChart data={history.points} margin={{ top: 12, right: 16, bottom: 0, left: 4 }}>
                         <XAxis
-                            dataKey="label"
+                            dataKey="baseDate"
                             tick={{ fontSize: 10, fill: 'rgba(75,85,99,0.82)' }}
                             tickLine={false}
                             axisLine={false}
                             minTickGap={28}
+                            tickFormatter={formatHistoryTick}
                         />
                         <YAxis
                             tick={{ fontSize: 10, fill: 'rgba(75,85,99,0.82)' }}
