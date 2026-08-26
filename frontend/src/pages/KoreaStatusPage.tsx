@@ -596,6 +596,10 @@ function IndicatorInfoPanel({
                             </div>
                             <HistoryRangeSelector history={history} value={historyRange} onChange={setHistoryRange} />
                         </div>
+                        <dl className="mt-3 grid gap-2 border border-zinc-200 bg-white p-3 text-[11px] shadow-sm sm:grid-cols-2">
+                            <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+                            <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
+                        </dl>
                         <div>
                             <DomesticIndicatorHistoryChart
                                 history={history}
@@ -607,9 +611,13 @@ function IndicatorInfoPanel({
                     </div>
                 ) : null}
                 <dl className="mt-3 grid gap-2 border border-zinc-200 bg-white p-3 text-[11px] shadow-sm md:grid-cols-2">
-                    <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
-                    <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
-                    <InfoPanelRow label="이전 기준" value={indicator.previousBaseDate ?? '-'} />
+                    {!hasChart ? (
+                        <>
+                            <InfoPanelRow label="현재 수치" value={`${formatIndicatorValue(indicator)} ${formatMetricUnit(indicator.unit)}`} />
+                            <InfoPanelRow label="기준일" value={indicator.baseDate ?? '-'} />
+                        </>
+                    ) : null}
+                    <InfoPanelRow label="직전 기준" value={indicator.previousBaseDate ?? '-'} />
                     <InfoPanelRow label="출처" value={formatIndicatorSource(indicator.source)} />
                     <InfoPanelRow label="수집일" value={formatCollectedAt(indicator)} />
                     <InfoPanelRow label="최신성" value={indicator.freshnessReason ?? collectionStatusLabel(indicator)} />
