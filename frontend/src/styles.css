@@ -2373,23 +2373,23 @@ body,
   border-radius: 0.75rem;
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .side-ad-layout {
-    grid-template-columns: minmax(8rem, 1fr) minmax(0, 64rem) minmax(8rem, 1fr);
+    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 60rem) minmax(6rem, 0.8fr);
   }
 
   .side-ad-layout-narrow {
-    max-width: min(100%, 86rem);
+    max-width: min(100%, 80rem);
   }
 
   .side-ad-layout-wide {
-    max-width: min(100%, 94rem);
-    grid-template-columns: minmax(8rem, 1fr) minmax(0, 68rem) minmax(8rem, 1fr);
+    max-width: min(100%, 88rem);
+    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 64rem) minmax(6rem, 0.8fr);
   }
 
   .side-ad-layout-calculator {
-    grid-template-columns: minmax(7.5rem, 1fr) minmax(0, 76rem) minmax(7.5rem, 1fr);
-    max-width: min(100%, 96rem);
+    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 76rem) minmax(6rem, 0.8fr);
+    max-width: min(100%, 92rem);
   }
 }
 
