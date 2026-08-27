@@ -229,7 +229,7 @@ export function NewsroomPage({
                     ) : articles.length === 0 ? (
                         <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 뉴스가 없습니다.</div>
                     ) : (
-                        <div className={`${hasEnteredPage ? 'content-smooth-refresh' : 'news-list-enter'} grid min-w-0 gap-2.5 lg:grid-cols-2 sm:gap-3`} key={articleListKey}>
+                        <div className={`${hasEnteredPage ? 'content-smooth-refresh' : 'news-list-enter'} grid min-w-0 gap-2.5 sm:gap-3 2xl:grid-cols-2`} key={articleListKey}>
                             {articles.map((article, index) => {
                                 const isInitialPageItem = index < 10;
                                 const cardElement = <NewsArticleCard article={article} />;
@@ -352,7 +352,7 @@ function NewsArticleCard({ article }: { article: NewsArticle }) {
 
     return (
         <article
-            className="glass-list-card group/card min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-zinc-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 sm:h-32 md:h-36 motion-reduce:transition-none"
+            className="glass-list-card group/card min-w-0 cursor-pointer overflow-hidden rounded-2xl transition-[background-color,box-shadow] duration-150 ease-out hover:bg-zinc-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-300 sm:min-h-32 md:min-h-36 motion-reduce:transition-none"
             onClick={openArticle}
             onKeyDown={openArticleWithKeyboard}
             role="link"
