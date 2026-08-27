@@ -2095,15 +2095,6 @@ body,
   margin-right: 0;
 }
 
-.today-flow-header {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  border-bottom: 0;
-  padding: 0 0 0.2rem;
-}
-
 .service-guide-page {
   background: #080909;
   min-height: calc(100svh - var(--app-header-height));
@@ -2195,10 +2186,6 @@ body,
     grid-template-columns: minmax(0, 1fr) minmax(12rem, auto);
   }
 
-  .today-flow-header {
-    align-items: stretch;
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .page-tab-eyebrow {

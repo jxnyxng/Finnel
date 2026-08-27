@@ -1,6 +1,6 @@
 export type RangeKey = '1D' | '3M' | '1Y' | '5Y';
 export type HistoryRangeKey = '1Y' | '3Y' | '5Y';
-export type MainTabKey = 'todayFlow' | 'dashboard' | 'koreaStatus' | 'ranking' | 'newsroom' | 'governmentBriefings' | 'dataSources' | 'calculator';
+export type MainTabKey = 'dashboard' | 'exchangeRate' | 'koreaStatus' | 'ranking' | 'newsroom' | 'governmentBriefings' | 'dataSources' | 'calculator';
 export type PageKey = MainTabKey | 'home' | 'serviceGuide';
 export type ServiceStatusTone = 'healthy' | 'idle' | 'error';
 export type FreshnessStatus = 'FRESH' | 'STALE' | 'MISSING';
@@ -324,7 +324,7 @@ export type GovernmentBriefingResponse = {
   latestSyncEndedAt?: string | null;
 };
 
-export type TodayFlowResponse = {
+export type DashboardFeedResponse = {
   dashboard: DailyDashboardResponse;
   news: NewsResponse;
   governmentBriefings: GovernmentBriefingResponse;
