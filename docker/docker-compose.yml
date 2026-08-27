@@ -3,7 +3,7 @@ services:
     image: mysql:8.4
     container_name: krw-watcher-mysql
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     environment:
       MYSQL_DATABASE: krw_watcher
       MYSQL_USER: krw_watcher
