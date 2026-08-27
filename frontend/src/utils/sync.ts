@@ -176,11 +176,11 @@ export function getSyncSkippedMessage(result: SyncResult) {
 }
 
 export function getServiceUpdateInterval(activeTab: MainTabKey) {
-  if (activeTab === 'todayFlow') {
+  if (activeTab === 'dashboard') {
     return '환율 15초 · 뉴스/정책 10분';
   }
 
-  if (activeTab === 'dashboard') {
+  if (activeTab === 'exchangeRate') {
     return '환율 1분봉 · 5분마다 확인';
   }
 

@@ -28,7 +28,7 @@ import { ExchangeProfitCalculator, HomePage as HomePageView } from './pages/Home
 import { KoreaStatusPage as KoreaStatusPageView } from './pages/KoreaStatusPage';
 import { NewsroomPage as NewsroomPageView } from './pages/NewsroomPage';
 import { ServiceGuidePage as ServiceGuidePageView } from './pages/ServiceGuidePage';
-import { TodayFlowPage as TodayFlowPageView } from './pages/TodayFlowPage';
+import { DashboardPage as DashboardPageView } from './pages/DashboardPage';
 import {
     buildVisibleDailySeries,
     buildVisibleUsdKrwCandles,
@@ -75,7 +75,7 @@ import type {
     RangeKey,
     ServiceStatusTone,
     SyncStatus,
-    TodayFlowResponse
+    DashboardFeedResponse
 } from './types';
 import { FadeIn } from './components/FadeIn';
 
@@ -101,11 +101,11 @@ const tabAdSlots = {
     calculator: import.meta.env.VITE_ADSENSE_SLOT_TAB_CALCULATOR,
     dashboard: import.meta.env.VITE_ADSENSE_SLOT_TAB_DASHBOARD,
     dataSources: import.meta.env.VITE_ADSENSE_SLOT_TAB_DATA_SOURCES,
+    exchangeRate: import.meta.env.VITE_ADSENSE_SLOT_TAB_EXCHANGE_GUIDE,
     governmentBriefings: import.meta.env.VITE_ADSENSE_SLOT_TAB_POLICY_BRIEFINGS,
     koreaStatus: import.meta.env.VITE_ADSENSE_SLOT_TAB_KOREA_STATUS,
     newsroom: import.meta.env.VITE_ADSENSE_SLOT_TAB_NEWSROOM,
-    ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING,
-    todayFlow: import.meta.env.VITE_ADSENSE_SLOT_TAB_TODAY_FLOW
+    ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING
 } satisfies Record<MainTabKey, string | undefined>;
 const bottomAdExcludedTabs = new Set<MainTabKey>(['todayFlow', 'newsroom', 'governmentBriefings', 'ranking', 'calculator']);
 const dollarIndexTabs = [
@@ -221,7 +221,7 @@ function App() {
         window.scrollTo({ top: 0, behavior: 'auto' });
     }, [navigatePage]);
 
-    const goDashboard = React.useCallback(() => navigatePage('todayFlow'), [navigatePage]);
+    const goDashboard = React.useCallback(() => navigatePage('dashboard'), [navigatePage]);
     const navigateMainTab = React.useCallback((tabKey: MainTabKey) => {
         setIsMobileMenuOpen(false);
         navigatePage(tabKey);
@@ -520,9 +520,9 @@ function App() {
         }
     }, [applyGovernmentBriefingResponse, governmentBriefingFilters, governmentBriefingsPage, selectedGovernmentBriefingCategory]);
 
-    const loadTodayFlow = React.useCallback(async () => {
+    const loadDashboardFeed = React.useCallback(async () => {
         try {
-            const response = await axios.get<TodayFlowResponse>('/api/v1/today-flow');
+            const response = await axios.get<DashboardFeedResponse>('/api/v1/today-flow');
             setDashboard(response.data.dashboard);
             setDashboardLoadState('ready');
             setDashboardErrorMessage(null);
@@ -577,18 +577,18 @@ function App() {
     }, [activePage, loadNews, newsArticles.length, newsFilters, selectedNewsCategory]);
 
     React.useEffect(() => {
-        if (activePage !== 'todayFlow') {
+        if (activePage !== 'dashboard') {
             return undefined;
         }
 
-        loadTodayFlow();
+        loadDashboardFeed();
 
         const contentTimer = window.setInterval(() => {
-            loadTodayFlow();
+            loadDashboardFeed();
         }, 600_000);
 
         return () => window.clearInterval(contentTimer);
-    }, [activePage, loadTodayFlow]);
+    }, [activePage, loadDashboardFeed]);
 
     React.useEffect(() => {
         if (activePage !== 'governmentBriefings') {
@@ -923,9 +923,9 @@ function App() {
                     </FadeIn>
                 ) : null}
 
-                {activePage === 'todayFlow' ? (
+                {activePage === 'dashboard' ? (
                     <FadeIn className="page-content-enter">
-                        <TodayFlowPageView
+                        <DashboardPageView
                             dashboard={dashboard}
                             dashboardEmptyText={dashboardEmptyText}
                             dashboardLoadState={dashboardLoadState}
@@ -1050,7 +1050,7 @@ function App() {
                     </FadeIn>
                 ) : null}
 
-                {activePage === 'dashboard' ? (
+                {activePage === 'exchangeRate' ? (
                     <FadeIn as="header" className="page-tab-header page-tab-header-no-divider page-content-enter">
                         <div className="relative min-w-0 md:col-span-2">
                             <p className="page-tab-eyebrow">FX DASHBOARD</p>
@@ -1060,7 +1060,7 @@ function App() {
                     </FadeIn>
                 ) : null}
 
-                {activePage === 'dashboard' ? (
+                {activePage === 'exchangeRate' ? (
                     <FadeIn as="section" className="page-content-enter grid gap-4" delay={0.1}>
                         <MarketChartSection
                             emptyText={dashboardEmptyText}

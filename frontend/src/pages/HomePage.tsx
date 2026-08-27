@@ -315,7 +315,7 @@ export function HomePage({ currencyStrengthRanks = [], onGoDashboard }: HomePage
                         <div className="mt-8 grid justify-items-center sm:mt-10">
                             <button
                                 className="home-primary-cta"
-                                onClick={() => onGoDashboard?.('todayFlow')}
+                                onClick={() => onGoDashboard?.('dashboard')}
                                 type="button"
                             >
                                 무료로 시작하기
