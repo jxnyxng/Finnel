@@ -17,7 +17,6 @@ import {
     UsdKrwCandlestickTooltip,
     UsdKrwTooltip
 } from './components/ChartElements';
-import { GoogleAdSlot, SideRailAd } from './components/AdSlot';
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
@@ -91,23 +90,6 @@ type CalculatorCurrencySelectOption = {
 };
 const pageRouteEntries = Object.entries(pageRoutes) as Array<[PageKey, string]>;
 const mainTabKeys = new Set<MainTabKey>(mainTabs.map((tab) => tab.key));
-const chartAdSlots = {
-    dollarIndexDesktop: import.meta.env.VITE_ADSENSE_SLOT_DOLLAR_INDEX_DESKTOP,
-    dollarIndexMobile: import.meta.env.VITE_ADSENSE_SLOT_DOLLAR_INDEX_MOBILE,
-    usdKrwDesktop: import.meta.env.VITE_ADSENSE_SLOT_USD_KRW_DESKTOP,
-    usdKrwMobile: import.meta.env.VITE_ADSENSE_SLOT_USD_KRW_MOBILE
-} satisfies Record<string, string | undefined>;
-const tabAdSlots = {
-    calculator: import.meta.env.VITE_ADSENSE_SLOT_TAB_CALCULATOR,
-    dashboard: import.meta.env.VITE_ADSENSE_SLOT_TAB_DASHBOARD,
-    dataSources: import.meta.env.VITE_ADSENSE_SLOT_TAB_DATA_SOURCES,
-    exchangeRate: import.meta.env.VITE_ADSENSE_SLOT_TAB_EXCHANGE_GUIDE,
-    governmentBriefings: import.meta.env.VITE_ADSENSE_SLOT_TAB_POLICY_BRIEFINGS,
-    koreaStatus: import.meta.env.VITE_ADSENSE_SLOT_TAB_KOREA_STATUS,
-    newsroom: import.meta.env.VITE_ADSENSE_SLOT_TAB_NEWSROOM,
-    ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING
-} satisfies Record<MainTabKey, string | undefined>;
-const bottomAdExcludedTabs = new Set<MainTabKey>(['dashboard', 'newsroom', 'governmentBriefings', 'ranking', 'calculator']);
 const dollarIndexTabs = [
     { key: 'advanced', label: '7개국' },
     { key: 'broad', label: '26개국' }
@@ -126,10 +108,6 @@ function normalizePath(pathname: string) {
 
 function getMainTabKey(page: PageKey): MainTabKey | null {
     return mainTabKeys.has(page as MainTabKey) ? page as MainTabKey : null;
-}
-
-function shouldRenderBottomAd(tabKey: MainTabKey) {
-    return !bottomAdExcludedTabs.has(tabKey);
 }
 
 function App() {
@@ -946,7 +924,6 @@ function App() {
                                     candlestickSeries={visibleUsdKrwCandles}
                                     chartAction={usdKrwChartDisplayControl}
                                     chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
-                                    desktopAdSlot={chartAdSlots.usdKrwDesktop}
                                     headerStatus={usdKrwRange === '1D' ? usdKrwStatusNode : null}
                                     helpAriaLabel="USD/KRW 그래프 안내"
                                     helpContent={(
@@ -960,7 +937,6 @@ function App() {
                                     lineStroke="#00C9A7"
                                     lineStrokeWidth={1.75}
                                     metric={usdKrwMetric}
-                                    mobileAdSlot={chartAdSlots.usdKrwMobile}
                                     onHoverChange={setActiveUsdKrwHover}
                                     onRangeChange={setUsdKrwRange}
                                     panelDetails={usdKrwPanelDetails}
@@ -993,7 +969,6 @@ function App() {
                                   <MarketChartSection
                                       compactLayout
                                       emptyText={dashboardEmptyText}
-                                      desktopAdSlot={chartAdSlots.dollarIndexDesktop}
                                       helpAriaLabel="달러인덱스 안내"
                                       helpContent={(
                                           <>
@@ -1008,7 +983,6 @@ function App() {
                                       keepHeaderSingleLineOnMobile
                                       helpDetails={activeDollarIndexHelpDetails}
                                       metric={activeDollarIndexMetric}
-                                      mobileAdSlot={chartAdSlots.dollarIndexMobile}
                                       chartAction={activeDollarIndexHeaderAction}
                                       onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
                                       onRangeChange={(range) => {
@@ -1067,7 +1041,6 @@ function App() {
                             candlestickSeries={visibleUsdKrwCandles}
                             chartAction={usdKrwChartDisplayControl}
                             chartVariant={showUsdKrwCandlesticks ? 'candlestick' : 'line'}
-                            desktopAdSlot={chartAdSlots.usdKrwDesktop}
                             headerStatus={usdKrwRange === '1D' ? usdKrwStatusNode : null}
                             helpAriaLabel="USD/KRW 그래프 안내"
                             helpContent={(
@@ -1081,7 +1054,6 @@ function App() {
                             lineStroke="#00C9A7"
                             lineStrokeWidth={1.75}
                             metric={usdKrwMetric}
-                            mobileAdSlot={chartAdSlots.usdKrwMobile}
                             onHoverChange={setActiveUsdKrwHover}
                             onRangeChange={setUsdKrwRange}
                             panelDetails={usdKrwPanelDetails}
@@ -1111,7 +1083,6 @@ function App() {
 
                         <MarketChartSection
                             emptyText={dashboardEmptyText}
-                            desktopAdSlot={chartAdSlots.dollarIndexDesktop}
                             helpAriaLabel="달러인덱스 안내"
                             helpContent={(
                                 <>
@@ -1128,7 +1099,6 @@ function App() {
                             keepHeaderSingleLineOnMobile
                             helpDetails={activeDollarIndexHelpDetails}
                             metric={activeDollarIndexMetric}
-                            mobileAdSlot={chartAdSlots.dollarIndexMobile}
                             headerAction={activeDollarIndexHeaderAction}
                             headerActionPlacement="chartControls"
                             onHoverChange={showBroadDollarIndex ? setActiveBroadDollarHover : setActiveAdvancedDollarHover}
@@ -1183,7 +1153,6 @@ function App() {
                             emptyMessage={dashboardEmptyText}
                             isLoading={isInitialDashboardLoading}
                             ranks={currencyStrengthRanks}
-                            sideAdSlot={tabAdSlots.ranking}
                         />
                     </FadeIn>
                 ) : null}
@@ -1202,7 +1171,6 @@ function App() {
                             onLoadMore={changeNewsPage}
                             page={newsPage}
                             selectedCategory={selectedNewsCategory}
-                            sideAdSlot={import.meta.env.VITE_ADSENSE_SLOT_NEWSROOM_IN_FEED}
                             totalCount={newsTotalCount}
                             totalPages={newsTotalPages}
                         />
@@ -1223,7 +1191,6 @@ function App() {
                             onLoadMore={changeGovernmentBriefingsPage}
                             page={governmentBriefingsPage}
                             selectedCategory={selectedGovernmentBriefingCategory}
-                            sideAdSlot={import.meta.env.VITE_ADSENSE_SLOT_POLICY_BRIEFINGS_IN_FEED}
                             totalCount={governmentBriefingsTotalCount}
                             totalPages={governmentBriefingsTotalPages}
                         />
@@ -1246,18 +1213,7 @@ function App() {
                     <CalculatorPage
                         calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
                         rates={foreignExchangeRates}
-                        sideAdSlot={tabAdSlots.calculator}
                     />
-                ) : null}
-
-                {activeMainTabKey && shouldRenderBottomAd(activeMainTabKey) ? (
-                    <FadeIn as="section" className="page-content-enter" delay={0.2}>
-                        <GoogleAdSlot
-                            className="w-full"
-                            minHeightClassName="min-h-28 sm:min-h-32"
-                            slot={tabAdSlots[activeMainTabKey] ?? import.meta.env.VITE_ADSENSE_SLOT_TAB_DEFAULT}
-                        />
-                    </FadeIn>
                 ) : null}
 
             </section>
@@ -1466,12 +1422,10 @@ function shouldIgnoreTabSwipe(target: EventTarget | null) {
 
 function CalculatorPage({
                             calculatorMeta,
-                            rates,
-                            sideAdSlot
+                            rates
                         }: {
     calculatorMeta?: DailyDashboardResponse['exchangeRateCalculator'] | null;
     rates: ForeignExchangeRate[];
-    sideAdSlot?: string;
 }) {
     const layoutRef = React.useRef<HTMLDivElement | null>(null);
     const [layoutHeight, setLayoutHeight] = React.useState<number | null>(null);
@@ -1513,8 +1467,7 @@ function CalculatorPage({
                 </div>
             </FadeIn>
 
-            <div className="side-ad-layout side-ad-layout-calculator">
-                <SideRailAd slot={sideAdSlot} />
+            <div>
                 <div
                     className="calculator-tab-layout calculator-split-layout mx-auto grid w-full max-w-[76rem] min-w-0 gap-4 xl:grid-cols-[minmax(16rem,0.6fr)_minmax(34rem,1.4fr)] xl:items-stretch"
                     ref={layoutRef}
@@ -1549,7 +1502,6 @@ function CalculatorPage({
                         />
                     </aside>
                 </div>
-                <SideRailAd slot={sideAdSlot} />
             </div>
         </section>
     );

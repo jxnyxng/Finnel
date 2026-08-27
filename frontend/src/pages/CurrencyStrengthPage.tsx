@@ -1,7 +1,6 @@
 import React from 'react';
 import { FadeIn } from '../components/FadeIn';
 import { ChartHelpTooltip } from '../components/ChartElements';
-import { SideRailAd } from '../components/AdSlot';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import { koreanRegionNames, specialAreaDisplays } from '../constants';
 import type { CurrencyStrengthRank } from '../types';
@@ -10,13 +9,11 @@ import { formatValue } from '../utils/format';
 export function CurrencyStrengthPage({
                                          emptyMessage = '표시할 통화 랭킹 데이터가 없습니다.',
                                          isLoading = false,
-                                         ranks,
-                                         sideAdSlot
+                                         ranks
                                      }: {
     emptyMessage?: string;
     isLoading?: boolean;
     ranks: CurrencyStrengthRank[];
-    sideAdSlot?: string;
 }) {
     const [sortMode, setSortMode] = React.useState<'strong' | 'weak'>('strong');
     const sortModeKeys = React.useMemo(() => ['strong', 'weak'] as const, []);
@@ -90,8 +87,7 @@ export function CurrencyStrengthPage({
                 </FadeIn>
             ) : (
                 <>
-                    <FadeIn delay={0.1} className="side-ad-layout side-ad-layout-narrow pt-1.5">
-                        <SideRailAd slot={sideAdSlot} />
+                    <FadeIn delay={0.1} className="pt-1.5">
                         <div className="grid min-w-0 gap-2">
                             <div className="mx-auto grid w-full max-w-[62rem] gap-2">
                                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -237,7 +233,6 @@ export function CurrencyStrengthPage({
                                 })}
                             </div>
                         </div>
-                        <SideRailAd slot={sideAdSlot} />
                     </FadeIn>
                 </>
             )}

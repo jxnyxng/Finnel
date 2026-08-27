@@ -17,7 +17,6 @@ import {
   RangeSelector,
   getActiveChartHover
 } from './ChartElements';
-import { GoogleAdSlot } from './AdSlot';
 
 type RangeSelectorOption<T extends RangeKey> = {
   key: T;
@@ -83,8 +82,6 @@ type MarketChartSectionProps<T extends RangeKey> = {
   showLatestValueDot?: boolean;
   showExtremaLines?: boolean;
   showLoadingOverlay?: boolean;
-  desktopAdSlot?: string;
-  mobileAdSlot?: string;
   compactLayout?: boolean;
   footerContent?: ReactNode;
 };
@@ -114,8 +111,6 @@ export function MarketChartSection<T extends RangeKey>({
   showLatestValueDot = false,
   showExtremaLines = false,
   showLoadingOverlay = false,
-  desktopAdSlot,
-  mobileAdSlot,
   compactLayout = false,
   footerContent,
   plotLeft,
@@ -525,12 +520,6 @@ export function MarketChartSection<T extends RangeKey>({
   const collectionStatusDetails = collectionStatusSummary.filter((item) => item.label !== '수집' && item.label !== '점검');
   const compactPanelDetails = getCompactPanelDetails(panelDetails);
   const panelInfoDetails = [...collectionStatusDetails, ...compactPanelDetails];
-  const renderAdSlot = () => (
-    <GoogleAdSlot minHeightClassName="min-h-24" slot={desktopAdSlot} />
-  );
-  const renderMobileAdSlot = () => (
-    <GoogleAdSlot minHeightClassName="min-h-28" slot={mobileAdSlot ?? desktopAdSlot} />
-  );
   const headerStatusBox = headerStatus ? (
     <div className="rounded-xl border border-white/15 bg-black/15 px-3 py-2">
       {headerStatus}
@@ -894,7 +883,6 @@ export function MarketChartSection<T extends RangeKey>({
                 </dl>
                 {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
               </div>
-              {renderAdSlot()}
             </aside>
 
             <div className={`glass-subcard order-3 min-w-0 rounded-2xl p-2.5 lg:hidden ${compactLayout ? 'hidden' : ''}`}>
@@ -912,9 +900,6 @@ export function MarketChartSection<T extends RangeKey>({
                 ))}
               </dl>
               {panelFooterText ? <p className="mt-4 text-xs text-white/55">{panelFooterText}</p> : null}
-            </div>
-            <div className={`order-4 lg:hidden ${compactLayout ? 'hidden' : ''}`}>
-              {renderMobileAdSlot()}
             </div>
           </div>
           {footerContent ? <div className="chart-card-footer-content">{footerContent}</div> : null}

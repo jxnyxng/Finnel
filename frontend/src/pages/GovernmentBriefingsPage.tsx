@@ -1,6 +1,5 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { SideRailAd } from '../components/AdSlot';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { GovernmentBriefingArticle, GovernmentBriefingCategory, GovernmentBriefingFilters } from '../types';
@@ -16,7 +15,6 @@ type GovernmentBriefingsPageProps = {
     filters: GovernmentBriefingFilters;
     isLoading: boolean;
     isPendingInitialLoad?: boolean;
-    sideAdSlot?: string;
     page: number;
     selectedCategory: string;
     totalCount: number;
@@ -38,7 +36,6 @@ export function GovernmentBriefingsPage({
                                             onLoadMore,
                                             page,
                                             selectedCategory,
-                                            sideAdSlot,
                                             totalCount,
                                             totalPages
                                         }: GovernmentBriefingsPageProps) {
@@ -219,8 +216,7 @@ export function GovernmentBriefingsPage({
             </FadeIn>
 
             {/* 4. 정책 리스트 컨테이너: 0.3초 등장 */}
-            <FadeIn as="section" className="side-ad-layout side-ad-layout-wide" delay={0.3}>
-                <SideRailAd slot={sideAdSlot} />
+            <FadeIn as="section" delay={0.3}>
                 <div className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
                     <div className="mb-2 flex justify-end px-1 text-[11px] font-semibold text-white/45">
                         {selectedCategoryCount}건
@@ -268,7 +264,6 @@ export function GovernmentBriefingsPage({
                         totalPages={totalPages}
                     />
                 </div>
-                <SideRailAd slot={sideAdSlot} />
             </FadeIn>
 
             <GovernmentBriefingModal

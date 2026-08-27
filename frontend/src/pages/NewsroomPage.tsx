@@ -1,6 +1,5 @@
 import React from 'react';
 import axios from 'axios';
-import { SideRailAd } from '../components/AdSlot';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { NewsArticle, NewsCategory, NewsFilters } from '../types';
@@ -13,7 +12,6 @@ type NewsroomPageProps = {
     filters: NewsFilters;
     isLoading: boolean;
     isPendingInitialLoad?: boolean;
-    sideAdSlot?: string;
     page: number;
     selectedCategory: string;
     totalCount: number;
@@ -34,7 +32,6 @@ export function NewsroomPage({
                                  selectedCategory,
                                  totalCount,
                                  totalPages,
-                                 sideAdSlot,
                                  onCategoryChange,
                                  onFiltersApply,
                                  onLoadMore
@@ -214,8 +211,7 @@ export function NewsroomPage({
             </FadeIn>
 
             {/* 4. 뉴스 리스트 섹션: 0.3초 등장 */}
-            <FadeIn as="section" delay={0.3} className="side-ad-layout side-ad-layout-narrow">
-                <SideRailAd slot={sideAdSlot} />
+            <FadeIn as="section" delay={0.3}>
                 <div className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
                     <div className="mb-2 flex justify-end px-1 text-[11px] font-semibold text-white/45">
                         {selectedCategoryCount}건
@@ -256,7 +252,6 @@ export function NewsroomPage({
                         totalPages={totalPages}
                     />
                 </div>
-                <SideRailAd slot={sideAdSlot} />
             </FadeIn>
         </section>
     );

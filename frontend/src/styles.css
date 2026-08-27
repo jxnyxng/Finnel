@@ -2336,64 +2336,6 @@ body,
   margin-right: clamp(0.65rem, 1.8vw, 1.55rem);
 }
 
-.side-ad-layout {
-  display: grid;
-  gap: clamp(0.75rem, 1.1vw, 1rem);
-  grid-template-columns: minmax(0, 1fr);
-  margin-left: auto;
-  margin-right: auto;
-  max-width: min(100%, 92rem);
-  width: 100%;
-}
-
-.news-tab-shell > .side-ad-layout,
-.standard-tab-shell > .side-ad-layout {
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.side-rail-ad {
-  align-self: start;
-}
-
-.side-rail-ad .chart-ad-slot {
-  border-radius: 0.75rem;
-}
-
-@media (min-width: 1024px) {
-  .side-ad-layout {
-    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 60rem) minmax(6rem, 0.8fr);
-  }
-
-  .side-ad-layout-narrow {
-    max-width: min(100%, 80rem);
-  }
-
-  .side-ad-layout-wide {
-    max-width: min(100%, 88rem);
-    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 64rem) minmax(6rem, 0.8fr);
-  }
-
-  .side-ad-layout-calculator {
-    grid-template-columns: minmax(6rem, 0.8fr) minmax(0, 76rem) minmax(6rem, 0.8fr);
-    max-width: min(100%, 92rem);
-  }
-}
-
-@media (min-width: 1536px) {
-  .side-ad-layout {
-    grid-template-columns: minmax(9rem, 1fr) minmax(0, 66rem) minmax(9rem, 1fr);
-  }
-
-  .side-ad-layout-wide {
-    grid-template-columns: minmax(9rem, 1fr) minmax(0, 70rem) minmax(9rem, 1fr);
-  }
-
-  .side-ad-layout-calculator {
-    grid-template-columns: minmax(8.5rem, 1fr) minmax(0, 76rem) minmax(8.5rem, 1fr);
-  }
-}
-
 .calculator-tab-layout {
   align-items: stretch;
 }
