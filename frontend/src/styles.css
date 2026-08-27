@@ -2359,6 +2359,12 @@ body,
   width: 100%;
 }
 
+.news-tab-shell > .side-ad-layout,
+.standard-tab-shell > .side-ad-layout {
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .side-rail-ad {
   align-self: start;
 }
