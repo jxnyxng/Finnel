@@ -1,6 +1,6 @@
 import React from 'react';
 import axios from 'axios';
-import { GoogleAdSlot } from '../components/AdSlot';
+import { SideRailAd } from '../components/AdSlot';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { NewsArticle, NewsCategory, NewsFilters } from '../types';
@@ -13,7 +13,7 @@ type NewsroomPageProps = {
     filters: NewsFilters;
     isLoading: boolean;
     isPendingInitialLoad?: boolean;
-    inFeedAdSlot?: string;
+    sideAdSlot?: string;
     page: number;
     selectedCategory: string;
     totalCount: number;
@@ -28,13 +28,13 @@ export function NewsroomPage({
                                  categories,
                                  configured,
                                  filters,
-                                 inFeedAdSlot,
                                  isLoading,
                                  isPendingInitialLoad = false,
                                  page,
                                  selectedCategory,
                                  totalCount,
                                  totalPages,
+                                 sideAdSlot,
                                  onCategoryChange,
                                  onFiltersApply,
                                  onLoadMore
@@ -214,59 +214,51 @@ export function NewsroomPage({
             </FadeIn>
 
             {/* 4. 뉴스 리스트 섹션: 0.3초 등장 */}
-            <FadeIn as="section" delay={0.3} className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
-                <div className="mb-2 flex justify-end px-1 text-[11px] font-semibold text-white/45">
-                    {selectedCategoryCount}건
-                </div>
-                {!configured ? (
-                    <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
-                ) : isLoading && articles.length === 0 ? (
-                    <div className="grid min-h-40 place-items-center text-sm text-white/45">뉴스를 불러오는 중입니다.</div>
-                ) : isPendingInitialLoad ? (
-                    <div className="min-h-40" />
-                ) : articles.length === 0 ? (
-                    <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 뉴스가 없습니다.</div>
-                ) : (
-                    <div className={`${hasEnteredPage ? 'content-smooth-refresh' : 'news-list-enter'} grid min-w-0 gap-2.5 lg:grid-cols-2 sm:gap-3`} key={articleListKey}>
-                        {articles.map((article, index) => {
-                            const isInitialPageItem = index < 10;
-                            const cardElement = <NewsArticleCard article={article} />;
-                            const shouldRenderAdAfterCard = index === 3 || (articles.length >= 10 && index === 7);
-
-                            return (
-                                <React.Fragment key={`${article.categoryCode}-${article.link}`}>
-                                    {isInitialPageItem && !hasEnteredPage ? (
-                                        <FadeIn delay={0.35 + (index % 10) * 0.04}>
-                                            {cardElement}
-                                        </FadeIn>
-                                    ) : (
-                                        cardElement
-                                    )}
-                                    {shouldRenderAdAfterCard ? <NewsInFeedAd slot={inFeedAdSlot} /> : null}
-                                </React.Fragment>
-                            );
-                        })}
+            <FadeIn as="section" delay={0.3} className="side-ad-layout side-ad-layout-narrow">
+                <SideRailAd slot={sideAdSlot} />
+                <div className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
+                    <div className="mb-2 flex justify-end px-1 text-[11px] font-semibold text-white/45">
+                        {selectedCategoryCount}건
                     </div>
-                )}
-                <NewsPagination
-                    currentPage={page}
-                    hasItems={articles.length > 0}
-                    isLoading={isLoading}
-                    onPageChange={onLoadMore}
-                    totalPages={totalPages}
-                />
+                    {!configured ? (
+                        <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
+                    ) : isLoading && articles.length === 0 ? (
+                        <div className="grid min-h-40 place-items-center text-sm text-white/45">뉴스를 불러오는 중입니다.</div>
+                    ) : isPendingInitialLoad ? (
+                        <div className="min-h-40" />
+                    ) : articles.length === 0 ? (
+                        <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 뉴스가 없습니다.</div>
+                    ) : (
+                        <div className={`${hasEnteredPage ? 'content-smooth-refresh' : 'news-list-enter'} grid min-w-0 gap-2.5 lg:grid-cols-2 sm:gap-3`} key={articleListKey}>
+                            {articles.map((article, index) => {
+                                const isInitialPageItem = index < 10;
+                                const cardElement = <NewsArticleCard article={article} />;
+
+                                return (
+                                    <React.Fragment key={`${article.categoryCode}-${article.link}`}>
+                                        {isInitialPageItem && !hasEnteredPage ? (
+                                            <FadeIn delay={0.35 + (index % 10) * 0.04}>
+                                                {cardElement}
+                                            </FadeIn>
+                                        ) : (
+                                            cardElement
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <NewsPagination
+                        currentPage={page}
+                        hasItems={articles.length > 0}
+                        isLoading={isLoading}
+                        onPageChange={onLoadMore}
+                        totalPages={totalPages}
+                    />
+                </div>
+                <SideRailAd slot={sideAdSlot} />
             </FadeIn>
         </section>
-    );
-}
-
-function NewsInFeedAd({ slot }: { slot?: string }) {
-    return (
-        <GoogleAdSlot
-            className="lg:col-span-2"
-            minHeightClassName="min-h-28 sm:min-h-32"
-            slot={slot}
-        />
     );
 }
 

@@ -2349,6 +2349,49 @@ body,
   margin-right: clamp(0.65rem, 1.8vw, 1.55rem);
 }
 
+.side-ad-layout {
+  display: grid;
+  gap: clamp(0.75rem, 1.1vw, 1rem);
+  grid-template-columns: minmax(0, 1fr);
+  margin-left: auto;
+  margin-right: auto;
+  max-width: min(100%, 92rem);
+  width: 100%;
+}
+
+.side-rail-ad {
+  align-self: start;
+}
+
+.side-rail-ad .chart-ad-slot {
+  border-radius: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .side-ad-layout {
+    grid-template-columns: 9.5rem minmax(0, 1fr) 9.5rem;
+  }
+
+  .side-ad-layout-wide {
+    max-width: min(100%, 94rem);
+  }
+
+  .side-ad-layout-calculator {
+    grid-template-columns: 8.5rem minmax(0, 76rem) 8.5rem;
+    max-width: min(100%, 96rem);
+  }
+}
+
+@media (min-width: 1536px) {
+  .side-ad-layout {
+    grid-template-columns: 10rem minmax(0, 1fr) 10rem;
+  }
+
+  .side-ad-layout-calculator {
+    grid-template-columns: 9.5rem minmax(0, 76rem) 9.5rem;
+  }
+}
+
 .calculator-tab-layout {
   align-items: stretch;
 }

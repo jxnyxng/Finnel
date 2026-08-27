@@ -1,6 +1,7 @@
 import React from 'react';
 import { FadeIn } from '../components/FadeIn';
 import { ChartHelpTooltip } from '../components/ChartElements';
+import { SideRailAd } from '../components/AdSlot';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import { koreanRegionNames, specialAreaDisplays } from '../constants';
 import type { CurrencyStrengthRank } from '../types';
@@ -9,11 +10,13 @@ import { formatValue } from '../utils/format';
 export function CurrencyStrengthPage({
                                          emptyMessage = '표시할 통화 랭킹 데이터가 없습니다.',
                                          isLoading = false,
-                                         ranks
+                                         ranks,
+                                         sideAdSlot
                                      }: {
     emptyMessage?: string;
     isLoading?: boolean;
     ranks: CurrencyStrengthRank[];
+    sideAdSlot?: string;
 }) {
     const [sortMode, setSortMode] = React.useState<'strong' | 'weak'>('strong');
     const sortModeKeys = React.useMemo(() => ['strong', 'weak'] as const, []);
@@ -87,72 +90,71 @@ export function CurrencyStrengthPage({
                 </FadeIn>
             ) : (
                 <>
-                    {/* 2. 컨트롤 영역: 0.1초 등장 */}
-                    <FadeIn delay={0.1} className="pt-1.5">
-                        <div className="mx-auto grid w-full max-w-[62rem] gap-2">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <p className="min-w-0 text-xs font-medium text-zinc-500">
-                                        전체 {sortedRanks.length}개 지역 · {sortMode === 'strong' ? '강세 순 정렬' : '약세 순 정렬'}
-                                    </p>
-                                    <ChartHelpTooltip ariaLabel="화폐랭킹 안내" title="화폐랭킹 기준" widthClassName="w-80">
-                                        {rankingHelpContent}
-                                    </ChartHelpTooltip>
-                                </div>
-                                <div
-                                    className="relative grid h-8 grid-cols-2 overflow-hidden rounded-full border border-zinc-200 bg-white p-0.5"
-                                    ref={sortModeContainerRef}>
-                                    <MovingTabIndicator compact contained indicator={sortModeIndicator}
-                                                        isMoving={isSortModeIndicatorMoving}/>
-                                    <button
-                                        className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${activeSortModeLabelKey === 'strong' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
-                                        onClick={() => {
-                                            if (sortMode !== 'strong') {
-                                                startSortModeIndicatorMoving();
-                                            }
-                                            setSortMode('strong');
-                                        }}
-                                        ref={(node) => {
-                                            sortModeButtonRefs.current.strong = node;
-                                        }}
-                                        type="button"
-                                    >
-                                        강세순
-                                    </button>
-                                    <button
-                                        className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${activeSortModeLabelKey === 'weak' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
-                                        onClick={() => {
-                                            if (sortMode !== 'weak') {
-                                                startSortModeIndicatorMoving();
-                                            }
-                                            setSortMode('weak');
-                                        }}
-                                        ref={(node) => {
-                                            sortModeButtonRefs.current.weak = node;
-                                        }}
-                                        type="button"
-                                    >
-                                        약세순
-                                    </button>
+                    <FadeIn delay={0.1} className="side-ad-layout side-ad-layout-narrow pt-1.5">
+                        <SideRailAd slot={sideAdSlot} />
+                        <div className="grid min-w-0 gap-2">
+                            <div className="mx-auto grid w-full max-w-[62rem] gap-2">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <p className="min-w-0 text-xs font-medium text-zinc-500">
+                                            전체 {sortedRanks.length}개 지역 · {sortMode === 'strong' ? '강세 순 정렬' : '약세 순 정렬'}
+                                        </p>
+                                        <ChartHelpTooltip ariaLabel="화폐랭킹 안내" title="화폐랭킹 기준" widthClassName="w-80">
+                                            {rankingHelpContent}
+                                        </ChartHelpTooltip>
+                                    </div>
+                                    <div
+                                        className="relative grid h-8 grid-cols-2 overflow-hidden rounded-full border border-zinc-200 bg-white p-0.5"
+                                        ref={sortModeContainerRef}>
+                                        <MovingTabIndicator compact contained indicator={sortModeIndicator}
+                                                            isMoving={isSortModeIndicatorMoving}/>
+                                        <button
+                                            className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${activeSortModeLabelKey === 'strong' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
+                                            onClick={() => {
+                                                if (sortMode !== 'strong') {
+                                                    startSortModeIndicatorMoving();
+                                                }
+                                                setSortMode('strong');
+                                            }}
+                                            ref={(node) => {
+                                                sortModeButtonRefs.current.strong = node;
+                                            }}
+                                            type="button"
+                                        >
+                                            강세순
+                                        </button>
+                                        <button
+                                            className={`relative z-10 h-7 min-w-14 rounded-full px-3 text-[11px] font-semibold ${activeSortModeLabelKey === 'weak' ? 'moving-tab-active-label' : 'text-zinc-500 hover:text-zinc-950'}`}
+                                            onClick={() => {
+                                                if (sortMode !== 'weak') {
+                                                    startSortModeIndicatorMoving();
+                                                }
+                                                setSortMode('weak');
+                                            }}
+                                            ref={(node) => {
+                                                sortModeButtonRefs.current.weak = node;
+                                            }}
+                                            type="button"
+                                        >
+                                            약세순
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </FadeIn>
 
-                    <div className="mx-auto grid w-full max-w-[62rem] gap-2" key={animationKey}>
-                        {sortedRanks.map((rank, index) => {
-                            const display = getAreaDisplay(rank.areaCode, rank.areaName);
-                            const valuePosition = getScalePosition(rank.neerValue, minNeer, maxNeer);
-                            const strengthScore = getStrengthScore(rank.neerValue, minNeer, maxNeer);
-                            const previousStrengthScore = rank.previousNeerValue === null ? null : getStrengthScore(rank.previousNeerValue, minNeer, maxNeer);
-                            const scoreChange = previousStrengthScore === null ? null : strengthScore - previousStrengthScore;
-                            const isWeak = rank.neerValue < 100;
-                            const isKorea = rank.areaCode === 'KR';
-                            const rankMovement = getRankMovement(rank, sortMode);
+                            <div className="mx-auto grid w-full max-w-[62rem] gap-2" key={animationKey}>
+                                {sortedRanks.map((rank, index) => {
+                                    const display = getAreaDisplay(rank.areaCode, rank.areaName);
+                                    const valuePosition = getScalePosition(rank.neerValue, minNeer, maxNeer);
+                                    const strengthScore = getStrengthScore(rank.neerValue, minNeer, maxNeer);
+                                    const previousStrengthScore = rank.previousNeerValue === null ? null : getStrengthScore(rank.previousNeerValue, minNeer, maxNeer);
+                                    const scoreChange = previousStrengthScore === null ? null : strengthScore - previousStrengthScore;
+                                    const isWeak = rank.neerValue < 100;
+                                    const isKorea = rank.areaCode === 'KR';
+                                    const rankMovement = getRankMovement(rank, sortMode);
 
-                            // 3. 리스트 영역: 0.15초부터 0.05초 간격으로 순차 등장 (스태거 효과)
-                            return (
-                                <FadeIn key={rank.areaCode} delay={0.24 + index * 0.05}>
+                                    return (
+                                        <FadeIn key={rank.areaCode} delay={0.24 + index * 0.05}>
                                     <article
                                         className={`glass-list-card rounded-2xl px-3 py-2.5 shadow-sm sm:py-3 ${
                                             isKorea ? 'ring-2 ring-teal-300/55' : ''
@@ -230,10 +232,13 @@ export function CurrencyStrengthPage({
                                             </div>
                                         </div>
                                     </article>
-                                </FadeIn>
-                            );
-                        })}
-                    </div>
+                                        </FadeIn>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <SideRailAd slot={sideAdSlot} />
+                    </FadeIn>
                 </>
             )}
         </section>
