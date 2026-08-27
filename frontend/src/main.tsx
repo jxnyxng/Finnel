@@ -107,7 +107,7 @@ const tabAdSlots = {
     ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING,
     todayFlow: import.meta.env.VITE_ADSENSE_SLOT_TAB_TODAY_FLOW
 } satisfies Record<MainTabKey, string | undefined>;
-const bottomAdExcludedTabs = new Set<MainTabKey>(['dashboard', 'newsroom', 'governmentBriefings', 'ranking', 'calculator']);
+const bottomAdExcludedTabs = new Set<MainTabKey>(['todayFlow', 'newsroom', 'governmentBriefings', 'ranking', 'calculator']);
 const dollarIndexTabs = [
     { key: 'advanced', label: '7개국' },
     { key: 'broad', label: '26개국' }
