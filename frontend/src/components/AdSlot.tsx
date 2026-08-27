@@ -92,11 +92,17 @@ export function GoogleAdSlot({ className = '', minHeightClassName, slot }: Googl
 export function SideRailAd({ slot }: { slot?: string }) {
   return (
     <aside className="side-rail-ad hidden xl:block" aria-label="광고">
-      <GoogleAdSlot
-        className="w-full"
-        minHeightClassName="min-h-72"
-        slot={slot}
-      />
+      {slot ? (
+        <GoogleAdSlot
+          className="w-full"
+          minHeightClassName="min-h-72"
+          slot={slot}
+        />
+      ) : (
+        <div className="chart-ad-slot relative grid min-h-72 w-full place-items-center overflow-hidden rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-[10px] font-semibold uppercase tracking-normal text-zinc-400">
+          광고
+        </div>
+      )}
     </aside>
   );
 }
