@@ -24,7 +24,7 @@ export function FadeIn({
             style={{
                 ...style,
                 opacity: 0,
-                animation: `todayFlowFadeInUp ${duration}s ease-out ${delay}s forwards`
+                animation: `dashboardFadeInUp ${duration}s ease-out ${delay}s forwards`
             }}
         >
             {/*
@@ -32,7 +32,7 @@ export function FadeIn({
         아래 <style> 태그 부분은 지우셔도 됩니다.
       */}
             <style>{`
-        @keyframes todayFlowFadeInUp {
+        @keyframes dashboardFadeInUp {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }

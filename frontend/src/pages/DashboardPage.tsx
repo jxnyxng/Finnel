@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import { formatValue } from '../utils/format';
 
-type TodayFlowPageProps = {
+type DashboardPageProps = {
     dashboard: DailyDashboardResponse | null;
     dashboardEmptyText: string;
     dashboardLoadState: 'idle' | 'loading' | 'ready' | 'error';
@@ -77,7 +77,7 @@ function useDashboardScrollShadow<T extends HTMLElement>(dependencyKey: unknown)
     return { ref, shadowClassName };
 }
 
-export function TodayFlowPage({
+export function DashboardPage({
                                   dashboard,
                                   dashboardEmptyText,
                                   dashboardLoadState,
@@ -88,7 +88,7 @@ export function TodayFlowPage({
                                   newsConfigured,
                                   chartSupplement,
                                   usdKrwChart
-                              }: TodayFlowPageProps) {
+                              }: DashboardPageProps) {
     const majorIndicatorChanges = getMajorIndicatorChanges(dashboard?.domesticIndicators ?? []);
     const latestNews = React.useMemo(() => sortByRecent(newsArticles).slice(0, 9), [newsArticles]);
     const importantNews = React.useMemo(() => getImportantRecentNews(newsArticles, 8), [newsArticles]);
@@ -100,14 +100,14 @@ export function TodayFlowPage({
     // 애니메이션용 인라인 스타일 헬퍼
     const fadeUpStyle = (delay: string) => ({
         opacity: 0,
-        animation: `todayFlowFadeInUp 0.32s ease-out ${delay}s forwards`
+        animation: `dashboardFadeInUp 0.32s ease-out ${delay}s forwards`
     });
 
     return (
         <section className="grid min-w-0 gap-3">
             {/* CSS Keyframes (의존성 없이 작동하도록 내부 주입) */}
             <style>{`
-        @keyframes todayFlowFadeInUp {
+        @keyframes dashboardFadeInUp {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }

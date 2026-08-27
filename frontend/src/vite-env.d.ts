@@ -12,7 +12,6 @@ interface ImportMetaEnv {
   readonly VITE_ADSENSE_SLOT_TAB_NEWSROOM?: string;
   readonly VITE_ADSENSE_SLOT_TAB_POLICY_BRIEFINGS?: string;
   readonly VITE_ADSENSE_SLOT_TAB_RANKING?: string;
-  readonly VITE_ADSENSE_SLOT_TAB_TODAY_FLOW?: string;
   readonly VITE_ADSENSE_SLOT_NEWSROOM_IN_FEED?: string;
   readonly VITE_ADSENSE_SLOT_POLICY_BRIEFINGS_IN_FEED?: string;
   readonly VITE_ADSENSE_SLOT_USD_KRW_DESKTOP?: string;
