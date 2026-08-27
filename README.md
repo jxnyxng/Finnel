@@ -87,6 +87,11 @@ Before production deploy:
 - Run the backend JVM with `-Duser.timezone=Asia/Seoul`; for systemd, set `Environment="JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul"`.
 - Set `SYNC_ADMIN_TOKEN`; leave `SYNC_ALLOWED_INTERNAL_CIDRS` empty unless the runtime network path is trusted.
 - Set `CORS_ALLOWED_ORIGINS` to the production frontend origin.
+- Keep `SERVER_ADDRESS=127.0.0.1` so Spring Boot is reachable only through the local Nginx proxy.
+- Keep the Docker MySQL port bound to `127.0.0.1:3306:3306`; do not expose MySQL directly to the internet.
+- Confirm the EC2 security group exposes only HTTP 80 and, after SSL is configured, HTTPS 443. Restrict SSH 22 to your current public IP `/32`; do not expose backend 8080 or MySQL 3306 publicly.
+- Set `backend/.env` permissions to owner-only, for example `chmod 600 backend/.env`, on the production host.
+- Verify public frontend bundles and HTTP responses do not contain backend API keys, `SYNC_ADMIN_TOKEN`, database credentials, or other secrets. Rotate any key that appeared in GitHub, chat, terminal logs, or a public bundle.
 - Check `/actuator/health`, `/api/v1/dashboard/daily`, `/api/v1/sync/market-data/status`, and `/api/v1/sync/intraday-exchange/status` after deploy.
 
 ## Work Memory
