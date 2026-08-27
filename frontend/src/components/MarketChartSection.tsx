@@ -589,6 +589,11 @@ export function MarketChartSection<T extends RangeKey>({
                 ) : null}
               </div>
             </div>
+            {statusText && statusTextPlacement === 'belowTitle' ? (
+              <p className={`min-w-0 break-keep text-left text-xs leading-5 ${statusClassName}`}>
+                {statusText}
+              </p>
+            ) : null}
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 <h2 className={`current-market-value min-w-0 break-words font-semibold leading-none tracking-normal ${compactLayout ? 'text-[1.35rem] sm:text-2xl' : 'text-[1.85rem] sm:text-4xl'} ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>
