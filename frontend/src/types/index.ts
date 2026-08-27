@@ -35,6 +35,7 @@ export type ChartCandlestickPoint = {
 export type DollarIndexStatus = {
   latestBaseDate: string | null;
   fetchedAt: string | null;
+  nextReleaseDate: string | null;
 };
 
 export type IntradayTimeSeriesPoint = {

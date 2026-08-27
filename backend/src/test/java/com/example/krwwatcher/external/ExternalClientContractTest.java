@@ -3,6 +3,7 @@ package com.example.krwwatcher.external;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -279,6 +280,41 @@ class ExternalClientContractTest {
         FetchResult<FredClient.FredObservationPayload> result = FredClient.parseObservations("{\"observations\":[]}");
 
         assertThat(result.status()).isEqualTo(FetchStatus.SUCCESS_EMPTY);
+    }
+
+    @Test
+    void fredSeriesReleaseResponseParsesReleaseId() {
+        assertThat(FredClient.parseSeriesReleaseId(
+            """
+                {
+                  "releases": [
+                    { "id": 15, "name": "H.10 Foreign Exchange Rates" }
+                  ]
+                }
+                """
+        )).contains(15);
+    }
+
+    @Test
+    void fredReleaseDatesResponseParsesFutureDates() {
+        List<LocalDate> dates = FredClient.parseReleaseDates(
+            """
+                {
+                  "release_dates": [
+                    { "release_id": 15, "date": "2026-08-31" },
+                    { "release_id": 15, "date": "2026-09-08" }
+                  ]
+                }
+                """
+        );
+
+        assertThat(dates).containsExactly(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 9, 8));
+    }
+
+    @Test
+    void fredReleaseMetadataParsersIgnoreMalformedResponses() {
+        assertThat(FredClient.parseSeriesReleaseId("<html>down</html>")).isEmpty();
+        assertThat(FredClient.parseReleaseDates("{}")).isEmpty();
     }
 
     private ExternalApiProperties twelveDataProperties() {

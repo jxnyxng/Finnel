@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import com.example.krwwatcher.config.ExternalApiProperties;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -27,6 +28,51 @@ public class FredClient {
 
     public List<FredObservationPayload> fetchObservations(String seriesId, LocalDate observationStart) {
         return fetchObservationsResult(seriesId, observationStart).rowsOrThrow("FRED " + seriesId);
+    }
+
+    public Optional<LocalDate> fetchNextReleaseDate(String seriesId, LocalDate dateFrom) {
+        return fetchSeriesReleaseId(seriesId)
+            .flatMap(releaseId -> fetchReleaseDates(releaseId, dateFrom).stream().findFirst());
+    }
+
+    private Optional<Integer> fetchSeriesReleaseId(String seriesId) {
+        if (!StringUtils.hasText(properties.fred().apiKey())) {
+            return Optional.empty();
+        }
+
+        String response = restClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/series/release")
+                .queryParam("api_key", properties.fred().apiKey())
+                .queryParam("file_type", "json")
+                .queryParam("series_id", seriesId)
+                .build())
+            .retrieve()
+            .body(String.class);
+
+        return parseSeriesReleaseId(response);
+    }
+
+    private List<LocalDate> fetchReleaseDates(int releaseId, LocalDate dateFrom) {
+        if (!StringUtils.hasText(properties.fred().apiKey())) {
+            return List.of();
+        }
+
+        String response = restClient.get()
+            .uri(uriBuilder -> uriBuilder
+                .path("/release/dates")
+                .queryParam("api_key", properties.fred().apiKey())
+                .queryParam("file_type", "json")
+                .queryParam("release_id", releaseId)
+                .queryParam("realtime_start", dateFrom)
+                .queryParam("sort_order", "asc")
+                .queryParam("include_release_dates_with_no_data", "true")
+                .queryParam("limit", 10)
+                .build())
+            .retrieve()
+            .body(String.class);
+
+        return parseReleaseDates(response);
     }
 
     FetchResult<FredObservationPayload> fetchObservationsResult(String seriesId, LocalDate observationStart) {
@@ -87,6 +133,47 @@ public class FredClient {
             return FetchResult.success(rows);
         } catch (RuntimeException | java.io.IOException exception) {
             return FetchResult.failure(FetchStatus.PARSE_ERROR, exception.getMessage());
+        }
+    }
+
+    static Optional<Integer> parseSeriesReleaseId(String response) {
+        if (!StringUtils.hasText(response) || response.trim().startsWith("<")) {
+            return Optional.empty();
+        }
+
+        try {
+            JsonNode releases = OBJECT_MAPPER.readTree(response).path("releases");
+            if (!releases.isArray() || releases.isEmpty()) {
+                return Optional.empty();
+            }
+            JsonNode id = releases.get(0).path("id");
+            return id.canConvertToInt() ? Optional.of(id.asInt()) : Optional.empty();
+        } catch (RuntimeException | java.io.IOException exception) {
+            return Optional.empty();
+        }
+    }
+
+    static List<LocalDate> parseReleaseDates(String response) {
+        if (!StringUtils.hasText(response) || response.trim().startsWith("<")) {
+            return List.of();
+        }
+
+        try {
+            JsonNode releaseDates = OBJECT_MAPPER.readTree(response).path("release_dates");
+            if (!releaseDates.isArray() || releaseDates.isEmpty()) {
+                return List.of();
+            }
+
+            List<LocalDate> dates = new ArrayList<>();
+            for (JsonNode item : releaseDates) {
+                String date = item.path("date").asText(null);
+                if (StringUtils.hasText(date)) {
+                    dates.add(LocalDate.parse(date));
+                }
+            }
+            return dates;
+        } catch (RuntimeException | java.io.IOException exception) {
+            return List.of();
         }
     }
 

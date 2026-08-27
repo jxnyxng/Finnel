@@ -172,8 +172,8 @@ function dashboardFixture(
     usdKrwIntradayCandles: [],
     dxyIndexSeries: [],
     dollarIndexSeries: [],
-    advancedDollarIndexStatus: { latestBaseDate: null, fetchedAt: null },
-    dollarIndexStatus: { latestBaseDate: null, fetchedAt: null },
+    advancedDollarIndexStatus: { latestBaseDate: null, fetchedAt: null, nextReleaseDate: null },
+    dollarIndexStatus: { latestBaseDate: null, fetchedAt: null, nextReleaseDate: null },
     currencyStrengthRanks: [],
     foreignExchangeRates: [],
     exchangeRateCalculator: {

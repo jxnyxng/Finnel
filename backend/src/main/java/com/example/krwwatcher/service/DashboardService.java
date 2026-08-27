@@ -21,6 +21,7 @@ import com.example.krwwatcher.domain.DollarIndex;
 import com.example.krwwatcher.domain.ExchangeRate;
 import com.example.krwwatcher.domain.ForeignReserve;
 import com.example.krwwatcher.domain.InterestRate;
+import com.example.krwwatcher.external.FredClient;
 import com.example.krwwatcher.repository.DollarIndexRepository;
 import com.example.krwwatcher.repository.ExchangeRateRepository;
 import com.example.krwwatcher.repository.ForeignReserveRepository;
@@ -53,6 +54,7 @@ public class DashboardService {
     private final ForeignReserveRepository foreignReserveRepository;
     private final JdbcTemplate jdbcTemplate;
     private final DailyDashboardCache dailyDashboardCache;
+    private final FredClient fredClient;
 
     @Autowired
     public DashboardService(
@@ -62,6 +64,7 @@ public class DashboardService {
         InterestRateRepository interestRateRepository,
         ForeignReserveRepository foreignReserveRepository,
         JdbcTemplate jdbcTemplate,
+        FredClient fredClient,
         DashboardCacheProperties dashboardCacheProperties
     ) {
         this.properties = properties;
@@ -70,6 +73,7 @@ public class DashboardService {
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.fredClient = fredClient;
         this.dailyDashboardCache = new DailyDashboardCache(dashboardCacheProperties);
     }
 
@@ -81,7 +85,7 @@ public class DashboardService {
         ForeignReserveRepository foreignReserveRepository,
         JdbcTemplate jdbcTemplate
     ) {
-        this(properties, exchangeRateRepository, dollarIndexRepository, interestRateRepository, foreignReserveRepository, jdbcTemplate, DashboardCacheProperties.defaults());
+        this(properties, exchangeRateRepository, dollarIndexRepository, interestRateRepository, foreignReserveRepository, jdbcTemplate, null, DashboardCacheProperties.defaults());
     }
 
     @Transactional(readOnly = true)
@@ -143,8 +147,8 @@ public class DashboardService {
             usdKrwIntradayCandles,
             advancedDollarIndexSeries,
             dollarIndexSeries,
-            dollarIndexStatus(latestAdvancedDollarIndex),
-            dollarIndexStatus(latestDollarIndex),
+            dollarIndexStatus(latestAdvancedDollarIndex, properties.fred().advancedDollarIndexSeriesId()),
+            dollarIndexStatus(latestDollarIndex, properties.fred().dollarIndexSeriesId()),
             currencyStrengthRanks,
             foreignExchangeRates,
             exchangeRateCalculatorMeta(foreignExchangeRates),
@@ -1780,11 +1784,26 @@ public class DashboardService {
         return latestUsRate.getRateValue().subtract(latestKrRate.getRateValue());
     }
 
-    private DollarIndexStatus dollarIndexStatus(DollarIndex latestDollarIndex) {
+    private DollarIndexStatus dollarIndexStatus(DollarIndex latestDollarIndex, String seriesId) {
         if (latestDollarIndex == null) {
-            return new DollarIndexStatus(null, null);
+            return new DollarIndexStatus(null, null, null);
         }
-        return new DollarIndexStatus(latestDollarIndex.getBaseDate(), latestDollarIndex.getFetchedAt());
+        return new DollarIndexStatus(
+            latestDollarIndex.getBaseDate(),
+            latestDollarIndex.getFetchedAt(),
+            fredNextReleaseDate(seriesId)
+        );
+    }
+
+    private LocalDate fredNextReleaseDate(String seriesId) {
+        if (fredClient == null) {
+            return null;
+        }
+        try {
+            return fredClient.fetchNextReleaseDate(seriesId, LocalDate.now(SEOUL_ZONE)).orElse(null);
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     public record DailyDashboardResponse(
@@ -1826,7 +1845,8 @@ public class DashboardService {
 
     public record DollarIndexStatus(
         LocalDate latestBaseDate,
-        Instant fetchedAt
+        Instant fetchedAt,
+        LocalDate nextReleaseDate
     ) {
     }
 

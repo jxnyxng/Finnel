@@ -754,7 +754,12 @@ function App() {
     const activeDollarIndexLatestBaseDate = showBroadDollarIndex
         ? dollarIndexStatus?.latestBaseDate ?? latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-'
         : advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-';
-    const activeDollarIndexChartStatusText = `일별 지수 · 최신 ${activeDollarIndexLatestBaseDate} · ${marketDailyStatus.label}`;
+    const activeDollarIndexNextReleaseDate = showBroadDollarIndex
+        ? dollarIndexStatus?.nextReleaseDate ?? null
+        : advancedDollarIndexStatus?.nextReleaseDate ?? null;
+    const activeDollarIndexChartStatusText = activeDollarIndexNextReleaseDate
+        ? `일별 지수 · 최신 기준일 ${activeDollarIndexLatestBaseDate} · FRED 다음 공개 예정 ${activeDollarIndexNextReleaseDate}`
+        : `일별 지수 · 최신 기준일 ${activeDollarIndexLatestBaseDate}`;
     const activeDollarIndexHeaderAction = (
         <div className="dollar-index-mode-control shrink-0">
             <RangeSelector
