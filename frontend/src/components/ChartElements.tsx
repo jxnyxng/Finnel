@@ -194,7 +194,9 @@ export function ChartHelpTooltip({
 
       const rect = button.getBoundingClientRect();
       const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
-      const estimatedTooltipWidth = widthClassName.includes('w-80') ? 320 : widthClassName.includes('w-72') ? 288 : 256;
+      const estimatedTooltipWidth = widthClassName.includes('24rem')
+        ? Math.min(384, viewportWidth - 24)
+        : widthClassName.includes('w-80') ? 320 : widthClassName.includes('w-72') ? 288 : 256;
       const preferredLeft = placement === 'right' ? rect.right - estimatedTooltipWidth : rect.left;
       setTooltipPosition({
         left: Math.min(Math.max(12, preferredLeft), Math.max(12, viewportWidth - estimatedTooltipWidth - 12)),
@@ -214,7 +216,7 @@ export function ChartHelpTooltip({
       window.removeEventListener('scroll', updateTooltipPosition, true);
       window.visualViewport?.removeEventListener('resize', updateTooltipPosition);
     };
-  }, [isTooltipOpen, placement]);
+  }, [isTooltipOpen, placement, widthClassName]);
 
   return (
     <div className="chart-help-tooltip-root relative z-[120] inline-flex">

@@ -73,6 +73,7 @@ type MarketChartSectionProps<T extends RangeKey> = {
   lineStrokeWidth?: number;
   metric?: MetricSnapshot | null;
   panelDetails?: Array<{ label: string; value: string }>;
+  helpDetails?: Array<{ label: string; value: string }>;
   panelFooterText?: string;
   headerAction?: ReactNode;
   chartAction?: ReactNode;
@@ -103,6 +104,7 @@ export function MarketChartSection<T extends RangeKey>({
   onHoverChange,
   onRangeChange,
   panelDetails = [],
+  helpDetails = [],
   panelFooterText,
   headerAction,
   chartAction,
@@ -534,22 +536,37 @@ export function MarketChartSection<T extends RangeKey>({
       {headerStatus}
     </div>
   ) : null;
+  const helpInfoDetails = [...panelInfoDetails, ...helpDetails];
   const compactHelpContent = compactLayout ? (
     <div className="grid gap-2">
       <p>기준값, 출처, 수집 상태</p>
-      {panelInfoDetails.length > 0 ? (
+      {helpInfoDetails.length > 0 ? (
         <dl className="grid gap-1.5 border-t border-zinc-200 pt-2">
-          {panelInfoDetails.map((item) => (
-            <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-2" key={item.label}>
-              <dt className="text-zinc-400">{item.label}</dt>
-              <dd className="min-w-0 text-right font-semibold text-zinc-700">{item.value}</dd>
+          {helpInfoDetails.map((item) => (
+            <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2" key={item.label}>
+              <dt className="whitespace-nowrap text-zinc-400">{item.label}</dt>
+              <dd className="min-w-0 whitespace-nowrap text-right font-semibold text-zinc-700">{item.value}</dd>
             </div>
           ))}
         </dl>
       ) : null}
       {panelFooterText ? <p className="text-zinc-500">{panelFooterText}</p> : null}
     </div>
-  ) : helpContent;
+  ) : (
+    <div className="grid gap-2">
+      {helpContent}
+      {helpDetails.length > 0 ? (
+        <dl className="grid gap-1.5 border-t border-zinc-200 pt-2">
+          {helpDetails.map((item) => (
+            <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2" key={item.label}>
+              <dt className="whitespace-nowrap text-zinc-400">{item.label}</dt>
+              <dd className="min-w-0 whitespace-nowrap text-right font-semibold text-zinc-700">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </div>
+  );
   const compactHeaderControls = compactLayout ? (
     <div className="chart-compact-header-controls">
       <div className="chart-range-control chart-range-control-compact">
@@ -583,17 +600,12 @@ export function MarketChartSection<T extends RangeKey>({
                 {headerActionPlacement === 'header' ? headerAction : null}
                 {compactHeaderControls}
                 {compactLayout ? (
-                  <ChartHelpTooltip ariaLabel={helpAriaLabel} placement="right" title={helpTitle} widthClassName="w-72">
+                  <ChartHelpTooltip ariaLabel={helpAriaLabel} placement="right" title={helpTitle} widthClassName={helpWidthClassName ?? 'w-72'}>
                     {compactHelpContent}
                   </ChartHelpTooltip>
                 ) : null}
               </div>
             </div>
-            {statusText && statusTextPlacement === 'belowTitle' ? (
-              <p className={`min-w-0 break-keep text-left text-xs leading-5 ${statusClassName}`}>
-                {statusText}
-              </p>
-            ) : null}
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 <h2 className={`current-market-value min-w-0 break-words font-semibold leading-none tracking-normal ${compactLayout ? 'text-[1.35rem] sm:text-2xl' : 'text-[1.85rem] sm:text-4xl'} ${keepHeaderSingleLineOnMobile ? 'shrink-0 whitespace-nowrap' : ''}`}>
