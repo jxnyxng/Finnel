@@ -732,7 +732,6 @@ function App() {
         { label: '기간', value: getPanelPeriodLabel(visibleDollarIndexSeries) },
         { label: '관측값', value: `${visibleDollarIndexSeries.length}개` },
         { label: '최신 기준일', value: dollarIndexStatus?.latestBaseDate ?? latestDollarIndexPoint?.dateValue.slice(0, 10) ?? '-' },
-        ...(dollarIndexStatus?.nextReleaseDate ? [{ label: '다음 공개 예정', value: `${dollarIndexStatus.nextReleaseDate} · FRED` }] : []),
         { label: '구성', value: '26개' },
         { label: '의미', value: '넓은 교역 상대 기준 달러 강도' },
         { label: '해석', value: '상승하면 달러 강세' },
@@ -743,7 +742,6 @@ function App() {
         { label: '기간', value: getPanelPeriodLabel(visibleDxyIndexSeries) },
         { label: '관측값', value: `${visibleDxyIndexSeries.length}개` },
         { label: '최신 기준일', value: advancedDollarIndexStatus?.latestBaseDate ?? latestDxyIndexPoint?.dateValue.slice(0, 10) ?? '-' },
-        ...(advancedDollarIndexStatus?.nextReleaseDate ? [{ label: '다음 공개 예정', value: `${advancedDollarIndexStatus.nextReleaseDate} · FRED` }] : []),
         { label: '구성', value: '7개' },
         { label: '의미', value: '주요 7개 통화권 대비 달러 강도' },
         { label: '해석', value: '상승하면 달러 강세' },
@@ -762,6 +760,10 @@ function App() {
     const activeDollarIndexChartStatusText = activeDollarIndexNextReleaseDate
         ? `일별 지수 · 최신 기준일 ${activeDollarIndexLatestBaseDate} · FRED 다음 공개 예정 ${activeDollarIndexNextReleaseDate}`
         : `일별 지수 · 최신 기준일 ${activeDollarIndexLatestBaseDate}`;
+    const activeDollarIndexHelpDetails = [
+        { label: '최신 기준일', value: activeDollarIndexLatestBaseDate },
+        ...(activeDollarIndexNextReleaseDate ? [{ label: '다음 공개 예정', value: `${activeDollarIndexNextReleaseDate} · FRED` }] : [])
+    ];
     const activeDollarIndexHeaderAction = (
         <div className="dollar-index-mode-control shrink-0">
             <RangeSelector
@@ -994,11 +996,12 @@ function App() {
                                           </>
                                       )}
                                       helpTitle="달러인덱스"
-                                      helpWidthClassName="w-80"
+                                      helpWidthClassName="w-[min(24rem,calc(100vw-1.5rem))]"
                                       hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
                                       lineStroke="#00C9A7"
                                       lineStrokeWidth={1.75}
                                       keepHeaderSingleLineOnMobile
+                                      helpDetails={activeDollarIndexHelpDetails}
                                       metric={activeDollarIndexMetric}
                                       mobileAdSlot={chartAdSlots.dollarIndexMobile}
                                       chartAction={activeDollarIndexHeaderAction}
@@ -1113,11 +1116,12 @@ function App() {
                                 </>
                             )}
                             helpTitle="달러인덱스"
-                            helpWidthClassName="w-80"
+                            helpWidthClassName="w-[min(24rem,calc(100vw-1.5rem))]"
                             hover={showBroadDollarIndex ? activeBroadDollarHover : activeAdvancedDollarHover}
                             lineStroke="#00C9A7"
                             lineStrokeWidth={1.75}
                             keepHeaderSingleLineOnMobile
+                            helpDetails={activeDollarIndexHelpDetails}
                             metric={activeDollarIndexMetric}
                             mobileAdSlot={chartAdSlots.dollarIndexMobile}
                             headerAction={activeDollarIndexHeaderAction}
