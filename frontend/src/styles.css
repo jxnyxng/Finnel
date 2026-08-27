@@ -2369,26 +2369,35 @@ body,
 
 @media (min-width: 1280px) {
   .side-ad-layout {
-    grid-template-columns: 9.5rem minmax(0, 1fr) 9.5rem;
+    grid-template-columns: minmax(8rem, 1fr) minmax(0, 64rem) minmax(8rem, 1fr);
+  }
+
+  .side-ad-layout-narrow {
+    max-width: min(100%, 86rem);
   }
 
   .side-ad-layout-wide {
     max-width: min(100%, 94rem);
+    grid-template-columns: minmax(8rem, 1fr) minmax(0, 68rem) minmax(8rem, 1fr);
   }
 
   .side-ad-layout-calculator {
-    grid-template-columns: 8.5rem minmax(0, 76rem) 8.5rem;
+    grid-template-columns: minmax(7.5rem, 1fr) minmax(0, 76rem) minmax(7.5rem, 1fr);
     max-width: min(100%, 96rem);
   }
 }
 
 @media (min-width: 1536px) {
   .side-ad-layout {
-    grid-template-columns: 10rem minmax(0, 1fr) 10rem;
+    grid-template-columns: minmax(9rem, 1fr) minmax(0, 66rem) minmax(9rem, 1fr);
+  }
+
+  .side-ad-layout-wide {
+    grid-template-columns: minmax(9rem, 1fr) minmax(0, 70rem) minmax(9rem, 1fr);
   }
 
   .side-ad-layout-calculator {
-    grid-template-columns: 9.5rem minmax(0, 76rem) 9.5rem;
+    grid-template-columns: minmax(8.5rem, 1fr) minmax(0, 76rem) minmax(8.5rem, 1fr);
   }
 }
 
