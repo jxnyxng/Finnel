@@ -17,7 +17,7 @@ import {
     UsdKrwCandlestickTooltip,
     UsdKrwTooltip
 } from './components/ChartElements';
-import { GoogleAdSlot } from './components/AdSlot';
+import { GoogleAdSlot, SideRailAd } from './components/AdSlot';
 import { AppFooter } from './components/AppFooter';
 import { DataSourceGuide as DataSourceGuideView } from './components/DataSourceGuide';
 import { MarketChartSection } from './components/MarketChartSection';
@@ -107,6 +107,7 @@ const tabAdSlots = {
     ranking: import.meta.env.VITE_ADSENSE_SLOT_TAB_RANKING,
     todayFlow: import.meta.env.VITE_ADSENSE_SLOT_TAB_TODAY_FLOW
 } satisfies Record<MainTabKey, string | undefined>;
+const bottomAdExcludedTabs = new Set<MainTabKey>(['dashboard', 'newsroom', 'governmentBriefings', 'ranking', 'calculator']);
 const dollarIndexTabs = [
     { key: 'advanced', label: '7개국' },
     { key: 'broad', label: '26개국' }
@@ -125,6 +126,10 @@ function normalizePath(pathname: string) {
 
 function getMainTabKey(page: PageKey): MainTabKey | null {
     return mainTabKeys.has(page as MainTabKey) ? page as MainTabKey : null;
+}
+
+function shouldRenderBottomAd(tabKey: MainTabKey) {
+    return !bottomAdExcludedTabs.has(tabKey);
 }
 
 function App() {
@@ -1178,6 +1183,7 @@ function App() {
                             emptyMessage={dashboardEmptyText}
                             isLoading={isInitialDashboardLoading}
                             ranks={currencyStrengthRanks}
+                            sideAdSlot={tabAdSlots.ranking}
                         />
                     </FadeIn>
                 ) : null}
@@ -1196,7 +1202,7 @@ function App() {
                             onLoadMore={changeNewsPage}
                             page={newsPage}
                             selectedCategory={selectedNewsCategory}
-                            inFeedAdSlot={import.meta.env.VITE_ADSENSE_SLOT_NEWSROOM_IN_FEED}
+                            sideAdSlot={import.meta.env.VITE_ADSENSE_SLOT_NEWSROOM_IN_FEED}
                             totalCount={newsTotalCount}
                             totalPages={newsTotalPages}
                         />
@@ -1217,7 +1223,7 @@ function App() {
                             onLoadMore={changeGovernmentBriefingsPage}
                             page={governmentBriefingsPage}
                             selectedCategory={selectedGovernmentBriefingCategory}
-                            inFeedAdSlot={import.meta.env.VITE_ADSENSE_SLOT_POLICY_BRIEFINGS_IN_FEED}
+                            sideAdSlot={import.meta.env.VITE_ADSENSE_SLOT_POLICY_BRIEFINGS_IN_FEED}
                             totalCount={governmentBriefingsTotalCount}
                             totalPages={governmentBriefingsTotalPages}
                         />
@@ -1240,10 +1246,11 @@ function App() {
                     <CalculatorPage
                         calculatorMeta={dashboard?.exchangeRateCalculator ?? null}
                         rates={foreignExchangeRates}
+                        sideAdSlot={tabAdSlots.calculator}
                     />
                 ) : null}
 
-                {activeMainTabKey ? (
+                {activeMainTabKey && shouldRenderBottomAd(activeMainTabKey) ? (
                     <FadeIn as="section" className="page-content-enter" delay={0.2}>
                         <GoogleAdSlot
                             className="w-full"
@@ -1459,10 +1466,12 @@ function shouldIgnoreTabSwipe(target: EventTarget | null) {
 
 function CalculatorPage({
                             calculatorMeta,
-                            rates
+                            rates,
+                            sideAdSlot
                         }: {
     calculatorMeta?: DailyDashboardResponse['exchangeRateCalculator'] | null;
     rates: ForeignExchangeRate[];
+    sideAdSlot?: string;
 }) {
     const layoutRef = React.useRef<HTMLDivElement | null>(null);
     const [layoutHeight, setLayoutHeight] = React.useState<number | null>(null);
@@ -1504,39 +1513,43 @@ function CalculatorPage({
                 </div>
             </FadeIn>
 
-            <div
-                className="calculator-tab-layout calculator-split-layout mx-auto grid w-full max-w-[76rem] min-w-0 gap-4 xl:grid-cols-[minmax(16rem,0.6fr)_minmax(34rem,1.4fr)] xl:items-stretch"
-                ref={layoutRef}
-                style={layoutHeight ? { height: `${layoutHeight}px` } : undefined}
-            >
-                <section className="calculator-tab-panel calculator-left-panel calculator-panel-enter-left glass-modal min-w-0 overflow-hidden text-sm shadow-xl">
-                    <div className="calculator-tab-panel-header">
-                        <div>
-                            <p className="calculator-tab-panel-kicker">현재 기준</p>
-                            <h3 className="calculator-tab-panel-title">지금 환전하면 얼마인가요?</h3>
+            <div className="side-ad-layout side-ad-layout-calculator">
+                <SideRailAd slot={sideAdSlot} />
+                <div
+                    className="calculator-tab-layout calculator-split-layout mx-auto grid w-full max-w-[76rem] min-w-0 gap-4 xl:grid-cols-[minmax(16rem,0.6fr)_minmax(34rem,1.4fr)] xl:items-stretch"
+                    ref={layoutRef}
+                    style={layoutHeight ? { height: `${layoutHeight}px` } : undefined}
+                >
+                    <section className="calculator-tab-panel calculator-left-panel calculator-panel-enter-left glass-modal min-w-0 overflow-hidden text-sm shadow-xl">
+                        <div className="calculator-tab-panel-header">
+                            <div>
+                                <p className="calculator-tab-panel-kicker">현재 기준</p>
+                                <h3 className="calculator-tab-panel-title">지금 환전하면 얼마인가요?</h3>
+                            </div>
+                            <span className="calculator-tab-panel-badge">실시간 기준 환율</span>
                         </div>
-                        <span className="calculator-tab-panel-badge">실시간 기준 환율</span>
-                    </div>
-                    <section className="calculator-tab-conversion-card min-w-0 overflow-y-auto">
-                        <ExchangeRateConversionCalculator rates={rates} />
+                        <section className="calculator-tab-conversion-card min-w-0 overflow-y-auto">
+                            <ExchangeRateConversionCalculator rates={rates} />
+                        </section>
                     </section>
-                </section>
 
-                <aside className="calculator-side-panel calculator-panel-enter-right glass-modal min-w-0 overflow-hidden text-sm shadow-xl">
-                    <div className="calculator-tab-panel-header">
-                        <div>
-                            <p className="calculator-tab-panel-kicker">과거 비교</p>
-                            <h3 className="calculator-tab-panel-title">그때 환전한 돈은 지금 얼마인가요?</h3>
+                    <aside className="calculator-side-panel calculator-panel-enter-right glass-modal min-w-0 overflow-hidden text-sm shadow-xl">
+                        <div className="calculator-tab-panel-header">
+                            <div>
+                                <p className="calculator-tab-panel-kicker">과거 비교</p>
+                                <h3 className="calculator-tab-panel-title">그때 환전한 돈은 지금 얼마인가요?</h3>
+                            </div>
+                            <span className="calculator-tab-panel-badge">휴일은 직전 기준일</span>
                         </div>
-                        <span className="calculator-tab-panel-badge">휴일은 직전 기준일</span>
-                    </div>
-                    <ExchangeProfitCalculator
-                        calculatorMeta={calculatorMeta}
-                        className="calculator-tab-profit-card shadow-sm"
-                        rates={rates}
-                        variant="tab"
-                    />
-                </aside>
+                        <ExchangeProfitCalculator
+                            calculatorMeta={calculatorMeta}
+                            className="calculator-tab-profit-card shadow-sm"
+                            rates={rates}
+                            variant="tab"
+                        />
+                    </aside>
+                </div>
+                <SideRailAd slot={sideAdSlot} />
             </div>
         </section>
     );

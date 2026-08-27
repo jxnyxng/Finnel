@@ -89,6 +89,18 @@ export function GoogleAdSlot({ className = '', minHeightClassName, slot }: Googl
   );
 }
 
+export function SideRailAd({ slot }: { slot?: string }) {
+  return (
+    <aside className="side-rail-ad hidden xl:block" aria-label="광고">
+      <GoogleAdSlot
+        className="w-full"
+        minHeightClassName="min-h-72"
+        slot={slot}
+      />
+    </aside>
+  );
+}
+
 function loadAdsenseScript(client: string) {
   if (adsenseScriptPromise) {
     return adsenseScriptPromise;

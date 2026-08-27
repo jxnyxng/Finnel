@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { GoogleAdSlot } from '../components/AdSlot';
+import { SideRailAd } from '../components/AdSlot';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { GovernmentBriefingArticle, GovernmentBriefingCategory, GovernmentBriefingFilters } from '../types';
@@ -16,7 +16,7 @@ type GovernmentBriefingsPageProps = {
     filters: GovernmentBriefingFilters;
     isLoading: boolean;
     isPendingInitialLoad?: boolean;
-    inFeedAdSlot?: string;
+    sideAdSlot?: string;
     page: number;
     selectedCategory: string;
     totalCount: number;
@@ -31,7 +31,6 @@ export function GovernmentBriefingsPage({
                                             categories,
                                             configured,
                                             filters,
-                                            inFeedAdSlot,
                                             isLoading,
                                             isPendingInitialLoad = false,
                                             onCategoryChange,
@@ -39,6 +38,7 @@ export function GovernmentBriefingsPage({
                                             onLoadMore,
                                             page,
                                             selectedCategory,
+                                            sideAdSlot,
                                             totalCount,
                                             totalPages
                                         }: GovernmentBriefingsPageProps) {
@@ -219,54 +219,56 @@ export function GovernmentBriefingsPage({
             </FadeIn>
 
             {/* 4. 정책 리스트 컨테이너: 0.3초 등장 */}
-            <FadeIn as="section" className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3" delay={0.3}>
-                <div className="mb-2 flex justify-end px-1 text-[11px] font-semibold text-white/45">
-                    {selectedCategoryCount}건
-                </div>
-                {!configured ? (
-                    <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
-                ) : isLoading && articles.length === 0 ? (
-                    <div className="grid min-h-40 place-items-center text-sm text-white/45">정책뉴스를 불러오는 중입니다.</div>
-                ) : isPendingInitialLoad ? (
-                    <div className="min-h-40" />
-                ) : articles.length === 0 ? (
-                    <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정책뉴스가 없습니다.</div>
-                ) : (
-                    <div className={`${hasEnteredPage ? 'content-smooth-refresh' : ''} grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4`}>
-                        {articles.map((article, index) => {
-                            const isInitialPageItem = index < 12;
-                            const shouldRenderAdAfterCard = index === 3 || (articles.length >= 12 && index === 7);
-                            const cardElement = (
-                                <GovernmentBriefingCard
-                                    article={article}
-                                    onOpen={setSelectedArticle}
-                                />
-                            );
-
-                            return (
-                                <React.Fragment key={`${article.originalUrl ?? article.title}-${article.publishedAt ?? ''}`}>
-                                    {isInitialPageItem && !hasEnteredPage ? (
-                                        <FadeIn className="h-full" delay={0.35 + (index % 12) * 0.05}>
-                                            {cardElement}
-                                        </FadeIn>
-                                    ) : (
-                                        <div className="h-full">
-                                            {cardElement}
-                                        </div>
-                                    )}
-                                    {shouldRenderAdAfterCard ? <GovernmentBriefingInFeedAd slot={inFeedAdSlot} /> : null}
-                                </React.Fragment>
-                            );
-                        })}
+            <FadeIn as="section" className="side-ad-layout side-ad-layout-wide" delay={0.3}>
+                <SideRailAd slot={sideAdSlot} />
+                <div className="glass-card min-w-0 rounded-2xl p-2.5 shadow-sm sm:p-3">
+                    <div className="mb-2 flex justify-end px-1 text-[11px] font-semibold text-white/45">
+                        {selectedCategoryCount}건
                     </div>
-                )}
-                <BriefingPagination
-                    currentPage={page}
-                    hasItems={articles.length > 0}
-                    isLoading={isLoading}
-                    onPageChange={onLoadMore}
-                    totalPages={totalPages}
-                />
+                    {!configured ? (
+                        <div className="grid min-h-40 place-items-center px-4 text-center text-sm font-medium text-zinc-700">현재 정보를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.</div>
+                    ) : isLoading && articles.length === 0 ? (
+                        <div className="grid min-h-40 place-items-center text-sm text-white/45">정책뉴스를 불러오는 중입니다.</div>
+                    ) : isPendingInitialLoad ? (
+                        <div className="min-h-40" />
+                    ) : articles.length === 0 ? (
+                        <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정책뉴스가 없습니다.</div>
+                    ) : (
+                        <div className={`${hasEnteredPage ? 'content-smooth-refresh' : ''} grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3`}>
+                            {articles.map((article, index) => {
+                                const isInitialPageItem = index < 12;
+                                const cardElement = (
+                                    <GovernmentBriefingCard
+                                        article={article}
+                                        onOpen={setSelectedArticle}
+                                    />
+                                );
+
+                                return (
+                                    <React.Fragment key={`${article.originalUrl ?? article.title}-${article.publishedAt ?? ''}`}>
+                                        {isInitialPageItem && !hasEnteredPage ? (
+                                            <FadeIn className="h-full" delay={0.35 + (index % 12) * 0.05}>
+                                                {cardElement}
+                                            </FadeIn>
+                                        ) : (
+                                            <div className="h-full">
+                                                {cardElement}
+                                            </div>
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+                    )}
+                    <BriefingPagination
+                        currentPage={page}
+                        hasItems={articles.length > 0}
+                        isLoading={isLoading}
+                        onPageChange={onLoadMore}
+                        totalPages={totalPages}
+                    />
+                </div>
+                <SideRailAd slot={sideAdSlot} />
             </FadeIn>
 
             <GovernmentBriefingModal
@@ -276,16 +278,6 @@ export function GovernmentBriefingsPage({
                 onContentThemeChange={setContentTheme}
             />
         </section>
-    );
-}
-
-function GovernmentBriefingInFeedAd({ slot }: { slot?: string }) {
-    return (
-        <GoogleAdSlot
-            className="sm:col-span-2 xl:col-span-4"
-            minHeightClassName="min-h-28 sm:min-h-32"
-            slot={slot}
-        />
     );
 }
 
