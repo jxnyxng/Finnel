@@ -59,6 +59,7 @@ import {
     getLatestSyncLabel,
     getMarketDailyStatus
 } from './utils/sync';
+import { getMainTabKey, getPageFromPath } from './utils/navigation';
 import {
     getRemainingCooldownSeconds,
     getSeoulDateString,
@@ -93,27 +94,11 @@ type CalculatorCurrencySelectOption = {
     label: React.ReactNode;
     value: string;
 };
-const pageRouteEntries = Object.entries(pageRoutes) as Array<[PageKey, string]>;
-const mainTabKeys = new Set<MainTabKey>(mainTabs.map((tab) => tab.key));
 const dollarIndexTabs = [
     { key: 'advanced', label: '7개국' },
     { key: 'broad', label: '26개국' }
 ] as const;
 type DollarIndexTabKey = (typeof dollarIndexTabs)[number]['key'];
-
-function getPageFromPath(pathname: string): PageKey {
-    const normalizedPath = normalizePath(pathname);
-    return pageRouteEntries.find(([, route]) => route === normalizedPath)?.[0] ?? 'home';
-}
-
-function normalizePath(pathname: string) {
-    const normalizedPath = pathname.replace(/\/+$/, '');
-    return normalizedPath === '' ? '/' : normalizedPath;
-}
-
-function getMainTabKey(page: PageKey): MainTabKey | null {
-    return mainTabKeys.has(page as MainTabKey) ? page as MainTabKey : null;
-}
 
 function App() {
     const [dashboard, setDashboard] = React.useState<DailyDashboardResponse | null>(null);
