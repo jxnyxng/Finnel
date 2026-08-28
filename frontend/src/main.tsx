@@ -60,6 +60,12 @@ import {
     getStatusDetails
 } from './utils/content';
 import { getCurrencyFlag, getCurrencyShortLabel } from './utils/currency';
+import {
+    calculateForeignAmount,
+    calculateKrwAmount,
+    formatCalculatorNumber,
+    sanitizeNumericInput
+} from './utils/exchangeCalculator';
 import { formatValue } from './utils/format';
 import { findMetric, sortMetrics } from './utils/metrics';
 import {
@@ -1836,49 +1842,6 @@ function ExchangeRateConversionCalculator({
 
 function getCurrencyDetailText(rate: ForeignExchangeRate) {
     return `${rate.displayCode} · ${formatForeignExchangeUpdatedAt(new Date(rate.fetchedAt))} 업데이트`;
-}
-
-function calculateKrwAmount(value: string, rate: ForeignExchangeRate | null) {
-    const numericValue = parseCalculatorNumber(value);
-    if (numericValue === null || !rate || rate.unitSize === 0) {
-        return null;
-    }
-
-    return (numericValue * rate.dealBasRate) / rate.unitSize;
-}
-
-function calculateForeignAmount(value: string, rate: ForeignExchangeRate | null) {
-    const numericValue = parseCalculatorNumber(value);
-    if (numericValue === null || !rate || rate.dealBasRate === 0) {
-        return null;
-    }
-
-    return (numericValue * rate.unitSize) / rate.dealBasRate;
-}
-
-function parseCalculatorNumber(value: string) {
-    if (value.trim() === '' || value === '.') {
-        return null;
-    }
-
-    const numericValue = Number(value.replace(/,/g, ''));
-    return Number.isFinite(numericValue) ? numericValue : null;
-}
-
-function sanitizeNumericInput(value: string) {
-    const normalizedValue = value.replace(/,/g, '').replace(/[^\d.]/g, '');
-    const [integerPart, ...decimalParts] = normalizedValue.split('.');
-    return decimalParts.length === 0 ? integerPart : `${integerPart}.${decimalParts.join('')}`;
-}
-
-function formatCalculatorNumber(value: number | null, fractionDigits: number) {
-    if (value === null) {
-        return '';
-    }
-
-    return new Intl.NumberFormat('ko-KR', {
-        maximumFractionDigits: fractionDigits
-    }).format(value);
 }
 
 function ExchangeRateGuideModal({ onClose }: { onClose: () => void }) {
