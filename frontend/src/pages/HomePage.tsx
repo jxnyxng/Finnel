@@ -5,6 +5,7 @@ import { ChartHelpTooltip } from '../components/ChartElements';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import { koreanRegionNames, specialAreaDisplays } from '../constants';
 import type { CurrencyStrengthRank, ExchangeRateCalculatorMeta, ExchangeRateSnapshotResponse, ForeignExchangeRate } from '../types';
+import { getCurrencyFlag, getCurrencyKoreanName } from '../utils/currency';
 
 const featureSections = [
     {
@@ -1550,49 +1551,4 @@ function buildDayOptions(year: number, month: number, minDate: string, maxDate: 
 
 function daysInMonth(year: number, month: number) {
     return new Date(year, month, 0).getDate();
-}
-
-function getCurrencyFlag(code: string) {
-    const regionCode = {
-        AUD: 'AU',
-        CAD: 'CA',
-        CHF: 'CH',
-        CNY: 'CN',
-        CNH: 'CN',
-        EUR: 'EU',
-        GBP: 'GB',
-        HKD: 'HK',
-        JPY: 'JP',
-        SGD: 'SG',
-        USD: 'US'
-    }[code];
-
-    if (!regionCode) {
-        return '💱';
-    }
-
-    if (regionCode === 'EU') {
-        return '🇪🇺';
-    }
-
-    return regionCode
-        .split('')
-        .map((character) => String.fromCodePoint(127397 + character.charCodeAt(0)))
-        .join('');
-}
-
-function getCurrencyKoreanName(code: string) {
-    return {
-        AUD: '호주 달러',
-        CAD: '캐나다 달러',
-        CHF: '스위스 프랑',
-        CNY: '중국 위안',
-        CNH: '역외 위안',
-        EUR: '유로',
-        GBP: '영국 파운드',
-        HKD: '홍콩 달러',
-        JPY: '일본 엔',
-        SGD: '싱가포르 달러',
-        USD: '미국 달러'
-    }[code] ?? code;
 }

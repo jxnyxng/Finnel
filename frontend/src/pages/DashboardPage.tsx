@@ -8,6 +8,7 @@ import type {
     GovernmentBriefingArticle,
     NewsArticle
 } from '../types';
+import { getCurrencyFlag, getCurrencyShortLabel } from '../utils/currency';
 import { formatValue } from '../utils/format';
 
 type DashboardPageProps = {
@@ -455,7 +456,7 @@ function ForeignExchangeRateCard({ className = '', rates }: { className?: string
                     {rates.map((rate) => (
                         <article className="dashboard-fx-rate-row grid min-w-0 grid-cols-[1.55rem_minmax(0,1fr)_auto] items-center gap-2 border border-zinc-100 bg-zinc-50/70 px-2.5 py-2" key={rate.currencyCode}>
                             <span className="text-base leading-none" aria-hidden="true">
-                                {getCurrencyFlag(rate.displayCode)}
+                                {getCurrencyFlag(rate.displayCode, '¤')}
                             </span>
                             <span className="min-w-0">
                                 <span className="block truncate text-[11px] font-bold leading-4 text-zinc-950">{getCurrencyShortLabel(rate.displayCode)}</span>
@@ -719,40 +720,4 @@ function formatCompactRateDate(value: string) {
         minute: '2-digit',
         timeZone: 'Asia/Seoul'
     }).format(date);
-}
-
-function getCurrencyFlag(code: string) {
-    const flags: Record<string, string> = {
-        AUD: '🇦🇺',
-        CAD: '🇨🇦',
-        CHF: '🇨🇭',
-        CNH: '🇨🇳',
-        CNY: '🇨🇳',
-        EUR: '🇪🇺',
-        GBP: '🇬🇧',
-        HKD: '🇭🇰',
-        JPY: '🇯🇵',
-        SGD: '🇸🇬',
-        USD: '🇺🇸'
-    };
-
-    return flags[code] ?? '¤';
-}
-
-function getCurrencyShortLabel(code: string) {
-    const labels: Record<string, string> = {
-        AUD: '호주 달러',
-        CAD: '캐나다 달러',
-        CHF: '스위스 프랑',
-        CNH: '역외 위안',
-        CNY: '위안화',
-        EUR: '유로',
-        GBP: '파운드',
-        HKD: '홍콩 달러',
-        JPY: '엔화',
-        SGD: '싱가포르 달러',
-        USD: '미국 달러'
-    };
-
-    return labels[code] ?? code;
 }

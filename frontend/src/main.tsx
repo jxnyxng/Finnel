@@ -52,6 +52,7 @@ import {
     isCurrentIntradaySession
 } from './utils/chart';
 import { appendUniqueBy } from './utils/collection';
+import { getCurrencyFlag, getCurrencyShortLabel } from './utils/currency';
 import { formatValue } from './utils/format';
 import { findMetric, sortMetrics } from './utils/metrics';
 import {
@@ -1636,7 +1637,7 @@ function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; 
                     <>
                         <div key={activeRate.currencyCode} className={`foreign-rate-ticker-item foreign-rate-primary-content flex h-full items-center gap-2 ${isPaused ? 'foreign-rate-ticker-paused' : ''}`}>
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-zinc-200 bg-zinc-50 text-base leading-none" aria-hidden="true">
-                {getCurrencyFlag(activeRate.displayCode)}
+                {getCurrencyFlag(activeRate.displayCode, '🏳️')}
               </span>
                             <span className="min-w-0 flex-1">
                 <span className="block truncate text-[11px] font-semibold text-zinc-950">{getCurrencyShortLabel(activeRate.displayCode)}</span>
@@ -1659,7 +1660,7 @@ function ForeignExchangeTicker({ emptyMessage, rates }: { emptyMessage: string; 
                     {rates.map((rate) => (
                         <article className="foreign-rate-card grid min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-2 rounded-xl border border-zinc-200 bg-white px-2.5 py-2.5 shadow-sm" key={rate.currencyCode}>
                             <div className="foreign-rate-card-flag grid h-10 w-10 place-items-center rounded-xl border border-zinc-200 bg-zinc-50 text-xl leading-none" aria-hidden="true">
-                                {getCurrencyFlag(rate.displayCode)}
+                                {getCurrencyFlag(rate.displayCode, '🏳️')}
                             </div>
                             <div className="foreign-rate-card-main min-w-0">
                                 <div className="flex min-w-0 items-baseline gap-1.5">
@@ -1708,7 +1709,7 @@ function ExchangeRateConversionCalculator({
     const selectedRate = availableRates.find((rate) => rate.currencyCode === selectedCode) ?? availableRates[0] ?? null;
     const currencyOptions = React.useMemo<CalculatorCurrencySelectOption[]>(
         () => availableRates.map((rate) => ({
-            label: `${getCurrencyFlag(rate.displayCode)} ${rate.displayCode} · ${getCurrencyShortLabel(rate.displayCode)}`,
+            label: `${getCurrencyFlag(rate.displayCode, '🏳️')} ${rate.displayCode} · ${getCurrencyShortLabel(rate.displayCode)}`,
             value: rate.currencyCode
         })),
         [availableRates]
@@ -1786,7 +1787,7 @@ function ExchangeRateConversionCalculator({
                     <div className="conversion-amount-grid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
                         <label className="grid gap-1.5">
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-500">
-                    <span className="text-sm leading-none" aria-hidden="true">{getCurrencyFlag(selectedRate.displayCode)}</span>
+                    <span className="text-sm leading-none" aria-hidden="true">{getCurrencyFlag(selectedRate.displayCode, '🏳️')}</span>
                       {selectedRate.displayCode}
                   </span>
                             <input
@@ -1824,42 +1825,6 @@ function ExchangeRateConversionCalculator({
             )}
         </>
     );
-}
-
-function getCurrencyFlag(code: string) {
-    const flags: Record<string, string> = {
-        AUD: '🇦🇺',
-        CAD: '🇨🇦',
-        CHF: '🇨🇭',
-        CNH: '🇨🇳',
-        CNY: '🇨🇳',
-        EUR: '🇪🇺',
-        GBP: '🇬🇧',
-        HKD: '🇭🇰',
-        JPY: '🇯🇵',
-        SGD: '🇸🇬',
-        USD: '🇺🇸'
-    };
-
-    return flags[code] ?? '🏳️';
-}
-
-function getCurrencyShortLabel(code: string) {
-    const labels: Record<string, string> = {
-        AUD: '호주 달러',
-        CAD: '캐나다 달러',
-        CHF: '스위스 프랑',
-        CNH: '역외 위안',
-        CNY: '위안화',
-        EUR: '유로',
-        GBP: '파운드',
-        HKD: '홍콩 달러',
-        JPY: '엔화',
-        SGD: '싱가포르 달러',
-        USD: '미국 달러'
-    };
-
-    return labels[code] ?? code;
 }
 
 function getCurrencyDetailText(rate: ForeignExchangeRate) {
