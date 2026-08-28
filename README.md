@@ -1,19 +1,21 @@
 <div align="center">
   <img src="frontend/public/assets/finnel_logo_rounded_final_gradient.svg" alt="Finnel logo" width="96" />
   <h1>Finnel</h1>
-  <p><strong>KRW & Macro Dashboard for Exchange Rate-Aware Investors</strong></p>
+  <p><strong>KRW Exchange Rate & Economic Data Dashboard</strong></p>
   <p>
     <span>Exchange Rates</span> ·
-    <span>Macro Indicators</span> ·
+    <span>Economic Indicators</span> ·
     <span>Policy Briefings</span> ·
     <span>Market News</span> ·
-    <span>Currency Ranking</span>
+    <span>Currency Comparison</span>
   </p>
 </div>
 
 ## Finnel
 
 Finnel은 개인 학습과 관찰을 위해 만든 대시보드 프로젝트입니다. 미국 주식 투자자 입장에서 환율 변동에 민감했고, 관련 공부를 하다 보니 경제 지표와 뉴스, 정부 발표를 자주 찾아보게 되었습니다.
+
+이름은 Finance와 Funnel을 합친 말입니다. 여러 곳에 흩어진 금융·경제 정보를 하나의 흐름으로 모아 본다는 의미를 담았습니다.
 
 흩어진 정보를 매번 따로 찾아보는 과정이 불편해서, 환율 변동과 관련된 자료를 한곳에서 볼 수 있는 웹으로 만들었습니다. 복잡한 경제 흐름을 조금 더 차분하게 따라가는 것을 목표로 했습니다.
 
