@@ -17,9 +17,13 @@ Finnel은 개인 학습과 관찰을 위해 만든 대시보드 프로젝트입�
 
 흩어진 정보를 매번 따로 찾아보는 과정이 불편해서, 환율 변동과 관련된 자료를 한곳에서 볼 수 있는 웹으로 만들었습니다. 복잡한 경제 흐름을 조금 더 차분하게 따라가는 것을 목표로 했습니다.
 
-진행 기간은 2026년 7월부터 2026년 8월까지입니다.
-
-코드 작성과 리팩터링에는 Codex를 활용했고, 자료 검색과 기능 방향을 정할 때는 Gemini를 함께 활용했습니다.
+| 구분 | 내용 |
+| --- | --- |
+| 성격 | 개인 프로젝트, 경제 지표 학습 및 환율 변동 관찰용 대시보드 |
+| 진행 기간 | 2026.07 - 2026.08 |
+| Frontend | React, Vite, TypeScript, Recharts, Tailwind CSS |
+| Backend | Spring Boot, Java 17, MySQL, Flyway |
+| AI 활용 | Codex: 코드 작성·리팩터링 / Gemini: 검색·기능 방향 의사결정 |
 
 ## 화면
 
@@ -58,13 +62,6 @@ USD/KRW 환율 흐름과 주요 거시 지표를 함께 보는 첫 화면입니�
 ![환전계산 화면 캡처](frontend/public/assets/readMe/6.png)
 
 원화와 외화를 바꿔 계산하고, 과거 환율 기준으로 같은 금액이 어떻게 달라졌는지 확인하는 도구입니다. 투자나 송금 전에 환율 민감도를 감으로 보기 위해 넣었습니다.
-
-## 사용 기술
-
-- Frontend: React, Vite, TypeScript, Recharts, Tailwind CSS
-- Backend: Spring Boot, Java 17
-- Database: MySQL, Flyway
-- Local Infra: Docker Compose
 
 ## 데이터 출처
 
