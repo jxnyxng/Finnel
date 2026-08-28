@@ -2408,27 +2408,6 @@ public class MarketDataSyncService {
     private record LatestExchangeRate(LocalDate baseDate, BigDecimal rate) {
     }
 
-    private record TwelveDataExchangeSpec(String symbol, String currencyCode, String currencyName, BigDecimal displayUnit) {
-
-        private BigDecimal toDisplayRate(BigDecimal rate) {
-            return rate.multiply(displayUnit).setScale(4, RoundingMode.HALF_UP);
-        }
-    }
-
-    private record TwelveDataExchangeCandidate(TwelveDataExchangeSpec spec, Instant latestFetchedAt) {
-    }
-
-    private record FredExchangeSpec(String currencyCode, String currencyName, String seriesId, boolean usdPerForeignUnit, BigDecimal displayUnit) {
-
-        private BigDecimal toKrwRate(BigDecimal usdKrwRate, BigDecimal fredRate) {
-            if (usdPerForeignUnit) {
-                return usdKrwRate.multiply(fredRate).multiply(displayUnit).setScale(4, RoundingMode.HALF_UP);
-            }
-
-            return usdKrwRate.divide(fredRate, 8, RoundingMode.HALF_UP).multiply(displayUnit).setScale(4, RoundingMode.HALF_UP);
-        }
-    }
-
     public record SyncResult(
         int exchangeRateRows,
         int intradayExchangeRateRows,
