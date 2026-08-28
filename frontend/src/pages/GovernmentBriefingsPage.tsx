@@ -230,7 +230,7 @@ export function GovernmentBriefingsPage({
                     ) : articles.length === 0 ? (
                         <div className="grid min-h-40 place-items-center text-sm text-white/45">저장된 정책뉴스가 없습니다.</div>
                     ) : (
-                        <div className={`${hasEnteredPage ? 'content-smooth-refresh' : ''} grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3`}>
+                        <div className={`${hasEnteredPage ? 'content-smooth-refresh' : ''} grid min-w-0 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3 xl:grid-cols-4`}>
                             {articles.map((article, index) => {
                                 const isInitialPageItem = index < 12;
                                 const cardElement = (
