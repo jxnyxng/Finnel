@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { GovernmentBriefingArticle, GovernmentBriefingCategory, GovernmentBriefingFilters } from '../types';
+import { getPaginationPages } from '../utils/pagination';
 import { lockBodyScroll } from '../utils/scrollLock';
 import { getSeoulDateString } from '../utils/time';
 
@@ -688,12 +689,6 @@ function BriefingPagination({
             <span className="ml-1 text-white/35">{currentPage}/{totalPages}</span>
         </div>
     );
-}
-
-function getPaginationPages(currentPage: number, totalPages: number) {
-    const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
-    const end = Math.min(totalPages, start + 4);
-    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
 function formatBriefingDate(value: string | null) {

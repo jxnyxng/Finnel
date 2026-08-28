@@ -3,6 +3,7 @@ import axios from 'axios';
 import { FadeIn } from '../components/FadeIn';
 import { MovingTabIndicator, useMovingTabIndicator } from '../components/MovingTabs';
 import type { NewsArticle, NewsCategory, NewsFilters } from '../types';
+import { getPaginationPages } from '../utils/pagination';
 import { getSeoulDateString } from '../utils/time';
 
 type NewsroomPageProps = {
@@ -488,12 +489,6 @@ function NewsPagination({
             <span className="ml-1 text-white/35">{currentPage}/{totalPages}</span>
         </div>
     );
-}
-
-function getPaginationPages(currentPage: number, totalPages: number) {
-    const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
-    const end = Math.min(totalPages, start + 4);
-    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
 function formatNewsDate(value: string | null) {
