@@ -1,120 +1,89 @@
-# KRW Watcher
+<div align="center">
+  <img src="frontend/public/assets/finnel_logo_rounded_final_gradient.svg" alt="Finnel logo" width="96" />
+  <h1>Finnel</h1>
+  <p><strong>KRW & Macro Dashboard for Exchange Rate-Aware Investors</strong></p>
+  <p>
+    <span>Exchange Rates</span> ·
+    <span>Macro Indicators</span> ·
+    <span>Policy Briefings</span> ·
+    <span>Market News</span> ·
+    <span>Currency Ranking</span>
+  </p>
+</div>
 
-원화 소득으로 미국 주식에 투자하는 사용자를 위한 원화 가치 및 매크로 리스크 대시보드입니다.
+## 프로젝트 성격
 
-## Stack
+Finnel은 개인 학습과 관찰을 위해 만든 대시보드 프로젝트입니다. 미국 주식 투자자 입장에서 환율 변동에 민감했고, 관련 공부를 하다 보니 경제 지표와 뉴스, 정부 발표를 자주 찾아보게 되었습니다.
+
+흩어진 정보를 매번 따로 찾아보는 과정이 불편해서, 환율 변동과 관련된 자료를 한곳에서 볼 수 있는 웹으로 만들었습니다. 복잡한 경제 흐름을 조금 더 차분하게 따라가는 것을 목표로 했습니다.
+
+진행 기간은 2026년 7월부터 2026년 8월까지입니다.
+
+코드 작성과 리팩터링에는 Codex를 활용했고, 자료 검색과 기능 방향을 정할 때는 Gemini를 함께 활용했습니다.
+
+## 화면
+
+### 대시보드
+
+![대시보드 화면 캡처](frontend/public/assets/readMe/1.png)
+
+USD/KRW 환율 흐름과 주요 거시 지표를 함께 보는 첫 화면입니다. 단기 환율 변동과 중장기 흐름을 같이 확인할 수 있도록 구성했습니다.
+
+### 경제지표
+
+![경제지표 화면 캡처](frontend/public/assets/readMe/2.png)
+
+금리, 물가, 통화량, 재정, 외국인 자금 흐름처럼 원화에 영향을 줄 수 있는 국내외 지표를 묶어 봅니다. 각 지표는 최신값만 보지 않고 과거 흐름과 함께 확인하는 것을 기준으로 만들었습니다.
+
+### 정책뉴스
+
+![정책뉴스 화면 캡처](frontend/public/assets/readMe/3.png)
+
+정부 부처의 공식 발표 중 환율, 금융시장, 물가, 수출입, 재정과 관련된 내용을 모아 보는 탭입니다. 뉴스보다 느리지만 출처가 명확한 정책 신호를 확인하는 용도입니다.
+
+### 뉴스검색
+
+![뉴스검색 화면 캡처](frontend/public/assets/readMe/4.png)
+
+환율과 관련된 최신 뉴스를 검색하고, 같은 이슈를 다루는 기사들을 이어서 볼 수 있도록 만든 탭입니다. 시장이 어떤 이야기에 반응하고 있는지 빠르게 훑는 데 사용했습니다.
+
+### 화폐랭킹
+
+![화폐랭킹 화면 캡처](frontend/public/assets/readMe/5.png)
+
+원화의 움직임이 다른 통화와 비교해 어떤 위치에 있는지 보기 위한 화면입니다. 주요 통화의 상대적 움직임과 실효환율 흐름을 함께 봅니다.
+
+### 환전계산
+
+![환전계산 화면 캡처](frontend/public/assets/readMe/6.png)
+
+원화와 외화를 바꿔 계산하고, 과거 환율 기준으로 같은 금액이 어떻게 달라졌는지 확인하는 도구입니다. 투자나 송금 전에 환율 민감도를 감으로 보기 위해 넣었습니다.
+
+## 사용 기술
 
 - Frontend: React, Vite, TypeScript, Recharts, Tailwind CSS
-- Backend: Spring Boot 3.x, Java 17
+- Backend: Spring Boot, Java 17
 - Database: MySQL, Flyway
-- Infra: Docker Compose for local development
+- Local Infra: Docker Compose
 
-## Data Sources
+## 데이터 출처
 
-| Area | Source |
+| 기능 | 주요 출처 |
 | --- | --- |
-| USD/KRW daily | 한국수출입은행, FRED `DEXKOUS` fallback |
-| USD/KRW intraday | Twelve Data `USD/KRW` 5min |
-| Dollar indexes | FRED `DTWEXAFEGS`, `DTWEXBGS` |
-| Effective exchange rates | BIS `WS_EER` broad NEER/REER |
-| Rates and macro | ECOS, FRED |
-| Fiscal policy | OpenFiscal `BudgetBalance`, `GovernmentDebtMonth` |
-| Capital flow and credit risk | ECOS `901Y055`, ECOS `282Y006`, FRED `BAMLH0A0HYM2`, BOK MPC page |
-| News | Naver News Search API |
+| 환율과 달러 지표 | 한국수출입은행, FRED, Twelve Data |
+| 금리·물가·통화·자금 흐름 | 한국은행 ECOS, FRED |
+| 실효환율과 통화 비교 | BIS, FRED |
+| 재정 관련 지표 | 열린재정 Open API |
+| 정부 발표 | 대한민국 정책브리핑 Open API |
+| 뉴스 검색 | 네이버 뉴스 검색 API |
+| 영업일·공휴일 처리 | 공공데이터포털 특일 정보 |
 
-## Environment
+## 추후 추가 기능
 
-Secrets belong in `.env`, environment variables, or GitHub Secrets only.
+- 트럼프 SNS 연동: 주요 발언이 환율과 시장 분위기에 미치는 영향을 함께 확인할 수 있도록 연동
+- Gemini 리포트: 수집된 지표와 뉴스를 바탕으로 일별 요약 리포트 생성
+- 주식시장 데이터 제공: 미국 주식 투자자가 함께 참고할 수 있는 주요 지수와 시장 데이터 추가
 
-Required or active keys:
+## 메모
 
-- `DB_URL`
-- `DB_USERNAME`
-- `DB_PASSWORD`
-- `CORS_ALLOWED_ORIGINS`
-- `SYNC_ADMIN_TOKEN`
-- `KOREAEXIM_API_KEY`
-- `ECOS_API_KEY`
-- `FRED_API_KEY`
-- `TWELVE_DATA_API_KEY`
-- `OPENFISCAL_API_KEY`
-- `NAVER_CLIENT_ID`
-- `NAVER_CLIENT_SECRET`
-
-Useful non-secret defaults:
-
-- `MARKET_DATA_SYNC_ZONE=Asia/Seoul`
-- `JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul`
-- `OPENFISCAL_BASE_URL=https://www.openfiscaldata.go.kr`
-- `FRED_CREDIT_SPREAD_PROXY_SERIES_ID=BAMLH0A0HYM2`
-
-Frontend:
-
-- `VITE_API_BASE_URL`: leave empty for same-origin API hosting, or set to the backend origin such as `https://api.example.com` for split frontend/backend deployment.
-- Public frontend builds must not include API keys or sync admin tokens.
-
-## Commands
-
-```bash
-docker compose -f docker/docker-compose.yml up -d
-
-cd backend
-./gradlew bootRun
-
-cd frontend
-npm install
-npm run dev
-```
-
-Verification:
-
-```bash
-cd backend && ./gradlew test
-cd frontend && npm run build
-```
-
-Deployment checks:
-
-```bash
-cd backend && ./gradlew build
-cd frontend && npm audit --audit-level=high && npm run lint && npm run build
-```
-
-Before production deploy:
-
-- Back up the production database before applying new Flyway migrations.
-- Confirm Flyway applied `V18__fix_macro_indicator_unit_conversions.sql` exactly once.
-- Run the backend JVM with `-Duser.timezone=Asia/Seoul`; for systemd, set `Environment="JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Seoul"`.
-- Set `SYNC_ADMIN_TOKEN`; leave `SYNC_ALLOWED_INTERNAL_CIDRS` empty unless the runtime network path is trusted.
-- Set `CORS_ALLOWED_ORIGINS` to the production frontend origin.
-- Keep `SERVER_ADDRESS=127.0.0.1` so Spring Boot is reachable only through the local Nginx proxy.
-- Keep the Docker MySQL port bound to `127.0.0.1:3306:3306`; do not expose MySQL directly to the internet.
-- Confirm the EC2 security group exposes only HTTP 80 and, after SSL is configured, HTTPS 443. Restrict SSH 22 to your current public IP `/32`; do not expose backend 8080 or MySQL 3306 publicly.
-- Set `backend/.env` permissions to owner-only, for example `chmod 600 backend/.env`, on the production host.
-- Verify public frontend bundles and HTTP responses do not contain backend API keys, `SYNC_ADMIN_TOKEN`, database credentials, or other secrets. Rotate any key that appeared in GitHub, chat, terminal logs, or a public bundle.
-- Check `/actuator/health`, `/api/v1/dashboard/daily`, `/api/v1/sync/market-data/status`, and `/api/v1/sync/intraday-exchange/status` after deploy.
-
-## Work Memory
-
-- Backend loads both `.env` and `backend/.env`.
-- External APIs are called by scheduler/manual sync jobs, not directly from frontend page loads.
-- Dashboard APIs read latest stored MySQL data.
-- Intraday USD/KRW `observed_at` is stored as Korea local wall-clock time. Dashboard API `usdKrwIntradaySeries[].observedAt` returns the equivalent instant in ISO-8601 UTC form, and the frontend renders it in `Asia/Seoul`.
-- API keys must never be committed or printed.
-- USD/KRW 1-day chart must use real Twelve Data intraday rows only. Do not fabricate flat projected rows.
-- On weekends/non-business days, show the latest displayable weekday intraday session. Avoid stale flat weekend sessions.
-- Business-day logic excludes weekends and Korean public holidays from KASI `SpcdeInfoService`.
-- USD/KRW has no single official exchange-style holiday calendar because it is primarily OTC. Use Korean public holidays first, then add US bank/Fed holidays, and keep data-availability fallback as the final guard.
-- OpenFiscal works through `https://www.openfiscaldata.go.kr/openApi/preview/{serviceName}` with `OPENFISCAL_API_KEY`.
-- OpenFiscal values used here are monthly fiscal balance and central-government debt in trillion KRW.
-- KRX server-side calls returned `LOGOUT`; use ECOS-backed official alternatives until a stable KRX path is proven.
-- Foreign stock flow is ECOS `901Y055` foreign net buying amount, converted from KRW million to KRW 100M.
-- Foreign bond card is ECOS `282Y006` foreign-held bond balance, not net investment flow.
-- No free official Korea CDS API is confirmed. Use FRED `BAMLH0A0HYM2` only as a clearly labeled global credit-spread proxy.
-- BIS rank is an undervaluation rank sorted by low broad NEER first. Rank 1 means the currency is weaker by this metric.
-- Public frontend should not expose manual sync buttons; show automatic refresh/status instead.
-
-## Next
-
-- Add `US_FED` holidays to the FX calendar and keep actual data-availability fallback as the final guard.
-- Keep README and CODEX concise; move long PR notes or investigations out of permanent docs.
+API 키와 운영용 토큰은 `.env` 또는 배포 환경 변수로만 관리합니다. 프론트엔드 번들에는 외부 API 키나 동기화 토큰이 포함되지 않아야 합니다.
