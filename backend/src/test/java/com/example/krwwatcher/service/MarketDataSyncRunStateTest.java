@@ -535,11 +535,8 @@ class MarketDataSyncRunStateTest {
     }
 
     @Test
-    void m2SyncStoresEcosBillionsOfWonAsHundredMillionsOfWon() throws Exception {
-        Class<?> specClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$DomesticPolicySpec");
-        var constructor = specClass.getDeclaredConstructor(String.class, String.class, String.class, String.class, String.class, String.class, String.class, BigDecimal.class);
-        constructor.setAccessible(true);
-        Object m2Spec = constructor.newInstance(
+    void m2SyncStoresEcosBillionsOfWonAsHundredMillionsOfWon() {
+        DomesticPolicySpec m2Spec = new DomesticPolicySpec(
             "M2",
             "M2 통화량",
             "통화 정책",

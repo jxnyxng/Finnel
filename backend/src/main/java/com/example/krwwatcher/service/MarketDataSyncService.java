@@ -2389,22 +2389,6 @@ public class MarketDataSyncService {
         return month.getYear() + "Q" + quarter;
     }
 
-    private record DomesticPolicySpec(String code, String title, String category, String statCode, String itemCode, String unit, String source, BigDecimal multiplier) {
-        private DomesticPolicySpec(String code, String title, String category, String statCode, String itemCode, String unit, String source) {
-            this(code, title, category, statCode, itemCode, unit, source, BigDecimal.ONE);
-        }
-
-        private BigDecimal normalizeValue(BigDecimal value) {
-            return value.multiply(multiplier);
-        }
-    }
-
-    private record TreasuryCurveSpec(String code, String title, String seriesId) {
-    }
-
-    private record SofrSpec(String code, String title, String seriesId, String unit) {
-    }
-
     private record LatestExchangeRate(LocalDate baseDate, BigDecimal rate) {
     }
 
