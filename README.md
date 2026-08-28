@@ -24,7 +24,6 @@ Finnel은 개인 학습과 관찰을 위해 만든 대시보드 프로젝트입�
 | Frontend | React, Vite, TypeScript, Recharts, Tailwind CSS |
 | Backend | Spring Boot, Java 17, MySQL, Flyway |
 | AI 활용 | Codex: 코드 작성·리팩터링 / Gemini: 검색·기능 방향 의사결정 |
-| 피드백 반영 | 배포 후 경제학 전공 지인에게 주요 경제지표 구성을 피드백받아 개선 |
 
 ## 화면
 
