@@ -425,20 +425,20 @@ public class MarketDataSyncService {
     protected SyncResult runSync(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(JOB_NAME, startedAt, trigger);
-        SyncCounter counter = new SyncCounter();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
 
-        int exchangeRows = runSource(jobId, JOB_NAME, "exchange", counter, syncProperties.marketData().manualCooldown(), this::syncExchangeRates);
-        int dailyBackfillRows = runSource(jobId, JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().manualCooldown(), this::syncDailyExchangeRateBackfill);
+        int exchangeRows = runSource(jobId, JOB_NAME, "exchange", tracker, syncProperties.marketData().manualCooldown(), this::syncExchangeRates);
+        int dailyBackfillRows = runSource(jobId, JOB_NAME, "dailyBackfill", tracker, syncProperties.marketData().manualCooldown(), this::syncDailyExchangeRateBackfill);
         int intradayExchangeRows = 0;
-        int dollarIndexRows = runSource(jobId, JOB_NAME, "dollarIndex", counter, syncProperties.marketData().manualCooldown(), this::syncDollarIndexes);
-        int currencyStrengthRows = runSource(jobId, JOB_NAME, "currencyStrength", counter, syncProperties.marketData().manualCooldown(), this::syncEffectiveExchangeRates);
-        int usRateRows = runSource(jobId, JOB_NAME, "usRate", counter, syncProperties.marketData().manualCooldown(), this::syncUsPolicyRate);
-        int krRateRows = runSource(jobId, JOB_NAME, "krRate", counter, syncProperties.marketData().manualCooldown(), this::syncKoreanPolicyRate);
-        int foreignReserveRows = runSource(jobId, JOB_NAME, "foreignReserve", counter, syncProperties.marketData().manualCooldown(), this::syncForeignReserves);
-        int domesticPolicyRows = runSource(jobId, JOB_NAME, "domesticPolicy", counter, syncProperties.marketData().manualCooldown(), this::syncDomesticPolicyIndicators);
+        int dollarIndexRows = runSource(jobId, JOB_NAME, "dollarIndex", tracker, syncProperties.marketData().manualCooldown(), this::syncDollarIndexes);
+        int currencyStrengthRows = runSource(jobId, JOB_NAME, "currencyStrength", tracker, syncProperties.marketData().manualCooldown(), this::syncEffectiveExchangeRates);
+        int usRateRows = runSource(jobId, JOB_NAME, "usRate", tracker, syncProperties.marketData().manualCooldown(), this::syncUsPolicyRate);
+        int krRateRows = runSource(jobId, JOB_NAME, "krRate", tracker, syncProperties.marketData().manualCooldown(), this::syncKoreanPolicyRate);
+        int foreignReserveRows = runSource(jobId, JOB_NAME, "foreignReserve", tracker, syncProperties.marketData().manualCooldown(), this::syncForeignReserves);
+        int domesticPolicyRows = runSource(jobId, JOB_NAME, "domesticPolicy", tracker, syncProperties.marketData().manualCooldown(), this::syncDomesticPolicyIndicators);
 
-        String status = syncStatus(counter);
-        String message = "exchange=" + exchangeRows + ", dailyBackfill=" + dailyBackfillRows + ", intradayExchange=" + intradayExchangeRows + ", dollarIndex=" + dollarIndexRows + ", currencyStrength=" + currencyStrengthRows + ", usRate=" + usRateRows + ", krRate=" + krRateRows + ", foreignReserve=" + foreignReserveRows + ", domesticPolicy=" + domesticPolicyRows + counter.message;
+        String status = tracker.status();
+        String message = "exchange=" + exchangeRows + ", dailyBackfill=" + dailyBackfillRows + ", intradayExchange=" + intradayExchangeRows + ", dollarIndex=" + dollarIndexRows + ", currencyStrength=" + currencyStrengthRows + ", usRate=" + usRateRows + ", krRate=" + krRateRows + ", foreignReserve=" + foreignReserveRows + ", domesticPolicy=" + domesticPolicyRows + tracker.messageSuffix();
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now());
         return new SyncResult(exchangeRows + dailyBackfillRows, intradayExchangeRows, dollarIndexRows, currencyStrengthRows, usRateRows, krRateRows, foreignReserveRows, domesticPolicyRows, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
@@ -448,12 +448,12 @@ public class MarketDataSyncService {
     protected SyncResult runCurrencyStrengthSync(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(JOB_NAME, startedAt, trigger);
-        SyncCounter counter = new SyncCounter();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
 
-        int currencyStrengthRows = runSource(jobId, JOB_NAME, "currencyStrength", counter, syncProperties.marketData().manualCooldown(), this::syncEffectiveExchangeRates);
+        int currencyStrengthRows = runSource(jobId, JOB_NAME, "currencyStrength", tracker, syncProperties.marketData().manualCooldown(), this::syncEffectiveExchangeRates);
 
-        String status = syncStatus(counter);
-        String message = "currencyStrength=" + currencyStrengthRows + counter.message;
+        String status = tracker.status();
+        String message = "currencyStrength=" + currencyStrengthRows + tracker.messageSuffix();
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(JOB_NAME, syncProperties.marketData().manualCooldown(), Instant.now());
         return new SyncResult(0, 0, 0, currencyStrengthRows, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
@@ -463,10 +463,10 @@ public class MarketDataSyncService {
     protected SyncResult runIntradaySync(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(INTRADAY_JOB_NAME, startedAt, trigger);
-        SyncCounter counter = new SyncCounter();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
         List<String> messages = new ArrayList<>();
 
-        int intradayExchangeRows = runSource(jobId, INTRADAY_JOB_NAME, "intradayExchange", counter, syncProperties.marketData().intradayCooldown(), () -> {
+        int intradayExchangeRows = runSource(jobId, INTRADAY_JOB_NAME, "intradayExchange", tracker, syncProperties.marketData().intradayCooldown(), () -> {
             IntradaySyncOutcome outcome = syncUsdKrwIntraday(trigger);
             if (outcome.message() != null && !outcome.message().isBlank()) {
                 messages.add(outcome.message());
@@ -474,8 +474,8 @@ public class MarketDataSyncService {
             return outcome.rows();
         });
 
-        String status = syncStatus(counter);
-        String message = "intradayExchange=" + intradayExchangeRows + (messages.isEmpty() ? "" : ", " + String.join(", ", messages)) + counter.message;
+        String status = tracker.status();
+        String message = "intradayExchange=" + intradayExchangeRows + (messages.isEmpty() ? "" : ", " + String.join(", ", messages)) + tracker.messageSuffix();
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(INTRADAY_JOB_NAME, syncProperties.marketData().intradayCooldown(), Instant.now());
         return new SyncResult(0, intradayExchangeRows, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
@@ -485,12 +485,12 @@ public class MarketDataSyncService {
     protected SyncResult runDailyBackfill(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(DAILY_BACKFILL_JOB_NAME, startedAt, trigger);
-        SyncCounter counter = new SyncCounter();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
 
-        int exchangeRows = runSource(jobId, DAILY_BACKFILL_JOB_NAME, "dailyBackfill", counter, syncProperties.marketData().dailyBackfillCooldown(), this::syncDailyExchangeRateBackfill);
+        int exchangeRows = runSource(jobId, DAILY_BACKFILL_JOB_NAME, "dailyBackfill", tracker, syncProperties.marketData().dailyBackfillCooldown(), this::syncDailyExchangeRateBackfill);
 
-        String status = syncStatus(counter);
-        String message = "dailyBackfill=" + exchangeRows + counter.message;
+        String status = tracker.status();
+        String message = "dailyBackfill=" + exchangeRows + tracker.messageSuffix();
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
         return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
@@ -500,12 +500,12 @@ public class MarketDataSyncService {
     protected SyncResult runExchangeRateHistoryBackfill(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, startedAt, trigger);
-        SyncCounter counter = new SyncCounter();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
 
-        int exchangeRows = runSource(jobId, EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, "exchangeRateHistoryBackfill", counter, syncProperties.marketData().dailyBackfillCooldown(), this::syncExchangeRatesFromFred);
+        int exchangeRows = runSource(jobId, EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, "exchangeRateHistoryBackfill", tracker, syncProperties.marketData().dailyBackfillCooldown(), this::syncExchangeRatesFromFred);
 
-        String status = syncStatus(counter);
-        String message = "exchangeRateHistoryBackfill=" + exchangeRows + counter.message;
+        String status = tracker.status();
+        String message = "exchangeRateHistoryBackfill=" + exchangeRows + tracker.messageSuffix();
         finishJob(jobId, status, Instant.now(), message);
         SyncWindow syncWindow = currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
         return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
@@ -515,22 +515,21 @@ public class MarketDataSyncService {
     protected SyncResult runCurrentExchangeRateSync(SyncTrigger trigger) {
         Instant startedAt = Instant.now();
         Long jobId = startJob(CURRENT_EXCHANGE_RATE_JOB_NAME, startedAt, trigger);
-        SyncCounter counter = new SyncCounter();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
 
-        int exchangeRows = runSource(jobId, CURRENT_EXCHANGE_RATE_JOB_NAME, "currentExchange", counter, Duration.ZERO, () -> syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE));
+        int exchangeRows = runSource(jobId, CURRENT_EXCHANGE_RATE_JOB_NAME, "currentExchange", tracker, Duration.ZERO, () -> syncCurrentExchangeRatesFromTwelveData(CURRENT_EXCHANGE_RATE_BATCH_SIZE));
 
-        String status = syncStatus(counter);
-        String message = "currentExchange=" + exchangeRows + counter.message;
+        String status = tracker.status();
+        String message = "currentExchange=" + exchangeRows + tracker.messageSuffix();
         finishJob(jobId, status, Instant.now(), message);
         return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, null, 0);
     }
 
-    private int runSource(Long jobId, String jobName, String sourceName, SyncCounter counter, Duration sourceCooldown, IntSupplier supplier) {
+    private int runSource(Long jobId, String jobName, String sourceName, MarketDataSyncRunTracker tracker, Duration sourceCooldown, IntSupplier supplier) {
         Instant startedAt = Instant.now();
         if (!canRunSource(jobName, sourceName, sourceCooldown, startedAt)) {
             recordSourceRun(jobId, jobName, sourceName, "SKIPPED_COOLDOWN", 0, null, null, startedAt, startedAt);
-            counter.skippedSources++;
-            counter.message += ", " + sourceName + "=SKIPPED_COOLDOWN";
+            tracker.recordSkippedSource(sourceName);
             return 0;
         }
 
@@ -540,11 +539,7 @@ public class MarketDataSyncService {
             finishSourceRun(sourceRunId, "SUCCESS", rows, null, null, Instant.now());
             return rows;
         } catch (RuntimeException exception) {
-            counter.failures++;
-            if (isCoreSource(sourceName)) {
-                counter.coreFailures++;
-            }
-            counter.message += ", " + sourceName + "Error=" + exception.getClass().getSimpleName();
+            tracker.recordFailure(sourceName, isCoreSource(sourceName), exception);
             finishSourceRun(sourceRunId, "FAILED", 0, exception.getClass().getSimpleName(), exception.getMessage(), Instant.now());
             return 0;
         }
@@ -2224,16 +2219,6 @@ public class MarketDataSyncService {
         return CORE_SOURCE_NAMES.contains(sourceName);
     }
 
-    private String syncStatus(SyncCounter counter) {
-        if (counter.coreFailures > 0) {
-            return "FAILED_CORE_SOURCE";
-        }
-        if (counter.failures > 0) {
-            return "DEGRADED";
-        }
-        return "SUCCESS";
-    }
-
     private String coreSourceSqlList() {
         return String.join(", ", CORE_SOURCE_NAMES.stream().map(source -> "'" + source + "'").toList());
     }
@@ -2345,13 +2330,6 @@ public class MarketDataSyncService {
     private boolean hasRecentFetch(String sql, Object... params) {
         Integer count = jdbcTemplate.queryForObject(sql, Integer.class, params);
         return count != null && count > 0;
-    }
-
-    private static class SyncCounter {
-        private int failures;
-        private int coreFailures;
-        private int skippedSources;
-        private String message = "";
     }
 
     private enum SyncTrigger {

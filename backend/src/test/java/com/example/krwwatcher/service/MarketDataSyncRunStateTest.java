@@ -298,10 +298,7 @@ class MarketDataSyncRunStateTest {
 
     @Test
     void sourceRunFailureIsRecordedWithStructuredErrorDetails() throws Exception {
-        Class<?> counterClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$SyncCounter");
-        var constructor = counterClass.getDeclaredConstructor();
-        constructor.setAccessible(true);
-        Object counter = constructor.newInstance();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
         IntSupplier failingSource = () -> {
             throw new IllegalStateException("ECOS quota exceeded");
         };
@@ -312,7 +309,7 @@ class MarketDataSyncRunStateTest {
             null,
             "MARKET_DATA_SYNC",
             "krRate",
-            counter,
+            tracker,
             Duration.ofMinutes(15),
             failingSource
         );
@@ -331,10 +328,7 @@ class MarketDataSyncRunStateTest {
 
     @Test
     void abnormalFetchResultIsRecordedAsSourceRunFailure() throws Exception {
-        Class<?> counterClass = Class.forName("com.example.krwwatcher.service.MarketDataSyncService$SyncCounter");
-        var constructor = counterClass.getDeclaredConstructor();
-        constructor.setAccessible(true);
-        Object counter = constructor.newInstance();
+        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
         IntSupplier schemaMismatchSource = () -> FetchResult
             .failure(FetchStatus.SCHEMA_MISMATCH, "missing observations")
             .rowsOrThrow("FRED DEXKOUS")
@@ -346,7 +340,7 @@ class MarketDataSyncRunStateTest {
             null,
             "MARKET_DATA_SYNC",
             "exchange",
-            counter,
+            tracker,
             Duration.ofMinutes(15),
             schemaMismatchSource
         );
