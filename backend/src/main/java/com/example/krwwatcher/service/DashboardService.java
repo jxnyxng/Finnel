@@ -39,13 +39,6 @@ public class DashboardService {
     private static final String STALE = "STALE";
     private static final String MISSING = "MISSING";
     private static final Duration MACRO_COLLECTION_STALE_AFTER = Duration.ofDays(2);
-    private static final String TWELVE_DATA_USD_KRW_URL = "https://twelvedata.com/currencies/usd-krw";
-    private static final String FRED_URL = "https://fred.stlouisfed.org/";
-    private static final String ECOS_URL = "https://ecos.bok.or.kr/";
-    private static final String KOREAEXIM_URL = "https://www.koreaexim.go.kr/";
-    private static final String OPENFISCAL_URL = "https://www.openfiscaldata.go.kr/";
-    private static final String BIS_URL = "https://data.bis.org/";
-
     private final ExternalApiProperties properties;
     private final ExchangeRateRepository exchangeRateRepository;
     private final DollarIndexRepository dollarIndexRepository;
@@ -55,6 +48,7 @@ public class DashboardService {
     private final DailyDashboardCache dailyDashboardCache;
     private final FredClient fredClient;
     private final DashboardForeignExchangeMapper foreignExchangeMapper = new DashboardForeignExchangeMapper();
+    private final DashboardSourceMapper sourceMapper = new DashboardSourceMapper();
 
     @Autowired
     public DashboardService(
@@ -241,7 +235,7 @@ public class DashboardService {
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getDealBasRate(),
             previousUsdKrwDaily == null ? null : previousUsdKrwDaily.getBaseDate(),
             latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min",
-            sourceUrl(latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min", null),
+            sourceMapper.url(latestIntraday == null ? latestUsdKrwDaily == null ? "Koreaexim/FRED" : latestUsdKrwDaily.getSource() : "Twelve Data:USD/KRW 1min", null),
             latestIntraday == null ? latestUsdKrwDaily == null ? null : latestUsdKrwDaily.getFetchedAt() : latestIntraday.fetchedAt(),
             "환율 상승은 같은 1달러를 사기 위해 더 많은 원화가 필요하다는 뜻이어서 원화 약세 압력으로 봅니다.",
             "Twelve Data 1분봉과 일별 저장 환율을 함께 사용합니다.",
@@ -316,7 +310,7 @@ public class DashboardService {
             previousRateGap,
             previousRateGapBaseDate,
             "FRED/ECOS",
-            sourceUrl("FRED/ECOS", null),
+            sourceMapper.url("FRED/ECOS", null),
             rateGapFetchedAt,
             "값이 플러스면 미국 기준금리가 한국보다 높다는 뜻입니다. 격차 확대는 원화 약세 요인으로 해석될 수 있습니다.",
             "미국 기준금리에서 한국 기준금리를 뺀 값입니다.",
@@ -415,12 +409,12 @@ public class DashboardService {
             latest.baseDate(),
             previous != null ? previous.value() : null,
             previous != null ? previous.baseDate() : null,
-            sourceLabel(latest.source()),
+            sourceMapper.label(latest.source()),
             latest.fetchedAt(),
             domesticPolicyImpact(latest.code()),
             domesticPolicyNote(latest.code()),
             statusLabel(freshness),
-            detailUrl(latest.source()),
+            sourceMapper.detailUrl(latest.source()),
             freshness.freshnessStatus(),
             freshness.staleReason(),
             freshness.expectedNextUpdateAt(),
@@ -929,7 +923,7 @@ public class DashboardService {
         String source,
         FreshnessInfo freshness
     ) {
-        String sourceLabel = sourceLabel(source);
+        String sourceLabel = sourceMapper.label(source);
         return new IndicatorComponentFreshness(
             code,
             title,
@@ -937,7 +931,7 @@ public class DashboardService {
             observedAt,
             fetchedAt,
             sourceLabel,
-            sourceUrl(sourceLabel, detailUrl(source)),
+            sourceMapper.url(sourceLabel, sourceMapper.detailUrl(source)),
             freshness.freshnessStatus(),
             freshness.staleReason()
         );
@@ -951,48 +945,6 @@ public class DashboardService {
             return left;
         }
         return left.isBefore(right) ? left : right;
-    }
-
-    private String sourceLabel(String source) {
-        if (source == null) {
-            return null;
-        }
-        return source.split("\\|", 2)[0];
-    }
-
-    private String detailUrl(String source) {
-        if (source == null || !source.contains("|")) {
-            return null;
-        }
-        return source.split("\\|", 2)[1];
-    }
-
-    private static String sourceUrl(String source, String detailUrl) {
-        if (detailUrl != null) {
-            return detailUrl;
-        }
-        if (source == null) {
-            return null;
-        }
-        if (source.startsWith("Twelve Data")) {
-            return TWELVE_DATA_USD_KRW_URL;
-        }
-        if (source.startsWith("FRED")) {
-            return FRED_URL;
-        }
-        if (source.startsWith("ECOS")) {
-            return ECOS_URL;
-        }
-        if (source.startsWith("KOREAEXIM") || source.startsWith("Koreaexim")) {
-            return KOREAEXIM_URL;
-        }
-        if (source.startsWith("OPENFISCAL")) {
-            return OPENFISCAL_URL;
-        }
-        if (source.startsWith("BIS")) {
-            return BIS_URL;
-        }
-        return null;
     }
 
     private List<TimeSeriesPoint> findDomesticIndicatorHistoryPoints(String code, LocalDate startDate, LocalDate endDate) {
@@ -2037,7 +1989,7 @@ public class DashboardService {
                 previousValue,
                 previousBaseDate,
                 source,
-                DashboardService.sourceUrl(source, detailUrl),
+                DashboardSourceMapper.resolveUrl(source, detailUrl),
                 fetchedAt,
                 krwImpact,
                 note,
