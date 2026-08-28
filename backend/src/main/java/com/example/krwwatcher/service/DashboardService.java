@@ -1,7 +1,6 @@
 package com.example.krwwatcher.service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -48,6 +47,7 @@ public class DashboardService {
     private final DailyDashboardCache dailyDashboardCache;
     private final FredClient fredClient;
     private final DashboardForeignExchangeMapper foreignExchangeMapper = new DashboardForeignExchangeMapper();
+    private final DashboardMetricCalculator metricCalculator = new DashboardMetricCalculator();
     private final DashboardSourceMapper sourceMapper = new DashboardSourceMapper();
 
     @Autowired
@@ -128,9 +128,9 @@ public class DashboardService {
         return new DailyDashboardResponse(
             baseDate,
             List.of(
-                metric("USD/KRW", "원/달러 환율", latestUsdKrw == null ? null : latestUsdKrw.value(), "KRW", changeRate(usdKrwSeries)),
-                metric("ADVANCED_DOLLAR_INDEX", "주요 7개 통화권 달러인덱스", latestAdvancedDollarIndex == null ? null : latestAdvancedDollarIndex.getValue(), "INDEX", changeRate(advancedDollarIndexSeries)),
-                metric("BROAD_DOLLAR_INDEX", "26개 교역 상대 달러인덱스", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX", changeRate(dollarIndexSeries)),
+                metric("USD/KRW", "원/달러 환율", latestUsdKrw == null ? null : latestUsdKrw.value(), "KRW", metricCalculator.changeRate(usdKrwSeries)),
+                metric("ADVANCED_DOLLAR_INDEX", "주요 7개 통화권 달러인덱스", latestAdvancedDollarIndex == null ? null : latestAdvancedDollarIndex.getValue(), "INDEX", metricCalculator.changeRate(advancedDollarIndexSeries)),
+                metric("BROAD_DOLLAR_INDEX", "26개 교역 상대 달러인덱스", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX", metricCalculator.changeRate(dollarIndexSeries)),
                 metric("US_POLICY_RATE", "미국 기준금리", latestUsRate == null ? null : latestUsRate.getRateValue(), "PERCENT"),
                 metric("KR_POLICY_RATE", "한국 기준금리", latestKrRate == null ? null : latestKrRate.getRateValue(), "PERCENT"),
                 metric("KR_US_RATE_GAP", "한미 기준금리차", rateGap(latestUsRate, latestKrRate), "PERCENT_POINT"),
@@ -175,7 +175,7 @@ public class DashboardService {
         List<TimeSeriesPoint> points = findDomesticIndicatorHistoryPoints(code, startDate, endDate);
         LocalDate responseEndDate = points.isEmpty() ? endDate : points.get(points.size() - 1).baseDate();
         DomesticIndicatorMetadata metadata = domesticIndicatorMetadata(code);
-        BigDecimal averageValue = average(points);
+        BigDecimal averageValue = metricCalculator.average(points);
 
         return new DomesticIndicatorHistoryResponse(
             code,
@@ -290,7 +290,7 @@ public class DashboardService {
             usPolicyFreshness.expectedNextUpdateAt(),
             usPolicyFreshness.lastSuccessfulFetchedAt()
         ));
-        Instant rateGapFetchedAt = oldestInstant(
+        Instant rateGapFetchedAt = metricCalculator.oldestInstant(
             latestKrRate == null ? null : latestKrRate.getFetchedAt(),
             latestUsRate == null ? null : latestUsRate.getFetchedAt()
         );
@@ -715,23 +715,6 @@ public class DashboardService {
         return new MetricSnapshot(code, label, value, unit, changeRate);
     }
 
-    private BigDecimal changeRate(List<TimeSeriesPoint> series) {
-        if (series == null || series.size() < 2) {
-            return null;
-        }
-
-        TimeSeriesPoint latest = series.get(series.size() - 1);
-        TimeSeriesPoint previous = series.get(series.size() - 2);
-        if (latest.value() == null || previous.value() == null || BigDecimal.ZERO.compareTo(previous.value()) == 0) {
-            return null;
-        }
-
-        return latest.value()
-            .subtract(previous.value())
-            .multiply(BigDecimal.valueOf(100))
-            .divide(previous.value(), 6, RoundingMode.HALF_UP);
-    }
-
     private String statusLabel(FreshnessInfo freshness) {
         if (MISSING.equals(freshness.freshnessStatus())) {
             return "데이터 없음";
@@ -935,16 +918,6 @@ public class DashboardService {
             freshness.freshnessStatus(),
             freshness.staleReason()
         );
-    }
-
-    private Instant oldestInstant(Instant left, Instant right) {
-        if (left == null) {
-            return right;
-        }
-        if (right == null) {
-            return left;
-        }
-        return left.isBefore(right) ? left : right;
     }
 
     private List<TimeSeriesPoint> findDomesticIndicatorHistoryPoints(String code, LocalDate startDate, LocalDate endDate) {
@@ -1251,17 +1224,6 @@ public class DashboardService {
             (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
             params
         ).stream().filter(Objects::nonNull).findFirst().orElse(null);
-    }
-
-    private BigDecimal average(List<TimeSeriesPoint> points) {
-        if (points.isEmpty()) {
-            return null;
-        }
-
-        BigDecimal sum = points.stream()
-            .map(TimeSeriesPoint::value)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return sum.divide(BigDecimal.valueOf(points.size()), 6, RoundingMode.HALF_UP);
     }
 
     private List<CurrencyStrengthRank> findCurrencyStrengthRanks() {
