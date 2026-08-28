@@ -35,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class DashboardService {
 
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
-    private static final List<String> FOREIGN_EXCHANGE_ORDER = List.of("USD", "JPY", "EUR", "CNY", "CNH", "GBP", "AUD", "CAD", "CHF", "HKD", "SGD");
     private static final String FRESH = "FRESH";
     private static final String STALE = "STALE";
     private static final String MISSING = "MISSING";
@@ -55,6 +54,7 @@ public class DashboardService {
     private final JdbcTemplate jdbcTemplate;
     private final DailyDashboardCache dailyDashboardCache;
     private final FredClient fredClient;
+    private final DashboardForeignExchangeMapper foreignExchangeMapper = new DashboardForeignExchangeMapper();
 
     @Autowired
     public DashboardService(
@@ -1459,7 +1459,7 @@ public class DashboardService {
         rows.addAll(findLatestDailyForeignExchangeRatesExcludingCurrent());
 
         return rows.stream()
-            .sorted(Comparator.comparingInt(row -> foreignExchangeOrder(row.displayCode())))
+            .sorted(Comparator.comparingInt(row -> foreignExchangeMapper.order(row.displayCode())))
             .toList();
     }
 
@@ -1543,14 +1543,13 @@ public class DashboardService {
                 """,
             (rs, rowNum) -> {
                 String rawCode = rs.getString("currency_code");
-                String displayCode = displayCurrencyCode(rawCode);
                 return new ForeignExchangeRate(
                     rs.getDate("base_date").toLocalDate(),
                     rawCode,
-                    displayCode,
+                    foreignExchangeMapper.displayCurrencyCode(rawCode),
                     rs.getString("currency_name"),
                     rs.getBigDecimal("deal_bas_rate"),
-                    currencyUnitSize(rawCode),
+                    foreignExchangeMapper.currencyUnitSize(rawCode),
                     rs.getString("source"),
                     rs.getTimestamp("fetched_at").toInstant(),
                     rs.getDate("history_start_date").toLocalDate(),
@@ -1663,18 +1662,7 @@ public class DashboardService {
     }
 
     private ForeignExchangeRate mapForeignExchangeRate(LocalDate baseDate, String rawCode, String currencyName, BigDecimal dealBasRate, String source, Instant fetchedAt, LocalDate historyStartDate, LocalDate historyEndDate) {
-        return new ForeignExchangeRate(
-            baseDate,
-            rawCode,
-            displayCurrencyCode(rawCode),
-            currencyName,
-            dealBasRate,
-            currencyUnitSize(rawCode),
-            source,
-            fetchedAt,
-            historyStartDate,
-            historyEndDate
-        );
+        return foreignExchangeMapper.toForeignExchangeRate(baseDate, rawCode, currencyName, dealBasRate, source, fetchedAt, historyStartDate, historyEndDate);
     }
 
     private ExchangeRateCalculatorMeta exchangeRateCalculatorMeta(List<ForeignExchangeRate> rates) {
@@ -1689,30 +1677,6 @@ public class DashboardService {
             .min(LocalDate::compareTo)
             .orElse(latestAllowedDate.minusYears(5));
         return new ExchangeRateCalculatorMeta(earliestAllowedDate, latestAllowedDate);
-    }
-
-    private int foreignExchangeOrder(String currencyCode) {
-        int index = FOREIGN_EXCHANGE_ORDER.indexOf(currencyCode);
-        return index < 0 ? FOREIGN_EXCHANGE_ORDER.size() : index;
-    }
-
-    private String displayCurrencyCode(String rawCode) {
-        int parenthesisIndex = rawCode.indexOf('(');
-        return parenthesisIndex < 0 ? rawCode : rawCode.substring(0, parenthesisIndex);
-    }
-
-    private int currencyUnitSize(String rawCode) {
-        int start = rawCode.indexOf('(');
-        int end = rawCode.indexOf(')');
-        if (start < 0 || end <= start + 1) {
-            return 1;
-        }
-
-        try {
-            return Integer.parseInt(rawCode.substring(start + 1, end));
-        } catch (NumberFormatException exception) {
-            return 1;
-        }
     }
 
     private List<DataSourceInfo> dataSourceInfos() {
