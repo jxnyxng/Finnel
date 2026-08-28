@@ -1,8 +1,15 @@
 import React from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import ReactDOM from 'react-dom/client';
-import axios from 'axios';
 import './styles.css';
+import {
+    fetchDailyDashboard,
+    fetchDashboardFeed,
+    fetchGovernmentBriefings,
+    fetchIntradayExchangeSyncStatus,
+    fetchMarketDataSyncStatus,
+    fetchNews
+} from './api/client';
 import {
     dailyXAxisHeightPx,
     intradayXAxisHeightPx,
@@ -44,6 +51,7 @@ import {
     getXDomain,
     isCurrentIntradaySession
 } from './utils/chart';
+import { appendUniqueBy } from './utils/collection';
 import { formatValue } from './utils/format';
 import { findMetric, sortMetrics } from './utils/metrics';
 import {
@@ -74,11 +82,8 @@ import type {
     RangeKey,
     ServiceStatusTone,
     SyncStatus,
-    DashboardFeedResponse
 } from './types';
 import { FadeIn } from './components/FadeIn';
-
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 type DashboardLoadState = 'idle' | 'loading' | 'ready' | 'error';
 type UsdKrwChartDisplayMode = 'line' | 'candlestick';
@@ -302,8 +307,8 @@ function App() {
         }
 
         try {
-            const response = await axios.get<DailyDashboardResponse>('/api/v1/dashboard/daily');
-            setDashboard(response.data);
+            const dashboardResponse = await fetchDailyDashboard();
+            setDashboard(dashboardResponse);
             setDashboardLoadState('ready');
             setDashboardErrorMessage(null);
         } catch (error) {
@@ -314,8 +319,8 @@ function App() {
 
     const loadSyncStatus = React.useCallback(async () => {
         try {
-            const response = await axios.get<SyncStatus>('/api/v1/sync/market-data/status');
-            setSyncStatus(response.data);
+            const status = await fetchMarketDataSyncStatus();
+            setSyncStatus(status);
         } catch {
             setSyncStatus(null);
         }
@@ -323,8 +328,8 @@ function App() {
 
     const loadIntradayStatus = React.useCallback(async () => {
         try {
-            const response = await axios.get<SyncStatus>('/api/v1/sync/intraday-exchange/status');
-            setIntradayStatus(response.data);
+            const status = await fetchIntradayExchangeSyncStatus();
+            setIntradayStatus(status);
         } catch {
             setIntradayStatus(null);
         }
@@ -378,45 +383,25 @@ function App() {
         }
 
         try {
-            const response = await axios.get<NewsResponse>('/api/v1/news', {
-                params: {
-                    category,
-                    from: filters.fromDate || undefined,
-                    keyword: filters.keyword || undefined,
-                    page,
-                    pageSize: 10,
-                    to: filters.toDate || undefined
-                }
-            });
+            const response = await fetchNews({ category, filters, page });
             if (mode === 'replace') {
-                applyNewsResponse(response.data);
+                applyNewsResponse(response);
                 return;
             }
 
-            setNewsArticles((current) => {
-                const seen = new Set(current.map((article) => `${article.categoryCode}-${article.link || article.originLink || article.title}`));
-                const nextArticles = response.data.articles.filter((article) => {
-                    const key = `${article.categoryCode}-${article.link || article.originLink || article.title}`;
-                    if (seen.has(key)) {
-                        return false;
-                    }
-                    seen.add(key);
-                    return true;
-                });
-                return [...current, ...nextArticles];
-            });
-            setNewsCategories(response.data.categories);
-            setIsNewsConfigured(response.data.configured);
-            setNewsPage(response.data.page);
-            setNewsTotalCount(response.data.totalCount);
-            setNewsTotalPages(response.data.totalPages);
-            setLatestNewsFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
+            setNewsArticles((current) => appendUniqueBy(current, response.articles, getNewsArticleKey));
+            setNewsCategories(response.categories);
+            setIsNewsConfigured(response.configured);
+            setNewsPage(response.page);
+            setNewsTotalCount(response.totalCount);
+            setNewsTotalPages(response.totalPages);
+            setLatestNewsFetchedAt(response.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.articles));
             setNewsSyncStatus({
-                freshnessStatus: response.data.freshnessStatus ?? null,
-                lastSuccessfulFetchedAt: response.data.lastSuccessfulFetchedAt ?? null,
-                latestSyncEndedAt: response.data.latestSyncEndedAt ?? null,
-                latestSyncStartedAt: response.data.latestSyncStartedAt ?? null,
-                latestSyncStatus: response.data.latestSyncStatus ?? null
+                freshnessStatus: response.freshnessStatus ?? null,
+                lastSuccessfulFetchedAt: response.lastSuccessfulFetchedAt ?? null,
+                latestSyncEndedAt: response.latestSyncEndedAt ?? null,
+                latestSyncStartedAt: response.latestSyncStartedAt ?? null,
+                latestSyncStatus: response.latestSyncStatus ?? null
             });
         } catch {
             if (mode === 'replace') {
@@ -444,45 +429,25 @@ function App() {
         }
 
         try {
-            const response = await axios.get<GovernmentBriefingResponse>('/api/v1/government-briefings', {
-                params: {
-                    category,
-                    from: filters.fromDate || undefined,
-                    keyword: filters.keyword || undefined,
-                    page,
-                    pageSize: 12,
-                    to: filters.toDate || undefined
-                }
-            });
+            const response = await fetchGovernmentBriefings({ category, filters, page });
             if (mode === 'replace') {
-                applyGovernmentBriefingResponse(response.data);
+                applyGovernmentBriefingResponse(response);
                 return;
             }
 
-            setGovernmentBriefings((current) => {
-                const seen = new Set(current.map((article) => article.originalUrl || `${article.title}-${article.publishedAt ?? ''}`));
-                const nextArticles = response.data.articles.filter((article) => {
-                    const key = article.originalUrl || `${article.title}-${article.publishedAt ?? ''}`;
-                    if (seen.has(key)) {
-                        return false;
-                    }
-                    seen.add(key);
-                    return true;
-                });
-                return [...current, ...nextArticles];
-            });
-            setGovernmentBriefingCategories(response.data.categories);
-            setIsGovernmentBriefingsConfigured(response.data.configured);
-            setGovernmentBriefingsPage(response.data.page);
-            setGovernmentBriefingsTotalCount(response.data.totalCount);
-            setGovernmentBriefingsTotalPages(response.data.totalPages);
-            setLatestGovernmentBriefingFetchedAt(response.data.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.data.articles));
+            setGovernmentBriefings((current) => appendUniqueBy(current, response.articles, getGovernmentBriefingArticleKey));
+            setGovernmentBriefingCategories(response.categories);
+            setIsGovernmentBriefingsConfigured(response.configured);
+            setGovernmentBriefingsPage(response.page);
+            setGovernmentBriefingsTotalCount(response.totalCount);
+            setGovernmentBriefingsTotalPages(response.totalPages);
+            setLatestGovernmentBriefingFetchedAt(response.lastSuccessfulFetchedAt ?? getLatestFetchedAt(response.articles));
             setGovernmentBriefingsSyncStatus({
-                freshnessStatus: response.data.freshnessStatus ?? null,
-                lastSuccessfulFetchedAt: response.data.lastSuccessfulFetchedAt ?? null,
-                latestSyncEndedAt: response.data.latestSyncEndedAt ?? null,
-                latestSyncStartedAt: response.data.latestSyncStartedAt ?? null,
-                latestSyncStatus: response.data.latestSyncStatus ?? null
+                freshnessStatus: response.freshnessStatus ?? null,
+                lastSuccessfulFetchedAt: response.lastSuccessfulFetchedAt ?? null,
+                latestSyncEndedAt: response.latestSyncEndedAt ?? null,
+                latestSyncStartedAt: response.latestSyncStartedAt ?? null,
+                latestSyncStatus: response.latestSyncStatus ?? null
             });
         } catch {
             if (mode === 'replace') {
@@ -500,12 +465,12 @@ function App() {
 
     const loadDashboardFeed = React.useCallback(async () => {
         try {
-            const response = await axios.get<DashboardFeedResponse>('/api/v1/today-flow');
-            setDashboard(response.data.dashboard);
+            const response = await fetchDashboardFeed();
+            setDashboard(response.dashboard);
             setDashboardLoadState('ready');
             setDashboardErrorMessage(null);
-            applyNewsResponse(response.data.news);
-            applyGovernmentBriefingResponse(response.data.governmentBriefings);
+            applyNewsResponse(response.news);
+            applyGovernmentBriefingResponse(response.governmentBriefings);
         } catch {
             loadDashboard(false);
             loadNews('all', 1, false, { fromDate: '', toDate: '', keyword: '' });
@@ -1923,6 +1888,14 @@ function getLatestFetchedAt(items: Array<NewsArticle | GovernmentBriefingArticle
         .reduce<number | null>((latest, fetchedAt) => latest === null ? fetchedAt : Math.max(latest, fetchedAt), null);
 
     return latestMs === null ? null : new Date(latestMs).toISOString();
+}
+
+function getNewsArticleKey(article: NewsArticle) {
+    return `${article.categoryCode}-${article.link || article.originLink || article.title}`;
+}
+
+function getGovernmentBriefingArticleKey(article: GovernmentBriefingArticle) {
+    return article.originalUrl || `${article.title}-${article.publishedAt ?? ''}`;
 }
 
 function formatForeignExchangeUpdatedAt(date: Date) {
