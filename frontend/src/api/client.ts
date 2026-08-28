@@ -1,3 +1,4 @@
+// Frontend API gateway for backend dashboard, sync, news, and policy endpoints.
 import axios from 'axios';
 import type {
   DailyDashboardResponse,

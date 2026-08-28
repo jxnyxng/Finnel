@@ -1,3 +1,4 @@
+// Tests for collection utilities used by incremental content loading.
 import { describe, expect, it } from 'vitest';
 import { appendUniqueBy } from './collection';
 
