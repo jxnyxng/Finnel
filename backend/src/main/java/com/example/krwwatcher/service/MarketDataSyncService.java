@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.IntSupplier;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -105,6 +104,9 @@ public class MarketDataSyncService {
     private final ReentrantLock exchangeRateHistoryBackfillLock = new ReentrantLock();
     private final ReentrantLock currentExchangeRateLock = new ReentrantLock();
     private final MarketDataBackfillSessionPolicy backfillSessionPolicy = new MarketDataBackfillSessionPolicy();
+    private final MarketExchangeRateDao exchangeRateDao;
+    private final MarketDomesticPolicyIndicatorDao domesticPolicyIndicatorDao;
+    private final MarketMacroIndicatorDao macroIndicatorDao;
 
     public MarketDataSyncService(
         ExternalApiProperties properties,
@@ -128,6 +130,9 @@ public class MarketDataSyncService {
         this.openFiscalClient = openFiscalClient;
         this.businessDayService = businessDayService;
         this.jdbcTemplate = jdbcTemplate;
+        this.exchangeRateDao = new MarketExchangeRateDao(jdbcTemplate);
+        this.domesticPolicyIndicatorDao = new MarketDomesticPolicyIndicatorDao(jdbcTemplate);
+        this.macroIndicatorDao = new MarketMacroIndicatorDao(jdbcTemplate);
     }
 
     public SyncResult requestManualSync() {
@@ -624,44 +629,11 @@ public class MarketDataSyncService {
     }
 
     private int upsertExchangeRate(LocalDate baseDate, String currencyCode, String currencyName, java.math.BigDecimal rate, String source, Instant fetchedAt) {
-        return jdbcTemplate.update("""
-                INSERT INTO exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, fetched_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    currency_name = VALUES(currency_name),
-                    deal_bas_rate = VALUES(deal_bas_rate),
-                    source = VALUES(source),
-                    fetched_at = VALUES(fetched_at)
-                """,
-            baseDate,
-            currencyCode,
-            currencyName,
-            rate,
-            source,
-            fetchedAt
-        );
+        return exchangeRateDao.upsertExchangeRate(baseDate, currencyCode, currencyName, rate, source, fetchedAt);
     }
 
     private int upsertCurrentExchangeRate(LocalDate baseDate, String currencyCode, String currencyName, java.math.BigDecimal rate, String source, Instant observedAt) {
-        return jdbcTemplate.update("""
-                INSERT INTO current_exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, observed_at, fetched_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    base_date = VALUES(base_date),
-                    currency_name = VALUES(currency_name),
-                    deal_bas_rate = VALUES(deal_bas_rate),
-                    source = VALUES(source),
-                    observed_at = VALUES(observed_at),
-                    fetched_at = VALUES(fetched_at)
-                """,
-            baseDate,
-            currencyCode,
-            currencyName,
-            rate,
-            source,
-            observedAt,
-            observedAt
-        );
+        return exchangeRateDao.upsertCurrentExchangeRate(baseDate, currencyCode, currencyName, rate, source, observedAt);
     }
 
     private int syncCurrentExchangeRatesFromTwelveData(int maxUpdates) {
@@ -712,27 +684,11 @@ public class MarketDataSyncService {
     }
 
     private Instant findLatestCurrentExchangeRateFetch(String currencyCode) {
-        return jdbcTemplate.query(
-            """
-                SELECT MAX(fetched_at)
-                FROM current_exchange_rates
-                WHERE currency_code = ?
-                """,
-            (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
-            currencyCode
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return exchangeRateDao.findLatestCurrentExchangeRateFetch(currencyCode);
     }
 
     private boolean hasAnyCurrentForeignExchangeRate() {
-        Integer count = jdbcTemplate.queryForObject(
-            """
-                SELECT COUNT(*)
-                FROM current_exchange_rates
-                WHERE currency_code <> 'USD'
-                """,
-            Integer.class
-        );
-        return count != null && count > 0;
+        return exchangeRateDao.hasAnyCurrentForeignExchangeRate();
     }
 
     private int syncUsdKrwFromFred() {
@@ -749,21 +705,12 @@ public class MarketDataSyncService {
         }
         List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
         return observations.stream()
-            .mapToInt(payload -> jdbcTemplate.update("""
-                    INSERT INTO exchange_rates (base_date, currency_code, currency_name, deal_bas_rate, source, fetched_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        currency_name = VALUES(currency_name),
-                        deal_bas_rate = VALUES(deal_bas_rate),
-                        source = VALUES(source),
-                        fetched_at = VALUES(fetched_at)
-                    """,
+            .mapToInt(payload -> upsertExchangeRate(
                 payload.baseDate(),
                 "USD",
                 "US Dollar",
                 payload.value(),
-                "FRED:" + seriesId,
-                Instant.now()
+                "FRED:" + seriesId
             ))
             .sum();
     }
@@ -824,86 +771,28 @@ public class MarketDataSyncService {
         );
     }
 
-    private LatestExchangeRate findLatestDailyExchangeRate(String currencyCode) {
-        return jdbcTemplate.query(
-            """
-                SELECT base_date, deal_bas_rate
-                FROM exchange_rates
-                WHERE currency_code = ?
-                ORDER BY base_date DESC
-                LIMIT 1
-                """,
-            (rs, rowNum) -> new LatestExchangeRate(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("deal_bas_rate")),
-            currencyCode
-        ).stream().findFirst().orElse(null);
+    private MarketDataLatestExchangeRate findLatestDailyExchangeRate(String currencyCode) {
+        return exchangeRateDao.findLatestDailyExchangeRate(currencyCode);
     }
 
     private LocalDate findLatestDailyUsdKrwDate() {
-        return jdbcTemplate.query(
-            """
-                SELECT MAX(base_date)
-                FROM exchange_rates
-                WHERE currency_code = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            "USD"
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return findLatestDailyExchangeRateDate("USD");
     }
 
     private LocalDate findLatestDailyExchangeRateDate(String currencyCode) {
-        return jdbcTemplate.query(
-            """
-                SELECT MAX(base_date)
-                FROM exchange_rates
-                WHERE currency_code = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            currencyCode
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return exchangeRateDao.findLatestDailyExchangeRateDate(currencyCode);
     }
 
     private LocalDate findEarliestDailyExchangeRateDate(String currencyCode) {
-        return jdbcTemplate.query(
-            """
-                SELECT MIN(base_date)
-                FROM exchange_rates
-                WHERE currency_code = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            currencyCode
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return exchangeRateDao.findEarliestDailyExchangeRateDate(currencyCode);
     }
 
     private NavigableMap<LocalDate, BigDecimal> findDailyExchangeRateMap(String currencyCode, LocalDate startDate) {
-        NavigableMap<LocalDate, BigDecimal> rates = new TreeMap<>();
-        jdbcTemplate.query(
-            """
-                SELECT base_date, deal_bas_rate
-                FROM exchange_rates
-                WHERE currency_code = ?
-                  AND base_date >= ?
-                ORDER BY base_date ASC
-                """,
-            (org.springframework.jdbc.core.RowCallbackHandler) rs -> rates.put(rs.getDate("base_date").toLocalDate(), rs.getBigDecimal("deal_bas_rate")),
-            currencyCode,
-            startDate
-        );
-        return rates;
+        return exchangeRateDao.findDailyExchangeRateMap(currencyCode, startDate);
     }
 
     private List<LocalDate> findDailyUsdKrwDates(LocalDate startDate, LocalDate endDate) {
-        return jdbcTemplate.query(
-            """
-                SELECT base_date
-                FROM exchange_rates
-                WHERE currency_code = ?
-                  AND base_date BETWEEN ? AND ?
-                """,
-            (rs, rowNum) -> rs.getDate("base_date").toLocalDate(),
-            "USD",
-            startDate,
-            endDate
-        );
+        return exchangeRateDao.findDailyUsdKrwDates(startDate, endDate);
     }
 
     private java.util.Optional<java.math.BigDecimal> findLatestIntradayClose(LocalDate date) {
@@ -923,67 +812,23 @@ public class MarketDataSyncService {
     }
 
     private LocalDate findLatestDollarIndexDate(String seriesId) {
-        return jdbcTemplate.query(
-            """
-                SELECT MAX(base_date)
-                FROM dollar_indexes
-                WHERE series_id = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            seriesId
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return macroIndicatorDao.findLatestDollarIndexDate(seriesId);
     }
 
     private LocalDate findLatestInterestRateDate(String countryCode, String rateType) {
-        return jdbcTemplate.query(
-            """
-                SELECT MAX(base_date)
-                FROM interest_rates
-                WHERE country_code = ?
-                  AND rate_type = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            countryCode,
-            rateType
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return macroIndicatorDao.findLatestInterestRateDate(countryCode, rateType);
     }
 
     private LocalDate findEarliestInterestRateDate(String countryCode, String rateType) {
-        return jdbcTemplate.query(
-            """
-                SELECT MIN(base_date)
-                FROM interest_rates
-                WHERE country_code = ?
-                  AND rate_type = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            countryCode,
-            rateType
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return macroIndicatorDao.findEarliestInterestRateDate(countryCode, rateType);
     }
 
     private LocalDate findLatestDomesticPolicyDate(String indicatorCode) {
-        return jdbcTemplate.query(
-            """
-                SELECT MAX(base_date)
-                FROM domestic_policy_indicators
-                WHERE indicator_code = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            indicatorCode
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return domesticPolicyIndicatorDao.findLatestDomesticPolicyDate(indicatorCode);
     }
 
     private LocalDate findEarliestDomesticPolicyDate(String indicatorCode) {
-        return jdbcTemplate.query(
-            """
-                SELECT MIN(base_date)
-                FROM domestic_policy_indicators
-                WHERE indicator_code = ?
-                """,
-            (rs, rowNum) -> rs.getDate(1) == null ? null : rs.getDate(1).toLocalDate(),
-            indicatorCode
-        ).stream().filter(Objects::nonNull).findFirst().orElse(null);
+        return domesticPolicyIndicatorDao.findEarliestDomesticPolicyDate(indicatorCode);
     }
 
     private int syncDollarIndexes() {
@@ -1001,14 +846,7 @@ public class MarketDataSyncService {
         List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
         Instant fetchedAt = Instant.now();
         return observations.stream()
-            .mapToInt(payload -> jdbcTemplate.update("""
-                    INSERT INTO dollar_indexes (base_date, series_id, value, source, fetched_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        value = VALUES(value),
-                        source = VALUES(source),
-                        fetched_at = VALUES(fetched_at)
-                    """,
+            .mapToInt(payload -> macroIndicatorDao.upsertDollarIndex(
                 payload.baseDate(),
                 seriesId,
                 payload.value(),
@@ -1203,21 +1041,15 @@ public class MarketDataSyncService {
             observationStart = observationStart.minusMonths(3);
         }
         List<FredClient.FredObservationPayload> observations = fredClient.fetchObservations(seriesId, observationStart);
+        Instant fetchedAt = Instant.now();
         return observations.stream()
-            .mapToInt(payload -> jdbcTemplate.update("""
-                    INSERT INTO interest_rates (base_date, country_code, rate_type, rate_value, source, fetched_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        rate_value = VALUES(rate_value),
-                        source = VALUES(source),
-                        fetched_at = VALUES(fetched_at)
-                    """,
+            .mapToInt(payload -> macroIndicatorDao.upsertInterestRate(
                 payload.baseDate(),
                 "US",
                 "POLICY_RATE",
                 payload.value(),
                 "FRED:" + seriesId,
-                Instant.now()
+                fetchedAt
             ))
             .sum();
     }
@@ -1236,21 +1068,15 @@ public class MarketDataSyncService {
             observationStart = observationStart.minusMonths(3);
         }
         List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchKoreanPolicyRates(observationStart, LocalDate.now(SEOUL_ZONE));
+        Instant fetchedAt = Instant.now();
         return observations.stream()
-            .mapToInt(payload -> jdbcTemplate.update("""
-                    INSERT INTO interest_rates (base_date, country_code, rate_type, rate_value, source, fetched_at)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        rate_value = VALUES(rate_value),
-                        source = VALUES(source),
-                        fetched_at = VALUES(fetched_at)
-                    """,
+            .mapToInt(payload -> macroIndicatorDao.upsertInterestRate(
                 payload.baseDate(),
                 "KR",
                 "POLICY_RATE",
                 payload.value(),
                 "ECOS:" + properties.ecos().koreanPolicyRateStatCode(),
-                Instant.now()
+                fetchedAt
             ))
             .sum();
     }
@@ -1259,19 +1085,13 @@ public class MarketDataSyncService {
         YearMonth currentMonth = YearMonth.now(SEOUL_ZONE);
         YearMonth startMonth = currentMonth.minusYears(5);
         List<EcosClient.EcosObservationPayload> observations = ecosClient.fetchForeignReserves(startMonth, currentMonth);
+        Instant fetchedAt = Instant.now();
         return observations.stream()
-            .mapToInt(payload -> jdbcTemplate.update("""
-                    INSERT INTO foreign_reserves (base_date, amount_usd_million, source, fetched_at)
-                    VALUES (?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        amount_usd_million = VALUES(amount_usd_million),
-                        source = VALUES(source),
-                        fetched_at = VALUES(fetched_at)
-                """,
+            .mapToInt(payload -> macroIndicatorDao.upsertForeignReserve(
                 payload.baseDate(),
                 payload.value().divide(new BigDecimal("1000"), 4, RoundingMode.HALF_UP),
                 "ECOS:" + properties.ecos().foreignReservesStatCode(),
-                Instant.now()
+                fetchedAt
             ))
             .sum();
     }
@@ -1683,26 +1503,7 @@ public class MarketDataSyncService {
     }
 
     private int upsertDomesticPolicyIndicator(String code, String title, String category, LocalDate baseDate, BigDecimal value, String unit, String source) {
-        return jdbcTemplate.update("""
-                INSERT INTO domestic_policy_indicators (indicator_code, title, category, base_date, value, unit, source, fetched_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    title = VALUES(title),
-                    category = VALUES(category),
-                    value = VALUES(value),
-                    unit = VALUES(unit),
-                    source = VALUES(source),
-                    fetched_at = VALUES(fetched_at)
-                """,
-            code,
-            title,
-            category,
-            baseDate,
-            value,
-            unit,
-            source,
-            Instant.now()
-        );
+        return domesticPolicyIndicatorDao.upsertDomesticPolicyIndicator(code, title, category, baseDate, value, unit, source, Instant.now());
     }
 
     private Long startJob(String jobName, Instant startedAt, SyncTrigger trigger) {
@@ -2215,75 +2016,27 @@ public class MarketDataSyncService {
     }
 
     private boolean hasMajorExchangeRateCoverageForDate(LocalDate baseDate) {
-        Integer count = jdbcTemplate.queryForObject(
-            """
-                SELECT COUNT(DISTINCT currency_code)
-                FROM exchange_rates
-                WHERE base_date = ?
-                  AND (
-                    currency_code = 'USD'
-                    OR currency_code LIKE 'JPY%'
-                    OR currency_code LIKE 'EUR%'
-                    OR currency_code LIKE 'CNH%'
-                    OR currency_code LIKE 'CNY%'
-                    OR currency_code LIKE 'GBP%'
-                    OR currency_code LIKE 'AUD%'
-                    OR currency_code LIKE 'CAD%'
-                    OR currency_code LIKE 'CHF%'
-                    OR currency_code LIKE 'HKD%'
-                    OR currency_code LIKE 'SGD%'
-                  )
-                """,
-            Integer.class,
-            baseDate
-        );
-        return count != null && count >= MAJOR_EXCHANGE_RATE_PREFIXES.size() - 1;
+        return exchangeRateDao.hasMajorExchangeRateCoverageForDate(baseDate, MAJOR_EXCHANGE_RATE_PREFIXES.size() - 1);
     }
 
     private boolean hasRecentInterestRateFetch(String countryCode, String rateType, Instant threshold) {
-        return hasRecentFetch(
-            """
-                SELECT COUNT(*)
-                FROM interest_rates
-                WHERE country_code = ?
-                  AND rate_type = ?
-                  AND fetched_at >= ?
-                """,
-            countryCode,
-            rateType,
-            threshold
-        );
+        return macroIndicatorDao.hasRecentInterestRateFetch(countryCode, rateType, threshold);
     }
 
     private boolean hasInterestRateCoverage(String countryCode, String rateType, LocalDate targetStartDate) {
-        LocalDate earliestDate = findEarliestInterestRateDate(countryCode, rateType);
-        return earliestDate != null && !earliestDate.isAfter(targetStartDate.plusDays(45));
+        return macroIndicatorDao.hasInterestRateCoverage(countryCode, rateType, targetStartDate);
     }
 
     private boolean hasRecentDomesticPolicyFetch(String indicatorCode, Instant threshold) {
-        return hasRecentFetch(
-            """
-                SELECT COUNT(*)
-                FROM domestic_policy_indicators
-                WHERE indicator_code = ?
-                  AND fetched_at >= ?
-                """,
-            indicatorCode,
-            threshold
-        );
+        return domesticPolicyIndicatorDao.hasRecentDomesticPolicyFetch(indicatorCode, threshold);
     }
 
     private boolean hasDomesticPolicyCoverage(String indicatorCode, LocalDate targetStartDate) {
-        LocalDate earliestDate = findEarliestDomesticPolicyDate(indicatorCode);
-        return earliestDate != null && !earliestDate.isAfter(targetStartDate.plusDays(45));
+        return domesticPolicyIndicatorDao.hasDomesticPolicyCoverage(indicatorCode, targetStartDate);
     }
 
     private boolean hasRecentTableFetch(String tableName, Instant threshold) {
-        if (!Set.of("effective_exchange_rates", "foreign_reserves").contains(tableName)) {
-            throw new IllegalArgumentException("Unsupported freshness table: " + tableName);
-        }
-
-        return hasRecentFetch("SELECT COUNT(*) FROM " + tableName + " WHERE fetched_at >= ?", threshold);
+        return macroIndicatorDao.hasRecentTableFetch(tableName, threshold);
     }
 
     private boolean hasSuccessfulSourceRunSince(String jobName, String sourceName, Instant threshold) {
@@ -2337,9 +2090,6 @@ public class MarketDataSyncService {
     private String toEcosQuarter(YearMonth month) {
         int quarter = (month.getMonthValue() - 1) / 3 + 1;
         return month.getYear() + "Q" + quarter;
-    }
-
-    private record LatestExchangeRate(LocalDate baseDate, BigDecimal rate) {
     }
 
     public record SyncResult(
