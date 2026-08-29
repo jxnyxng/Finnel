@@ -105,6 +105,7 @@ public class MarketDataSyncService {
     private final MarketDomesticPolicyIndicatorDao domesticPolicyIndicatorDao;
     private final MarketMacroIndicatorDao macroIndicatorDao;
     private final MarketDataSourceRunCoordinator sourceRunCoordinator;
+    private final MarketCurrentExchangeRateUpdater currentExchangeRateUpdater;
 
     public MarketDataSyncService(
         ExternalApiProperties properties,
@@ -132,6 +133,7 @@ public class MarketDataSyncService {
         this.domesticPolicyIndicatorDao = new MarketDomesticPolicyIndicatorDao(jdbcTemplate);
         this.macroIndicatorDao = new MarketMacroIndicatorDao(jdbcTemplate);
         this.sourceRunCoordinator = new MarketDataSourceRunCoordinator(jdbcTemplate);
+        this.currentExchangeRateUpdater = new MarketCurrentExchangeRateUpdater(exchangeRateDao, SEOUL_ZONE);
     }
 
     public SyncResult requestManualSync() {
@@ -641,17 +643,7 @@ public class MarketDataSyncService {
             .mapToInt(spec -> {
                 try {
                     return twelveDataClient.fetchCurrentExchangeRate(spec.spec().symbol())
-                        .map(payload -> {
-                            upsertCurrentExchangeRate(
-                                LocalDate.ofInstant(payload.observedAt(), SEOUL_ZONE),
-                                spec.spec().currencyCode(),
-                                spec.spec().currencyName(),
-                                spec.spec().toDisplayRate(payload.rate()),
-                                "TWELVE_DATA:exchange_rate:" + spec.spec().symbol(),
-                                payload.observedAt()
-                            );
-                            return 1;
-                        })
+                        .map(payload -> currentExchangeRateUpdater.upsert(spec.spec(), payload))
                         .orElse(0);
                 } catch (RuntimeException exception) {
                     return 0;
