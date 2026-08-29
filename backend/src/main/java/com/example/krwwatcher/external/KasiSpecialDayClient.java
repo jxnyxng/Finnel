@@ -24,6 +24,7 @@ public class KasiSpecialDayClient {
     private final ExternalApiProperties properties;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
+    private final ApiKeySupport apiKeySupport = new ApiKeySupport();
 
     public KasiSpecialDayClient(ExternalApiProperties properties, ObjectMapper objectMapper, RestClient.Builder restClientBuilder) {
         this.properties = properties;
@@ -32,8 +33,7 @@ public class KasiSpecialDayClient {
     }
 
     public boolean isConfigured() {
-        return StringUtils.hasText(properties.kasi().apiKey())
-            && !"replace-me".equalsIgnoreCase(properties.kasi().apiKey().trim());
+        return apiKeySupport.hasUsableApiKey(properties.kasi().apiKey());
     }
 
     public Set<LocalDate> fetchKoreanPublicHolidays(YearMonth yearMonth) {

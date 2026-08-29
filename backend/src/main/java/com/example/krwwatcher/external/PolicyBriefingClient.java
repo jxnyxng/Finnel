@@ -53,6 +53,7 @@ public class PolicyBriefingClient {
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
+    private final ApiKeySupport apiKeySupport = new ApiKeySupport();
 
     public PolicyBriefingClient(ExternalApiProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
@@ -60,8 +61,7 @@ public class PolicyBriefingClient {
     }
 
     public boolean isConfigured() {
-        return StringUtils.hasText(properties.policyBriefing().apiKey())
-            && !"replace-me".equalsIgnoreCase(properties.policyBriefing().apiKey().trim());
+        return apiKeySupport.hasUsableApiKey(properties.policyBriefing().apiKey());
     }
 
     public List<PolicyBriefingPayload> fetchLatest(int pageNo, int numOfRows) {
