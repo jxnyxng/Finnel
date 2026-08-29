@@ -42,6 +42,7 @@ public class GovernmentBriefingService {
     private final GovernmentBriefingResponseBuilder responseBuilder = new GovernmentBriefingResponseBuilder();
     private final GovernmentBriefingFilterPolicy filterPolicy = new GovernmentBriefingFilterPolicy();
     private final GovernmentBriefingSyncCoordinator syncCoordinator = new GovernmentBriefingSyncCoordinator(syncRunning);
+    private final GovernmentBriefingArticleMapper articleMapper = new GovernmentBriefingArticleMapper();
 
     public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, SyncProperties syncProperties, JdbcTemplate jdbcTemplate) {
         this.policyBriefingClient = policyBriefingClient;
@@ -145,19 +146,7 @@ public class GovernmentBriefingService {
                 ORDER BY published_at DESC, id DESC
                 LIMIT ? OFFSET ?
                 """.formatted(whereClause),
-            (rs, rowNum) -> new GovernmentBriefingArticle(
-                rs.getString("title"),
-                rs.getString("subtitle"),
-                rs.getString("body"),
-                rs.getString("ministry"),
-                rs.getString("category"),
-                rs.getTimestamp("published_at") == null ? null : rs.getTimestamp("published_at").toInstant(),
-                rs.getString("thumbnail_url"),
-                rs.getString("image_url"),
-                rs.getString("original_url"),
-                rs.getString("kogl_type"),
-                rs.getTimestamp("fetched_at").toInstant()
-            ),
+            (rs, rowNum) -> articleMapper.mapArticle(rs),
             queryParams.toArray()
         );
         int count = totalCount == null ? 0 : totalCount;
