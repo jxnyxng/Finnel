@@ -144,7 +144,15 @@ public class DashboardService {
                 metric("BROAD_DOLLAR_INDEX", "26개 교역 상대 달러인덱스", latestDollarIndex == null ? null : latestDollarIndex.getValue(), "INDEX", metricCalculator.changeRate(dollarIndexSeries)),
                 metric("US_POLICY_RATE", "미국 기준금리", latestUsRate == null ? null : latestUsRate.getRateValue(), "PERCENT"),
                 metric("KR_POLICY_RATE", "한국 기준금리", latestKrRate == null ? null : latestKrRate.getRateValue(), "PERCENT"),
-                metric("KR_US_RATE_GAP", "한미 기준금리차", rateGap(latestUsRate, latestKrRate), "PERCENT_POINT"),
+                metric(
+                    "KR_US_RATE_GAP",
+                    "한미 기준금리차",
+                    metricCalculator.rateGap(
+                        latestUsRate == null ? null : latestUsRate.getRateValue(),
+                        latestKrRate == null ? null : latestKrRate.getRateValue()
+                    ),
+                    "PERCENT_POINT"
+                ),
                 metric("FOREIGN_RESERVES", "대한민국 외환보유액", latestForeignReserve == null ? null : latestForeignReserve.getAmountUsdMillion(), "USD_MILLION")
             ),
             usdKrwSeries,
@@ -919,14 +927,6 @@ public class DashboardService {
 
     private ForeignExchangeRate mapForeignExchangeRate(LocalDate baseDate, String rawCode, String currencyName, BigDecimal dealBasRate, String source, Instant fetchedAt, LocalDate historyStartDate, LocalDate historyEndDate) {
         return foreignExchangeMapper.toForeignExchangeRate(baseDate, rawCode, currencyName, dealBasRate, source, fetchedAt, historyStartDate, historyEndDate);
-    }
-
-    private BigDecimal rateGap(InterestRate latestUsRate, InterestRate latestKrRate) {
-        if (latestUsRate == null || latestKrRate == null) {
-            return null;
-        }
-
-        return latestUsRate.getRateValue().subtract(latestKrRate.getRateValue());
     }
 
     private DollarIndexStatus dollarIndexStatus(DollarIndex latestDollarIndex, String seriesId) {

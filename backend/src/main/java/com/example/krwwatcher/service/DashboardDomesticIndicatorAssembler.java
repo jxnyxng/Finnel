@@ -111,8 +111,14 @@ class DashboardDomesticIndicatorAssembler {
         DashboardService.IntradayTimeSeriesPoint latestIntraday = usdKrwIntradaySeries.isEmpty() ? null : usdKrwIntradaySeries.get(usdKrwIntradaySeries.size() - 1);
         DashboardFreshnessInfo usdKrwFreshness = freshnessPolicy.usdKrwFreshness(latestIntraday, latestUsdKrwDaily, latestUsdKrw == null ? null : latestUsdKrw.baseDate(), latestUsdKrw == null ? null : latestUsdKrw.value(), Instant.now());
 
-        BigDecimal rateGap = rateGap(latestUsRate, latestKrRate);
-        BigDecimal previousRateGap = rateGap(previousUsRate, previousKrRate);
+        BigDecimal rateGap = metricCalculator.rateGap(
+            latestUsRate == null ? null : latestUsRate.getRateValue(),
+            latestKrRate == null ? null : latestKrRate.getRateValue()
+        );
+        BigDecimal previousRateGap = metricCalculator.rateGap(
+            previousUsRate == null ? null : previousUsRate.getRateValue(),
+            previousKrRate == null ? null : previousKrRate.getRateValue()
+        );
         LocalDate rateGapBaseDate = latestUsRate == null || latestKrRate == null
             ? null
             : latestUsRate.getBaseDate().isAfter(latestKrRate.getBaseDate()) ? latestKrRate.getBaseDate() : latestUsRate.getBaseDate();
@@ -419,14 +425,6 @@ class DashboardDomesticIndicatorAssembler {
             freshness.freshnessStatus(),
             freshness.staleReason()
         );
-    }
-
-    private BigDecimal rateGap(InterestRate latestUsRate, InterestRate latestKrRate) {
-        if (latestUsRate == null || latestKrRate == null) {
-            return null;
-        }
-
-        return latestUsRate.getRateValue().subtract(latestKrRate.getRateValue());
     }
 
     private LocalDateTime toSeoulDateTime(Instant instant) {

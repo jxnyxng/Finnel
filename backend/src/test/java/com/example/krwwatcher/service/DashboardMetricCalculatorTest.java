@@ -42,6 +42,13 @@ class DashboardMetricCalculatorTest {
     }
 
     @Test
+    void calculatesRateGapAsUsMinusKr() {
+        assertThat(calculator.rateGap(new BigDecimal("5.5000"), new BigDecimal("3.5000"))).isEqualByComparingTo("2.0000");
+        assertThat(calculator.rateGap(null, new BigDecimal("3.5000"))).isNull();
+        assertThat(calculator.rateGap(new BigDecimal("5.5000"), null)).isNull();
+    }
+
+    @Test
     void returnsOldestPresentInstant() {
         Instant older = Instant.parse("2026-08-27T00:00:00Z");
         Instant newer = Instant.parse("2026-08-27T01:00:00Z");

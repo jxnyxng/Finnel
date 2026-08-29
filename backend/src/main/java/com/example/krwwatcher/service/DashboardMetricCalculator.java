@@ -36,6 +36,14 @@ class DashboardMetricCalculator {
         return sum.divide(BigDecimal.valueOf(points.size()), 6, RoundingMode.HALF_UP);
     }
 
+    BigDecimal rateGap(BigDecimal usRate, BigDecimal krRate) {
+        if (usRate == null || krRate == null) {
+            return null;
+        }
+
+        return usRate.subtract(krRate);
+    }
+
     Instant oldestInstant(Instant left, Instant right) {
         if (left == null) {
             return right;
