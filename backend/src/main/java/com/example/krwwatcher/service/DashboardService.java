@@ -49,6 +49,7 @@ public class DashboardService {
     private final DashboardDataSourceInfoProvider dataSourceInfoProvider = new DashboardDataSourceInfoProvider();
     private final DashboardExchangeCalculatorMetaBuilder exchangeCalculatorMetaBuilder = new DashboardExchangeCalculatorMetaBuilder();
     private final DashboardDollarIndexStatusProvider dollarIndexStatusProvider;
+    private final DashboardHistoryRangePolicy historyRangePolicy = new DashboardHistoryRangePolicy();
     private final DashboardDomesticIndicatorAssembler domesticIndicatorAssembler;
 
     @Autowired
@@ -186,10 +187,7 @@ public class DashboardService {
     public DomesticIndicatorHistoryResponse domesticIndicatorHistory(String code, String range) {
         LocalDate endDate = LocalDate.now(SEOUL_ZONE);
         List<HistoryRange> availableRanges = availableHistoryRanges(code, endDate);
-        HistoryRange requestedRange = HistoryRange.from(range);
-        HistoryRange historyRange = availableRanges.contains(requestedRange)
-            ? requestedRange
-            : availableRanges.stream().reduce((first, second) -> second).orElse(requestedRange);
+        HistoryRange historyRange = historyRangePolicy.selectRange(range, availableRanges);
         LocalDate startDate = endDate.minusYears(historyRange.years());
         List<TimeSeriesPoint> points = findDomesticIndicatorHistoryPoints(code, startDate, endDate);
         LocalDate responseEndDate = points.isEmpty() ? endDate : points.get(points.size() - 1).baseDate();
@@ -489,13 +487,7 @@ public class DashboardService {
 
     private List<HistoryRange> availableHistoryRanges(String code, LocalDate endDate) {
         LocalDate earliestDate = findEarliestDomesticIndicatorHistoryDate(code);
-        if (earliestDate == null) {
-            return List.of();
-        }
-
-        return List.of(HistoryRange.ONE_YEAR, HistoryRange.THREE_YEARS, HistoryRange.FIVE_YEARS).stream()
-            .filter(range -> !earliestDate.isAfter(endDate.minusYears(range.years()).plusDays(45)))
-            .toList();
+        return historyRangePolicy.availableHistoryRanges(earliestDate, endDate);
     }
 
     private LocalDate findEarliestDomesticIndicatorHistoryDate(String code) {
