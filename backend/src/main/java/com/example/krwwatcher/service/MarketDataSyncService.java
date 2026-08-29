@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableMap;
@@ -106,6 +105,7 @@ public class MarketDataSyncService {
     private final MarketMacroIndicatorDao macroIndicatorDao;
     private final MarketDataSourceRunCoordinator sourceRunCoordinator;
     private final MarketCurrentExchangeRateUpdater currentExchangeRateUpdater;
+    private final MarketCurrentExchangeRateCandidateSelector currentExchangeRateCandidateSelector = new MarketCurrentExchangeRateCandidateSelector();
 
     public MarketDataSyncService(
         ExternalApiProperties properties,
@@ -632,14 +632,10 @@ public class MarketDataSyncService {
 
     private int syncCurrentExchangeRatesFromTwelveData(int maxUpdates) {
         Instant staleThreshold = Instant.now().minus(CURRENT_EXCHANGE_RATE_STALE_AFTER);
-        return twelveDataExchangeSpecs().stream()
+        List<TwelveDataExchangeCandidate> candidates = twelveDataExchangeSpecs().stream()
             .map(spec -> new TwelveDataExchangeCandidate(spec, findLatestCurrentExchangeRateFetch(spec.currencyCode())))
-            .filter(candidate -> candidate.latestFetchedAt() == null || candidate.latestFetchedAt().isBefore(staleThreshold))
-            .sorted(Comparator.comparing(
-                TwelveDataExchangeCandidate::latestFetchedAt,
-                Comparator.nullsFirst(Comparator.naturalOrder())
-            ))
-            .limit(maxUpdates)
+            .toList();
+        return currentExchangeRateCandidateSelector.select(candidates, staleThreshold, maxUpdates).stream()
             .mapToInt(spec -> {
                 try {
                     return twelveDataClient.fetchCurrentExchangeRate(spec.spec().symbol())
