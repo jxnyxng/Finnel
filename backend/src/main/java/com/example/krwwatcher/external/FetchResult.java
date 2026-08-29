@@ -21,8 +21,12 @@ public record FetchResult<T>(
         return new FetchResult<>(status, List.of(), message);
     }
 
+    public boolean isSuccess() {
+        return status == FetchStatus.SUCCESS_EMPTY || status == FetchStatus.SUCCESS_WITH_ROWS;
+    }
+
     public List<T> rowsOrThrow(String sourceName) {
-        if (status == FetchStatus.SUCCESS_EMPTY || status == FetchStatus.SUCCESS_WITH_ROWS) {
+        if (isSuccess()) {
             return rows;
         }
         if (status == FetchStatus.NOT_CONFIGURED) {

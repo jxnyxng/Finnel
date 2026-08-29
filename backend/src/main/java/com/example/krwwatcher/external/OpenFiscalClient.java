@@ -96,7 +96,7 @@ public class OpenFiscalClient {
                 .body(String.class);
 
             FetchResult<OpenFiscalObservationPayload> result = parseObservations(response, valueKeyCandidates);
-            if (result.status() != FetchStatus.SUCCESS_EMPTY && result.status() != FetchStatus.SUCCESS_WITH_ROWS) {
+            if (!result.isSuccess()) {
                 return result;
             }
             observations.addAll(result.rows());
