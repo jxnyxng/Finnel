@@ -9,6 +9,12 @@ import type { ChartCandlestickPoint, ChartHoverState, ChartPoint, MetricSnapshot
 import { formatCrosshairDate } from '../utils/chart';
 import { formatMetricUnit, formatMetricValue, formatValue } from '../utils/format';
 import {
+  getCompactMarketChartPanelDetails,
+  getMarketChartCollectionStatusSummary,
+  getMarketChartSectionLabel,
+  getOhlcSummaryItems
+} from '../utils/marketChartPanel';
+import {
   ChartCrosshairOverlay,
   ChartEmptyState,
   ChartHelpTooltip,
@@ -510,15 +516,15 @@ export function MarketChartSection<T extends RangeKey>({
       </div>
     </div>
   );
-  const sectionLabel = getSectionLabel(title);
-  const collectionStatusSummary = getCollectionStatusSummary({
+  const sectionLabel = getMarketChartSectionLabel(title);
+  const collectionStatusSummary = getMarketChartCollectionStatusSummary({
     panelDetails,
     range,
     sectionLabel,
     showCandlesticks
   });
   const collectionStatusDetails = collectionStatusSummary.filter((item) => item.label !== '수집' && item.label !== '점검');
-  const compactPanelDetails = getCompactPanelDetails(panelDetails);
+  const compactPanelDetails = getCompactMarketChartPanelDetails(panelDetails);
   const panelInfoDetails = [...collectionStatusDetails, ...compactPanelDetails];
   const headerStatusBox = headerStatus ? (
     <div className="rounded-xl border border-white/15 bg-black/15 px-3 py-2">
@@ -955,56 +961,6 @@ function getNearestPointFromPointerX({
   return Math.abs(previous.x - targetX) <= Math.abs(current.x - targetX) ? previous : current;
 }
 
-function getSectionLabel(title: string) {
-  if (title.includes('원달러')) {
-    return '원달러환율';
-  }
-  return title.replace(/^실시간\s+/, '');
-}
-
-function getCollectionStatusSummary({
-  panelDetails,
-  range,
-  sectionLabel,
-  showCandlesticks
-}: {
-  panelDetails: Array<{ label: string; value: string }>;
-  range: RangeKey;
-  sectionLabel: string;
-  showCandlesticks: boolean;
-}) {
-  const source = panelDetails.find((item) => item.label === '출처')?.value;
-  const period = panelDetails.find((item) => item.label === '기간')?.value;
-
-  if (sectionLabel === '원달러환율' && range === '1D') {
-    return [
-      { label: '수집', value: '1분봉' },
-      { label: '표시', value: `5분봉 ${showCandlesticks ? '캔들' : '라인'}` },
-      { label: '점검', value: '5분마다 확인' },
-      { label: '출처', value: source ?? 'Twelve Data' }
-    ];
-  }
-
-  if (sectionLabel === '원달러환율') {
-    return [
-      { label: '수집', value: '일별 기준' },
-      { label: '표시', value: '일별 환율' },
-      { label: '출처', value: source ?? '저장 데이터' }
-    ];
-  }
-
-  return [
-    { label: '수집', value: '일별 기준' },
-    { label: '표시', value: period ?? '선택 기간' },
-    { label: '출처', value: source ?? 'FRED' }
-  ];
-}
-
-function getCompactPanelDetails(panelDetails: Array<{ label: string; value: string }>) {
-  const duplicatedLabels = new Set(['범위', '기간', '관측값', '최신 기준일', '세션', '출처', '구성', '해석']);
-  return panelDetails.filter((item) => !duplicatedLabels.has(item.label));
-}
-
 function isInsideChartSurfaceAction(target: EventTarget | null) {
   return target instanceof Element && target.closest('.chart-surface-action') !== null;
 }
@@ -1046,42 +1002,6 @@ function getDisplayOhlcPoint(point: ChartPoint | null, candles: ChartCandlestick
 
 function isCandlestickPoint(point: ChartPoint): point is ChartCandlestickPoint {
   return 'open' in point && 'high' in point && 'low' in point && 'close' in point;
-}
-
-function getOhlcSummaryItems(point: ChartCandlestickPoint, range: RangeKey) {
-  return [
-    { key: 'time', label: '시간', value: formatOhlcTimeRange(point.dateValue, range) },
-    { key: 'open', label: '시가', value: formatOhlcValue(point.open) },
-    { key: 'high', label: '고가', value: formatOhlcValue(point.high) },
-    { key: 'low', label: '저가', value: formatOhlcValue(point.low) },
-    { key: 'close', label: '종가', value: formatOhlcValue(point.close) }
-  ] as const;
-}
-
-function formatOhlcValue(value: number) {
-  return `${formatValue(value)}원`;
-}
-
-function formatOhlcTimeRange(dateValue: string, range: RangeKey) {
-  if (range !== '1D') {
-    return formatCrosshairDate(dateValue, range);
-  }
-
-  const hour = Number(dateValue.slice(11, 13));
-  const minute = Number(dateValue.slice(14, 16));
-  if (Number.isNaN(hour) || Number.isNaN(minute)) {
-    return formatCrosshairDate(dateValue, range);
-  }
-
-  const endMinuteOfDay = hour * 60 + minute;
-  const startMinuteOfDay = (endMinuteOfDay - 5 + 24 * 60) % (24 * 60);
-  return `${formatMinuteOfDay(startMinuteOfDay)} ~ ${formatMinuteOfDay(endMinuteOfDay)}`;
-}
-
-function formatMinuteOfDay(minuteOfDay: number) {
-  const hour = Math.floor(minuteOfDay / 60);
-  const minute = minuteOfDay % 60;
-  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 }
 
 function getChartExtrema(series: Array<ChartPoint | ChartCandlestickPoint>, useCandlestickRange: boolean) {
