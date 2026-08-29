@@ -52,6 +52,7 @@ public class GovernmentBriefingService {
     private final SyncProperties syncProperties;
     private final JdbcTemplate jdbcTemplate;
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
+    private final GovernmentBriefingResponseBuilder responseBuilder = new GovernmentBriefingResponseBuilder();
 
     public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, SyncProperties syncProperties, JdbcTemplate jdbcTemplate) {
         this.policyBriefingClient = policyBriefingClient;
@@ -182,9 +183,7 @@ public class GovernmentBriefingService {
     }
 
     public GovernmentBriefingResponse latest(String category, LocalDate fromDate, LocalDate toDate, int page, int pageSize, String keyword) {
-        int normalizedPage = Math.max(1, page);
-        int normalizedPageSize = Math.max(1, Math.min(pageSize, MAX_PAGE_SIZE));
-        int offset = (normalizedPage - 1) * normalizedPageSize;
+        GovernmentBriefingPageRequest pageRequest = responseBuilder.normalizePage(page, pageSize, MAX_PAGE_SIZE);
         List<Object> params = new ArrayList<>();
         String whereClause = buildWhereClause(category, fromDate, toDate, keyword, params);
         Integer totalCount = jdbcTemplate.queryForObject(
@@ -194,8 +193,8 @@ public class GovernmentBriefingService {
         );
 
         List<Object> queryParams = new ArrayList<>(params);
-        queryParams.add(normalizedPageSize);
-        queryParams.add(offset);
+        queryParams.add(pageRequest.pageSize());
+        queryParams.add(pageRequest.offset());
         List<GovernmentBriefingArticle> articles = jdbcTemplate.query(
             """
                 SELECT title, subtitle, body, ministry, category, published_at, thumbnail_url, image_url, original_url, kogl_type, fetched_at
@@ -220,25 +219,17 @@ public class GovernmentBriefingService {
             queryParams.toArray()
         );
         int count = totalCount == null ? 0 : totalCount;
-        int totalPages = count == 0 ? 0 : (int) Math.ceil((double) count / normalizedPageSize);
         Instant lastSuccessfulFetchedAt = latestSuccessfulFetchOrSyncAt();
         LatestSyncAttempt latestSyncAttempt = latestSyncAttempt();
         FreshnessInfo freshness = contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt);
-        return new GovernmentBriefingResponse(
+        return responseBuilder.build(
             policyBriefingClient.isConfigured(),
             briefingCategories(fromDate, toDate, keyword),
             articles,
-            normalizedPage,
-            normalizedPageSize,
+            pageRequest,
             count,
-            totalPages,
-            freshness.freshnessStatus(),
-            freshness.staleReason(),
-            freshness.expectedNextUpdateAt(),
-            freshness.lastSuccessfulFetchedAt(),
-            latestSyncAttempt == null ? null : latestSyncAttempt.status(),
-            latestSyncAttempt == null ? null : latestSyncAttempt.startedAt(),
-            latestSyncAttempt == null ? null : latestSyncAttempt.endedAt()
+            freshness,
+            latestSyncAttempt
         );
     }
 
@@ -633,7 +624,7 @@ public class GovernmentBriefingService {
     public record GovernmentBriefingSyncResult(String status, String message, int rows, Instant syncedAt) {
     }
 
-    private record FreshnessInfo(
+    record FreshnessInfo(
         String freshnessStatus,
         String staleReason,
         Instant expectedNextUpdateAt,
@@ -641,7 +632,7 @@ public class GovernmentBriefingService {
     ) {
     }
 
-    private record LatestSyncAttempt(
+    record LatestSyncAttempt(
         String status,
         Instant startedAt,
         Instant endedAt
