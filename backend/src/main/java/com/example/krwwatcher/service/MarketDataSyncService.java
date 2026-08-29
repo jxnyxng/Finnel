@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -106,6 +105,7 @@ public class MarketDataSyncService {
     private final MarketDataSourceRunCoordinator sourceRunCoordinator;
     private final MarketCurrentExchangeRateUpdater currentExchangeRateUpdater;
     private final MarketCurrentExchangeRateCandidateSelector currentExchangeRateCandidateSelector = new MarketCurrentExchangeRateCandidateSelector();
+    private final MarketDailyBackfillDateSelector dailyBackfillDateSelector = new MarketDailyBackfillDateSelector();
 
     public MarketDataSyncService(
         ExternalApiProperties properties,
@@ -586,14 +586,15 @@ public class MarketDataSyncService {
         LocalDate today = LocalDate.now();
         LocalDate startDate = today.minusDays(14);
         LocalDate endDate = today.minusDays(1);
-        Set<LocalDate> existingDates = new HashSet<>(findDailyUsdKrwDates(startDate, endDate));
+        Set<LocalDate> existingDates = Set.copyOf(findDailyUsdKrwDates(startDate, endDate));
         int rows = 0;
-        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            BusinessDayService.KoreanBusinessDayStatus businessDayStatus = businessDayService.koreanBusinessDayStatus(date);
-            if (businessDayStatus != BusinessDayService.KoreanBusinessDayStatus.BUSINESS_DAY || existingDates.contains(date)) {
-                continue;
-            }
-
+        List<LocalDate> missingBusinessDates = dailyBackfillDateSelector.selectMissingBusinessDates(
+            startDate,
+            endDate,
+            existingDates,
+            businessDayService::koreanBusinessDayStatus
+        );
+        for (LocalDate date : missingBusinessDates) {
             LocalDate missingDate = date;
             rows += findLatestIntradayClose(missingDate)
                 .map(value -> upsertDailyUsdKrw(missingDate, value, "TWELVE_DATA:5min:CLOSE"))
