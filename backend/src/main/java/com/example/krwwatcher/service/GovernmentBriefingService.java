@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,19 +31,7 @@ public class GovernmentBriefingService {
     private static final String JOB_NAME = "GOVERNMENT_BRIEFING_SYNC";
     private static final ZoneId SEOUL_ZONE = ZoneId.of("Asia/Seoul");
     private static final int MAX_PAGE_SIZE = 30;
-    private static final int MIN_RELEVANCE_SCORE = 4;
     private static final int MAX_BACKFILL_MONTHS = 36;
-    private static final List<BriefingCategoryRule> CATEGORY_RULES = List.of(
-        new BriefingCategoryRule("monetary", "통화정책", List.of("기준금리", "금리", "통화정책", "한국은행", "금융통화위원회", "금통위", "유동성", "통화량", "M2")),
-        new BriefingCategoryRule("fiscal", "재정정책", List.of("재정", "국가채무", "국채", "예산", "세수", "기획재정부", "관리재정수지", "재정수지", "정책금융")),
-        new BriefingCategoryRule("fx", "외환·금융시장", List.of("환율", "외환", "원화", "달러", "자본시장", "금융시장", "외국인", "채권", "주식시장")),
-        new BriefingCategoryRule("trade", "무역·수급", List.of("수출", "수입", "무역수지", "경상수지", "관세", "통상", "공급망", "원자재")),
-        new BriefingCategoryRule("inflation", "물가·민생", List.of("물가", "소비자물가", "생산자물가", "유가", "에너지", "인플레이션"))
-    );
-    private static final List<String> RELEVANT_CATEGORY_CODES = CATEGORY_RULES.stream()
-        .map(BriefingCategoryRule::code)
-        .toList();
-    private static final int MIN_BODY_LENGTH = 300;
     private static final int MAX_SEARCH_KEYWORD_LENGTH = 80;
     private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
 
@@ -53,6 +40,7 @@ public class GovernmentBriefingService {
     private final JdbcTemplate jdbcTemplate;
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
     private final GovernmentBriefingResponseBuilder responseBuilder = new GovernmentBriefingResponseBuilder();
+    private final GovernmentBriefingFilterPolicy filterPolicy = new GovernmentBriefingFilterPolicy();
 
     public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, SyncProperties syncProperties, JdbcTemplate jdbcTemplate) {
         this.policyBriefingClient = policyBriefingClient;
@@ -235,12 +223,12 @@ public class GovernmentBriefingService {
 
     private String buildWhereClause(String category, LocalDate fromDate, LocalDate toDate, String keyword, List<Object> params) {
         List<String> conditions = new ArrayList<>();
-        if (StringUtils.hasText(category) && RELEVANT_CATEGORY_CODES.contains(category)) {
+        if (StringUtils.hasText(category) && filterPolicy.relevantCategoryCodes().contains(category)) {
             conditions.add("category = ?");
             params.add(category);
         } else {
-            conditions.add("category IN (%s)".formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())));
-            params.addAll(RELEVANT_CATEGORY_CODES);
+            conditions.add("category IN (%s)".formatted(String.join(", ", filterPolicy.relevantCategoryCodes().stream().map(ignored -> "?").toList())));
+            params.addAll(filterPolicy.relevantCategoryCodes());
         }
         if (fromDate != null) {
             conditions.add("published_at >= ?");
@@ -259,7 +247,7 @@ public class GovernmentBriefingService {
         }
         conditions.add("body IS NOT NULL");
         conditions.add("CHAR_LENGTH(body) >= ?");
-        params.add(MIN_BODY_LENGTH);
+        params.add(filterPolicy.minBodyLength());
 
         if (conditions.isEmpty()) {
             return "";
@@ -270,7 +258,7 @@ public class GovernmentBriefingService {
 
     private List<GovernmentBriefingCategory> briefingCategories(LocalDate fromDate, LocalDate toDate, String keyword) {
         Map<String, String> labelByCode = new LinkedHashMap<>();
-        CATEGORY_RULES.forEach(rule -> labelByCode.put(rule.code(), rule.label()));
+        filterPolicy.categoryRules().forEach(rule -> labelByCode.put(rule.code(), rule.label()));
         List<Object> params = new ArrayList<>();
         String whereClause = buildWhereClause("all", fromDate, toDate, keyword, params);
         Map<String, Integer> countByCode = jdbcTemplate.query(
@@ -291,7 +279,7 @@ public class GovernmentBriefingService {
             params.toArray()
         );
 
-        return CATEGORY_RULES.stream()
+        return filterPolicy.categoryRules().stream()
             .map(rule -> new GovernmentBriefingCategory(
                 rule.code(),
                 labelByCode.getOrDefault(rule.code(), rule.code()),
@@ -319,15 +307,11 @@ public class GovernmentBriefingService {
     }
 
     private int upsertRelevantBriefing(PolicyBriefingClient.PolicyBriefingPayload payload) {
-        if (isLowQualityBriefing(payload)) {
+        if (!filterPolicy.isRelevant(payload)) {
             return 0;
         }
 
-        RelevanceResult relevance = relevance(payload);
-        if (relevance.score() < MIN_RELEVANCE_SCORE) {
-            return 0;
-        }
-
+        GovernmentBriefingFilterPolicy.RelevanceResult relevance = filterPolicy.relevance(payload);
         return upsertBriefing(payload, relevance.categoryCode());
     }
 
@@ -369,38 +353,6 @@ public class GovernmentBriefingService {
         );
     }
 
-    private RelevanceResult relevance(PolicyBriefingClient.PolicyBriefingPayload payload) {
-        String text = String.join(" ",
-            nullToEmpty(payload.title()),
-            nullToEmpty(payload.subtitle()),
-            nullToEmpty(payload.body()),
-            nullToEmpty(payload.ministry())
-        ).toLowerCase(Locale.ROOT);
-        int bestScore = 0;
-        String bestCategory = null;
-        for (BriefingCategoryRule rule : CATEGORY_RULES) {
-            int score = 0;
-            for (String keyword : rule.keywords()) {
-                String normalizedKeyword = keyword.toLowerCase(Locale.ROOT);
-                if (text.contains(normalizedKeyword)) {
-                    score += keyword.length() >= 4 ? 3 : 2;
-                }
-            }
-            if (score > bestScore) {
-                bestScore = score;
-                bestCategory = rule.code();
-            }
-        }
-
-        return new RelevanceResult(bestScore, bestCategory == null ? "policy" : bestCategory);
-    }
-
-    private boolean isLowQualityBriefing(PolicyBriefingClient.PolicyBriefingPayload payload) {
-        String body = payload.body();
-        return !StringUtils.hasText(body)
-            || body.length() < MIN_BODY_LENGTH;
-    }
-
     private boolean hasBriefingsFetchedToday() {
         Integer count = jdbcTemplate.queryForObject(
             """
@@ -408,7 +360,7 @@ public class GovernmentBriefingService {
                 FROM government_briefings
                 WHERE fetched_at >= ?
                     AND category IN (%s)
-                """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
+                """.formatted(String.join(", ", filterPolicy.relevantCategoryCodes().stream().map(ignored -> "?").toList())),
             Integer.class,
             relevantCategoryQueryParams(LocalDate.now(SEOUL_ZONE).atStartOfDay(SEOUL_ZONE).toInstant())
         );
@@ -423,7 +375,7 @@ public class GovernmentBriefingService {
                 WHERE category IN (%s)
                   AND body IS NOT NULL
                   AND CHAR_LENGTH(body) >= ?
-                """.formatted(String.join(", ", RELEVANT_CATEGORY_CODES.stream().map(ignored -> "?").toList())),
+                """.formatted(String.join(", ", filterPolicy.relevantCategoryCodes().stream().map(ignored -> "?").toList())),
             (rs, rowNum) -> rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
             relevantCategoryQualityParams()
         ).stream()
@@ -528,13 +480,13 @@ public class GovernmentBriefingService {
     private Object[] relevantCategoryQueryParams(Object firstParam) {
         List<Object> params = new ArrayList<>();
         params.add(firstParam);
-        params.addAll(RELEVANT_CATEGORY_CODES);
+        params.addAll(filterPolicy.relevantCategoryCodes());
         return params.toArray();
     }
 
     private Object[] relevantCategoryQualityParams() {
-        List<Object> params = new ArrayList<>(RELEVANT_CATEGORY_CODES);
-        params.add(MIN_BODY_LENGTH);
+        List<Object> params = new ArrayList<>(filterPolicy.relevantCategoryCodes());
+        params.add(filterPolicy.minBodyLength());
         return params.toArray();
     }
 
@@ -552,10 +504,6 @@ public class GovernmentBriefingService {
             return value;
         }
         return value.substring(0, maxLength);
-    }
-
-    private String nullToEmpty(String value) {
-        return value == null ? "" : value;
     }
 
     private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt, LatestSyncAttempt latestSyncAttempt) {
@@ -577,12 +525,6 @@ public class GovernmentBriefingService {
 
     private boolean isFailedSyncStatus(String status) {
         return status != null && !"SUCCESS".equals(status) && !"RUNNING".equals(status);
-    }
-
-    private record BriefingCategoryRule(String code, String label, List<String> keywords) {
-    }
-
-    private record RelevanceResult(int score, String categoryCode) {
     }
 
     public record GovernmentBriefingCategory(String code, String name, int articleCount) {
