@@ -52,6 +52,7 @@ public class NewsService {
     private final NewsRelatedArticleSelector relatedArticleSelector;
     private final NewsArticleQuerySupport articleQuerySupport = new NewsArticleQuerySupport();
     private final NewsFreshnessPolicy freshnessPolicy = new NewsFreshnessPolicy();
+    private final NewsResponseBuilder responseBuilder = new NewsResponseBuilder();
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
     public NewsService(
@@ -178,9 +179,7 @@ public class NewsService {
     public NewsResponse latest(String categoryCode, LocalDate fromDate, LocalDate toDate, String keyword, int page, int pageSize) {
         String normalizedKeyword = normalizeSearchKeyword(keyword);
         NewsArticleSearchCriteria criteria = new NewsArticleSearchCriteria(categoryCode, fromDate, toDate, normalizedKeyword);
-        int normalizedPage = Math.max(1, page);
-        int normalizedPageSize = Math.max(1, Math.min(pageSize, NEWS_PAGE_SIZE));
-        int offset = (normalizedPage - 1) * normalizedPageSize;
+        NewsPageRequest pageRequest = responseBuilder.normalizePage(page, pageSize, NEWS_PAGE_SIZE);
         int totalCount = countArticles(criteria);
         NewsArticleQuerySupport.ArticleWhereClause whereClause = articleQuerySupport.buildArticleWhereClause(criteria);
         List<Object> params = new ArrayList<>(whereClause.params());
@@ -196,29 +195,21 @@ public class NewsService {
             ORDER BY n.published_at DESC, n.id DESC
             LIMIT ? OFFSET ?
             """.formatted(whereClause.sql());
-        params.add(normalizedPageSize);
-        params.add(offset);
+        params.add(pageRequest.pageSize());
+        params.add(pageRequest.offset());
         List<NewsArticle> articles = jdbcTemplate.query(sql, (rs, rowNum) -> mapArticle(rs), params.toArray());
 
-        int totalPages = totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / normalizedPageSize);
         Instant lastSuccessfulFetchedAt = latestSuccessfulFetchOrSyncAt();
         NewsLatestSyncAttempt latestSyncAttempt = latestSyncAttempt();
         NewsFreshnessInfo freshness = contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt);
-        return new NewsResponse(
+        return responseBuilder.build(
             naverNewsClient.isConfigured(),
             categories(fromDate, toDate, normalizedKeyword),
             articles,
-            normalizedPage,
-            normalizedPageSize,
+            pageRequest,
             totalCount,
-            totalPages,
-            freshness.freshnessStatus(),
-            freshness.staleReason(),
-            freshness.expectedNextUpdateAt(),
-            freshness.lastSuccessfulFetchedAt(),
-            latestSyncAttempt == null ? null : latestSyncAttempt.status(),
-            latestSyncAttempt == null ? null : latestSyncAttempt.startedAt(),
-            latestSyncAttempt == null ? null : latestSyncAttempt.endedAt()
+            freshness,
+            latestSyncAttempt
         );
     }
 
