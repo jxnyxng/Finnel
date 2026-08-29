@@ -48,6 +48,7 @@ public class DashboardService {
     private final DashboardFreshnessPolicy freshnessPolicy = new DashboardFreshnessPolicy();
     private final DashboardIntradaySeriesMapper intradaySeriesMapper = new DashboardIntradaySeriesMapper();
     private final DashboardDataSourceInfoProvider dataSourceInfoProvider = new DashboardDataSourceInfoProvider();
+    private final DashboardExchangeCalculatorMetaBuilder exchangeCalculatorMetaBuilder = new DashboardExchangeCalculatorMetaBuilder();
     private final DashboardDomesticIndicatorAssembler domesticIndicatorAssembler;
 
     @Autowired
@@ -155,7 +156,7 @@ public class DashboardService {
             dollarIndexStatus(latestDollarIndex, properties.fred().dollarIndexSeriesId()),
             currencyStrengthRanks,
             foreignExchangeRates,
-            exchangeRateCalculatorMeta(foreignExchangeRates),
+            exchangeCalculatorMetaBuilder.exchangeRateCalculatorMeta(foreignExchangeRates, LocalDate.now(SEOUL_ZONE)),
             domesticIndicators,
             dataSourceInfoProvider.dataSourceInfos(),
             dashboardFreshness.freshnessStatus(),
@@ -918,20 +919,6 @@ public class DashboardService {
 
     private ForeignExchangeRate mapForeignExchangeRate(LocalDate baseDate, String rawCode, String currencyName, BigDecimal dealBasRate, String source, Instant fetchedAt, LocalDate historyStartDate, LocalDate historyEndDate) {
         return foreignExchangeMapper.toForeignExchangeRate(baseDate, rawCode, currencyName, dealBasRate, source, fetchedAt, historyStartDate, historyEndDate);
-    }
-
-    private ExchangeRateCalculatorMeta exchangeRateCalculatorMeta(List<ForeignExchangeRate> rates) {
-        LocalDate latestAllowedDate = rates.stream()
-            .map(ForeignExchangeRate::historyEndDate)
-            .filter(Objects::nonNull)
-            .max(LocalDate::compareTo)
-            .orElse(LocalDate.now(SEOUL_ZONE));
-        LocalDate earliestAllowedDate = rates.stream()
-            .map(ForeignExchangeRate::historyStartDate)
-            .filter(Objects::nonNull)
-            .min(LocalDate::compareTo)
-            .orElse(latestAllowedDate.minusYears(5));
-        return new ExchangeRateCalculatorMeta(earliestAllowedDate, latestAllowedDate);
     }
 
     private BigDecimal rateGap(InterestRate latestUsRate, InterestRate latestKrRate) {
