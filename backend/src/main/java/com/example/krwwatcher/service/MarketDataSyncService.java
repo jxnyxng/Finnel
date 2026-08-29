@@ -486,31 +486,40 @@ public class MarketDataSyncService {
 
     @Transactional
     protected SyncResult runDailyBackfill(SyncTrigger trigger) {
-        Instant startedAt = Instant.now();
-        Long jobId = startJob(DAILY_BACKFILL_JOB_NAME, startedAt, trigger);
-        MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
-
-        int exchangeRows = runSource(jobId, DAILY_BACKFILL_JOB_NAME, "dailyBackfill", tracker, syncProperties.marketData().dailyBackfillCooldown(), this::syncDailyExchangeRateBackfill);
-
-        String status = tracker.status();
-        String message = "dailyBackfill=" + exchangeRows + tracker.messageSuffix();
-        finishJob(jobId, status, Instant.now(), message);
-        SyncWindow syncWindow = currentSyncWindow(DAILY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
-        return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
+        return runExchangeRateBackfill(
+            trigger,
+            DAILY_BACKFILL_JOB_NAME,
+            "dailyBackfill",
+            this::syncDailyExchangeRateBackfill
+        );
     }
 
     @Transactional
     protected SyncResult runExchangeRateHistoryBackfill(SyncTrigger trigger) {
+        return runExchangeRateBackfill(
+            trigger,
+            EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME,
+            "exchangeRateHistoryBackfill",
+            this::syncExchangeRatesFromFred
+        );
+    }
+
+    private SyncResult runExchangeRateBackfill(
+        SyncTrigger trigger,
+        String jobName,
+        String sourceName,
+        IntSupplier supplier
+    ) {
         Instant startedAt = Instant.now();
-        Long jobId = startJob(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, startedAt, trigger);
+        Long jobId = startJob(jobName, startedAt, trigger);
         MarketDataSyncRunTracker tracker = new MarketDataSyncRunTracker();
 
-        int exchangeRows = runSource(jobId, EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, "exchangeRateHistoryBackfill", tracker, syncProperties.marketData().dailyBackfillCooldown(), this::syncExchangeRatesFromFred);
+        int exchangeRows = runSource(jobId, jobName, sourceName, tracker, syncProperties.marketData().dailyBackfillCooldown(), supplier);
 
         String status = tracker.status();
-        String message = "exchangeRateHistoryBackfill=" + exchangeRows + tracker.messageSuffix();
+        String message = sourceName + "=" + exchangeRows + tracker.messageSuffix();
         finishJob(jobId, status, Instant.now(), message);
-        SyncWindow syncWindow = currentSyncWindow(EXCHANGE_RATE_HISTORY_BACKFILL_JOB_NAME, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
+        SyncWindow syncWindow = currentSyncWindow(jobName, syncProperties.marketData().dailyBackfillCooldown(), Instant.now());
         return new SyncResult(exchangeRows, 0, 0, 0, 0, 0, 0, 0, status, message, trigger.name(), startedAt, syncWindow.nextAllowedAt(), syncWindow.remainingCooldownSeconds());
     }
 
