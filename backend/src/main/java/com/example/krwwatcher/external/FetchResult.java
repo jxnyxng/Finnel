@@ -33,6 +33,6 @@ public record FetchResult<T>(
             return List.of();
         }
 
-        throw new ExternalApiFetchException(sourceName + " " + status + ": " + message);
+        throw new ExternalApiFetchException(sourceName, status, message);
     }
 }

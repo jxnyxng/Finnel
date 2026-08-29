@@ -28,4 +28,20 @@ class FetchResultTest {
             .isInstanceOf(ExternalApiFetchException.class)
             .hasMessage("source SCHEMA_MISMATCH: missing rows");
     }
+
+    @Test
+    void rowsOrThrowPreservesFetchFailureClassification() {
+        assertThatThrownBy(() -> FetchResult.failure(FetchStatus.REMOTE_ERROR, "remote").rowsOrThrow("source"))
+            .isInstanceOfSatisfying(ExternalApiFetchException.class, exception -> {
+                assertThat(exception.sourceName()).isEqualTo("source");
+                assertThat(exception.fetchStatus()).isEqualTo(FetchStatus.REMOTE_ERROR);
+                assertThat(exception.retryable()).isTrue();
+                assertThat(exception.getMessage()).isEqualTo("source REMOTE_ERROR: remote");
+            });
+    }
+
+    @Test
+    void schemaMismatchIsNotRetryable() {
+        assertThat(FetchStatus.SCHEMA_MISMATCH.retryable()).isFalse();
+    }
 }
