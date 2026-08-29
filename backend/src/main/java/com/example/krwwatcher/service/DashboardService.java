@@ -40,7 +40,6 @@ public class DashboardService {
     private final ForeignReserveRepository foreignReserveRepository;
     private final JdbcTemplate jdbcTemplate;
     private final DailyDashboardCache dailyDashboardCache;
-    private final FredClient fredClient;
     private final DashboardForeignExchangeMapper foreignExchangeMapper = new DashboardForeignExchangeMapper();
     private final DashboardDomesticIndicatorMetadata indicatorMetadata = new DashboardDomesticIndicatorMetadata();
     private final DashboardMetricCalculator metricCalculator = new DashboardMetricCalculator();
@@ -49,6 +48,7 @@ public class DashboardService {
     private final DashboardIntradaySeriesMapper intradaySeriesMapper = new DashboardIntradaySeriesMapper();
     private final DashboardDataSourceInfoProvider dataSourceInfoProvider = new DashboardDataSourceInfoProvider();
     private final DashboardExchangeCalculatorMetaBuilder exchangeCalculatorMetaBuilder = new DashboardExchangeCalculatorMetaBuilder();
+    private final DashboardDollarIndexStatusProvider dollarIndexStatusProvider;
     private final DashboardDomesticIndicatorAssembler domesticIndicatorAssembler;
 
     @Autowired
@@ -68,8 +68,8 @@ public class DashboardService {
         this.interestRateRepository = interestRateRepository;
         this.foreignReserveRepository = foreignReserveRepository;
         this.jdbcTemplate = jdbcTemplate;
-        this.fredClient = fredClient;
         this.dailyDashboardCache = new DailyDashboardCache(dashboardCacheProperties);
+        this.dollarIndexStatusProvider = new DashboardDollarIndexStatusProvider(fredClient);
         this.domesticIndicatorAssembler = new DashboardDomesticIndicatorAssembler(
             exchangeRateRepository,
             interestRateRepository,
@@ -160,8 +160,8 @@ public class DashboardService {
             usdKrwIntradayCandles,
             advancedDollarIndexSeries,
             dollarIndexSeries,
-            dollarIndexStatus(latestAdvancedDollarIndex, properties.fred().advancedDollarIndexSeriesId()),
-            dollarIndexStatus(latestDollarIndex, properties.fred().dollarIndexSeriesId()),
+            dollarIndexStatusProvider.dollarIndexStatus(latestAdvancedDollarIndex, properties.fred().advancedDollarIndexSeriesId(), LocalDate.now(SEOUL_ZONE)),
+            dollarIndexStatusProvider.dollarIndexStatus(latestDollarIndex, properties.fred().dollarIndexSeriesId(), LocalDate.now(SEOUL_ZONE)),
             currencyStrengthRanks,
             foreignExchangeRates,
             exchangeCalculatorMetaBuilder.exchangeRateCalculatorMeta(foreignExchangeRates, LocalDate.now(SEOUL_ZONE)),
@@ -927,28 +927,6 @@ public class DashboardService {
 
     private ForeignExchangeRate mapForeignExchangeRate(LocalDate baseDate, String rawCode, String currencyName, BigDecimal dealBasRate, String source, Instant fetchedAt, LocalDate historyStartDate, LocalDate historyEndDate) {
         return foreignExchangeMapper.toForeignExchangeRate(baseDate, rawCode, currencyName, dealBasRate, source, fetchedAt, historyStartDate, historyEndDate);
-    }
-
-    private DollarIndexStatus dollarIndexStatus(DollarIndex latestDollarIndex, String seriesId) {
-        if (latestDollarIndex == null) {
-            return new DollarIndexStatus(null, null, null);
-        }
-        return new DollarIndexStatus(
-            latestDollarIndex.getBaseDate(),
-            latestDollarIndex.getFetchedAt(),
-            fredNextReleaseDate(seriesId)
-        );
-    }
-
-    private LocalDate fredNextReleaseDate(String seriesId) {
-        if (fredClient == null) {
-            return null;
-        }
-        try {
-            return fredClient.fetchNextReleaseDate(seriesId, LocalDate.now(SEOUL_ZONE)).orElse(null);
-        } catch (RuntimeException exception) {
-            return null;
-        }
     }
 
     public record DailyDashboardResponse(
