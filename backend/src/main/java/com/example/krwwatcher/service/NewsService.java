@@ -2,12 +2,9 @@ package com.example.krwwatcher.service;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.example.krwwatcher.config.SyncProperties;
@@ -39,8 +36,6 @@ public class NewsService {
     private static final int MAX_SEARCH_KEYWORD_LENGTH = 80;
     private static final int RELATED_CANDIDATE_LIMIT = 3000;
     private static final int RELATED_BANNER_DISPLAY_COUNT = 9;
-    private static final Duration FRESHNESS_MAX_AGE = Duration.ofMinutes(60);
-
     private static final List<NewsCategory> CATEGORIES = List.of(
         new NewsCategory("fx", "환율", "원달러 환율", 0),
         new NewsCategory("market", "외환시장", "외환시장", 0),
@@ -54,6 +49,9 @@ public class NewsService {
     private final JdbcTemplate jdbcTemplate;
     private final NewsArticleMaintenance newsArticleMaintenance;
     private final NewsArticleText newsArticleText;
+    private final NewsRelatedArticleSelector relatedArticleSelector;
+    private final NewsArticleQuerySupport articleQuerySupport = new NewsArticleQuerySupport();
+    private final NewsFreshnessPolicy freshnessPolicy = new NewsFreshnessPolicy();
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
 
     public NewsService(
@@ -68,6 +66,7 @@ public class NewsService {
         this.jdbcTemplate = jdbcTemplate;
         this.newsArticleMaintenance = newsArticleMaintenance;
         this.newsArticleText = newsArticleText;
+        this.relatedArticleSelector = new NewsRelatedArticleSelector(newsArticleText);
     }
 
     @Scheduled(cron = "${app.sync.market-data.news-cron}", zone = "${app.sync.market-data.zone}")
@@ -183,8 +182,8 @@ public class NewsService {
         int normalizedPageSize = Math.max(1, Math.min(pageSize, NEWS_PAGE_SIZE));
         int offset = (normalizedPage - 1) * normalizedPageSize;
         int totalCount = countArticles(criteria);
-        List<Object> params = new ArrayList<>();
-        String whereClause = buildArticleWhereClause(criteria, params);
+        NewsArticleQuerySupport.ArticleWhereClause whereClause = articleQuerySupport.buildArticleWhereClause(criteria);
+        List<Object> params = new ArrayList<>(whereClause.params());
         String sql = """
             SELECT n.category_code, n.category_name, n.query_text, n.title, n.description, n.origin_link, n.link, n.publisher, n.published_at, n.ai_summary, n.market_sentiment, n.image_url, n.fetched_at
             FROM news_articles n
@@ -196,15 +195,15 @@ public class NewsService {
             ) latest ON latest.id = n.id
             ORDER BY n.published_at DESC, n.id DESC
             LIMIT ? OFFSET ?
-            """.formatted(whereClause);
+            """.formatted(whereClause.sql());
         params.add(normalizedPageSize);
         params.add(offset);
         List<NewsArticle> articles = jdbcTemplate.query(sql, (rs, rowNum) -> mapArticle(rs), params.toArray());
 
         int totalPages = totalCount == 0 ? 0 : (int) Math.ceil((double) totalCount / normalizedPageSize);
         Instant lastSuccessfulFetchedAt = latestSuccessfulFetchOrSyncAt();
-        LatestSyncAttempt latestSyncAttempt = latestSyncAttempt();
-        FreshnessInfo freshness = contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt);
+        NewsLatestSyncAttempt latestSyncAttempt = latestSyncAttempt();
+        NewsFreshnessInfo freshness = contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt);
         return new NewsResponse(
             naverNewsClient.isConfigured(),
             categories(fromDate, toDate, normalizedKeyword),
@@ -239,137 +238,9 @@ public class NewsService {
             (rs, rowNum) -> mapArticle(rs),
             RELATED_CANDIDATE_LIMIT
         );
-        List<String> keywords = relatedKeywords(topic);
-        List<NewsArticle> articles = buildRelatedBannerArticles(rankRelatedArticleCandidates(candidates, keywords), RELATED_BANNER_DISPLAY_COUNT);
+        List<NewsArticle> articles = relatedArticleSelector.select(candidates, topic, RELATED_BANNER_DISPLAY_COUNT);
 
         return new RelatedNewsResponse(naverNewsClient.isConfigured(), articles);
-    }
-
-    private List<String> relatedKeywords(String topic) {
-        if ("indicators".equals(topic)) {
-            return List.of("한국은행", "기준금리", "금리", "FOMC", "연준", "외환보유액", "경상수지", "무역수지", "물가", "재정", "CDS");
-        }
-
-        return List.of("원달러", "환율", "달러", "원화", "외환", "외환시장", "달러 인덱스", "연준", "FOMC");
-    }
-
-    private List<RelatedArticleCandidate> rankRelatedArticleCandidates(List<NewsArticle> articles, List<String> keywords) {
-        return articles.stream()
-            .map(article -> toRelatedArticleCandidate(article, scoreRelatedArticle(article, keywords)))
-            .sorted(Comparator
-                .comparingInt((RelatedArticleCandidate candidate) -> candidate.bannerScore).reversed()
-                .thenComparing(candidate -> candidate.article.publishedAt(), Comparator.nullsLast(Comparator.reverseOrder()))
-                .thenComparing(candidate -> candidate.article.fetchedAt(), Comparator.nullsLast(Comparator.reverseOrder())))
-            .toList();
-    }
-
-    private List<NewsArticle> buildRelatedBannerArticles(List<RelatedArticleCandidate> rankedCandidates, int limit) {
-        List<NewsArticle> selectedArticles = new ArrayList<>();
-        for (RelatedArticleCandidate candidate : rankedCandidates) {
-            if (selectedArticles.size() >= limit) {
-                break;
-            }
-            addUniqueRelatedArticle(selectedArticles, candidate.article(), limit);
-        }
-
-        return selectedArticles;
-    }
-
-    private void addUniqueRelatedArticle(List<NewsArticle> articles, NewsArticle article, int limit) {
-        if (articles.size() >= limit || containsSameRelatedArticle(articles, article)) {
-            return;
-        }
-
-        articles.add(article);
-    }
-
-    private boolean containsSameRelatedArticle(List<NewsArticle> articles, NewsArticle article) {
-        String articleIdentity = relatedArticleIdentity(article);
-        for (NewsArticle currentArticle : articles) {
-            if (articleIdentity.equals(relatedArticleIdentity(currentArticle))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private String relatedArticleIdentity(NewsArticle article) {
-        String url = newsArticleText.canonicalizeUrl(newsArticleText.firstText(article.link(), article.originLink()));
-        if (StringUtils.hasText(url)) {
-            return "url:" + url;
-        }
-
-        String title = newsArticleText.normalizeTitle(article.title());
-        String publishedDate = article.publishedAt() == null ? "" : LocalDate.ofInstant(article.publishedAt(), SEOUL_ZONE).toString();
-        return "title:" + title + ":" + publishedDate;
-    }
-
-    private RelatedArticleCandidate toRelatedArticleCandidate(NewsArticle article, int relatedScore) {
-        int freshnessScore = freshnessScore(article.publishedAt());
-        int textLength = articleTextLength(article);
-        int imageScore = StringUtils.hasText(article.imageUrl()) ? 12 : 0;
-        int bannerScore = relatedScore * 10 + freshnessScore + Math.min(12, textLength / 70) + imageScore;
-        return new RelatedArticleCandidate(article, relatedScore, bannerScore);
-    }
-
-    private int scoreRelatedArticle(NewsArticle article, List<String> keywords) {
-        String title = article.title() == null ? "" : article.title();
-        String description = article.description() == null ? "" : article.description();
-        String categoryName = article.categoryName() == null ? "" : article.categoryName();
-        String queryText = article.queryText() == null ? "" : article.queryText();
-        int score = 0;
-
-        for (String keyword : keywords) {
-            if (title.contains(keyword)) {
-                score += 5;
-            }
-            if (description.contains(keyword)) {
-                score += 2;
-            }
-            if (categoryName.contains(keyword) || queryText.contains(keyword)) {
-                score += 3;
-            }
-        }
-
-        if (StringUtils.hasText(article.imageUrl())) {
-            score += 8;
-        }
-
-        score += freshnessScore(article.publishedAt());
-        score += Math.min(10, articleTextLength(article) / 80);
-
-        return score;
-    }
-
-    private int freshnessScore(Instant publishedAt) {
-        if (publishedAt == null) {
-            return 0;
-        }
-
-        long ageHours = Math.max(0, Duration.between(publishedAt, Instant.now()).toHours());
-        if (ageHours <= 6) {
-            return 30;
-        }
-        if (ageHours <= 24) {
-            return 24;
-        }
-        if (ageHours <= 72) {
-            return 16;
-        }
-        if (ageHours <= 168) {
-            return 8;
-        }
-        return 0;
-    }
-
-    private int articleTextLength(NewsArticle article) {
-        return nullToEmpty(article.title()).length()
-            + nullToEmpty(article.description()).length()
-            + nullToEmpty(article.aiSummary()).length();
-    }
-
-    private String nullToEmpty(String value) {
-        return value == null ? "" : value;
     }
 
     private int syncCategoryLatest(NewsCategory category) {
@@ -489,8 +360,7 @@ public class NewsService {
     }
 
     private int countArticles(NewsArticleSearchCriteria criteria) {
-        List<Object> params = new ArrayList<>();
-        String whereClause = buildArticleWhereClause(criteria, params);
+        NewsArticleQuerySupport.ArticleWhereClause whereClause = articleQuerySupport.buildArticleWhereClause(criteria);
         Integer count = jdbcTemplate.queryForObject(
             """
                 SELECT COUNT(*)
@@ -500,17 +370,16 @@ public class NewsService {
                     %s
                     GROUP BY COALESCE(dedupe_key, article_key)
                 ) deduped
-                """.formatted(whereClause),
+                """.formatted(whereClause.sql()),
             Integer.class,
-            params.toArray()
+            whereClause.params().toArray()
         );
         return count == null ? 0 : count;
     }
 
     private List<NewsCategory> categories(LocalDate fromDate, LocalDate toDate, String keyword) {
         NewsArticleSearchCriteria criteria = new NewsArticleSearchCriteria("all", fromDate, toDate, keyword);
-        List<Object> params = new ArrayList<>();
-        String whereClause = buildArticleWhereClause(criteria, params);
+        NewsArticleQuerySupport.ArticleWhereClause whereClause = articleQuerySupport.buildArticleWhereClause(criteria);
         java.util.Map<String, Integer> countByCode = jdbcTemplate.query(
             """
                 SELECT n.category_code, COUNT(*) AS article_count
@@ -522,7 +391,7 @@ public class NewsService {
                     GROUP BY COALESCE(dedupe_key, article_key)
                 ) latest ON latest.id = n.id
                 GROUP BY n.category_code
-                """.formatted(whereClause),
+                """.formatted(whereClause.sql()),
             rs -> {
                 java.util.Map<String, Integer> counts = new java.util.HashMap<>();
                 while (rs.next()) {
@@ -530,7 +399,7 @@ public class NewsService {
                 }
                 return counts;
             },
-            params.toArray()
+            whereClause.params().toArray()
         );
 
         return CATEGORIES.stream()
@@ -628,7 +497,7 @@ public class NewsService {
         ).stream().filter(java.util.Objects::nonNull).findFirst().orElse(null);
     }
 
-    private LatestSyncAttempt latestSyncAttempt() {
+    private NewsLatestSyncAttempt latestSyncAttempt() {
         return jdbcTemplate.query(
             """
                 SELECT status, started_at, ended_at
@@ -637,7 +506,7 @@ public class NewsService {
                 ORDER BY started_at DESC, id DESC
                 LIMIT 1
                 """,
-            (rs, rowNum) -> new LatestSyncAttempt(
+            (rs, rowNum) -> new NewsLatestSyncAttempt(
                 rs.getString("status"),
                 rs.getTimestamp("started_at") == null ? null : rs.getTimestamp("started_at").toInstant(),
                 rs.getTimestamp("ended_at") == null ? null : rs.getTimestamp("ended_at").toInstant()
@@ -646,68 +515,12 @@ public class NewsService {
         ).stream().findFirst().orElse(null);
     }
 
-    private String buildArticleWhereClause(NewsArticleSearchCriteria criteria, List<Object> params) {
-        List<String> conditions = new ArrayList<>();
-        if (StringUtils.hasText(criteria.categoryCode()) && !"all".equals(criteria.categoryCode())) {
-            conditions.add("category_code = ?");
-            params.add(criteria.categoryCode());
-        }
-        if (criteria.fromDate() != null) {
-            conditions.add("published_at >= ?");
-            params.add(criteria.fromDate().atStartOfDay(SEOUL_ZONE).toInstant());
-        }
-        if (criteria.toDate() != null) {
-            conditions.add("published_at < ?");
-            params.add(criteria.toDate().plusDays(1).atStartOfDay(SEOUL_ZONE).toInstant());
-        }
-        if (StringUtils.hasText(criteria.keyword())) {
-            String keywordPattern = "%" + escapeLikePattern(criteria.keyword()) + "%";
-            conditions.add("(title LIKE ? ESCAPE '!' OR description LIKE ? ESCAPE '!')");
-            params.add(keywordPattern);
-            params.add(keywordPattern);
-        }
-
-        if (conditions.isEmpty()) {
-            return "";
-        }
-
-        return "WHERE " + String.join(" AND ", conditions);
-    }
-
     private NewsArticle mapArticle(java.sql.ResultSet rs) throws java.sql.SQLException {
-        return new NewsArticle(
-            rs.getString("category_code"),
-            rs.getString("category_name"),
-            rs.getString("query_text"),
-            rs.getString("title"),
-            rs.getString("description"),
-            rs.getString("origin_link"),
-            rs.getString("link"),
-            rs.getString("publisher"),
-            rs.getTimestamp("published_at") == null ? null : rs.getTimestamp("published_at").toInstant(),
-            rs.getString("ai_summary"),
-            rs.getString("market_sentiment"),
-            rs.getTimestamp("fetched_at").toInstant(),
-            rs.getString("image_url")
-        );
+        return articleQuerySupport.mapArticle(rs);
     }
 
     private String normalizeSearchKeyword(String keyword) {
-        if (!StringUtils.hasText(keyword)) {
-            return null;
-        }
-        String normalized = keyword.trim();
-        if (normalized.length() <= MAX_SEARCH_KEYWORD_LENGTH) {
-            return normalized;
-        }
-        return normalized.substring(0, MAX_SEARCH_KEYWORD_LENGTH);
-    }
-
-    private String escapeLikePattern(String value) {
-        return value
-            .replace("!", "!!")
-            .replace("%", "!%")
-            .replace("_", "!_");
+        return articleQuerySupport.normalizeSearchKeyword(keyword, MAX_SEARCH_KEYWORD_LENGTH);
     }
 
     private void pruneNewsBefore(Instant cutoff) {
@@ -721,25 +534,8 @@ public class NewsService {
         );
     }
 
-    private FreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt, LatestSyncAttempt latestSyncAttempt) {
-        if (latestSyncAttempt != null && isFailedSyncStatus(latestSyncAttempt.status())) {
-            return new FreshnessInfo("STALE", "마지막 뉴스 업데이트 시도가 실패했습니다.", latestSyncAttempt.endedAt(), lastSuccessfulFetchedAt);
-        }
-
-        if (lastSuccessfulFetchedAt == null) {
-            return new FreshnessInfo("MISSING", "저장된 최신 수집값이 없습니다.", null, null);
-        }
-
-        Instant expectedNextUpdateAt = lastSuccessfulFetchedAt.plus(FRESHNESS_MAX_AGE);
-        if (Instant.now().isAfter(expectedNextUpdateAt)) {
-            return new FreshnessInfo("STALE", "뉴스 수집이 60분 이상 지연되었습니다.", expectedNextUpdateAt, lastSuccessfulFetchedAt);
-        }
-
-        return new FreshnessInfo("FRESH", null, expectedNextUpdateAt, lastSuccessfulFetchedAt);
-    }
-
-    private boolean isFailedSyncStatus(String status) {
-        return status != null && !"SUCCESS".equals(status) && !"RUNNING".equals(status);
+    private NewsFreshnessInfo contentFreshness(Instant lastSuccessfulFetchedAt, NewsLatestSyncAttempt latestSyncAttempt) {
+        return freshnessPolicy.contentFreshness(lastSuccessfulFetchedAt, latestSyncAttempt, Instant.now());
     }
 
     public record NewsCategory(String code, String name, String query, int articleCount) {
@@ -784,28 +580,6 @@ public class NewsService {
     }
 
     public record NewsSyncResult(String status, String message, int rows, Instant syncedAt) {
-    }
-
-    private record FreshnessInfo(
-        String freshnessStatus,
-        String staleReason,
-        Instant expectedNextUpdateAt,
-        Instant lastSuccessfulFetchedAt
-    ) {
-    }
-
-    private record LatestSyncAttempt(
-        String status,
-        Instant startedAt,
-        Instant endedAt
-    ) {
-    }
-
-    private record RelatedArticleCandidate(
-        NewsArticle article,
-        int relatedScore,
-        int bannerScore
-    ) {
     }
 
 }
