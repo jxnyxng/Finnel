@@ -41,6 +41,7 @@ public class GovernmentBriefingService {
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
     private final GovernmentBriefingResponseBuilder responseBuilder = new GovernmentBriefingResponseBuilder();
     private final GovernmentBriefingFilterPolicy filterPolicy = new GovernmentBriefingFilterPolicy();
+    private final GovernmentBriefingSyncCoordinator syncCoordinator = new GovernmentBriefingSyncCoordinator(syncRunning);
 
     public GovernmentBriefingService(PolicyBriefingClient policyBriefingClient, SyncProperties syncProperties, JdbcTemplate jdbcTemplate) {
         this.policyBriefingClient = policyBriefingClient;
@@ -74,96 +75,49 @@ public class GovernmentBriefingService {
 
     @Transactional
     public GovernmentBriefingSyncResult syncLatest() {
-        if (!isContentSyncEnabled()) {
-            return new GovernmentBriefingSyncResult("SKIPPED_DISABLED", "콘텐츠 수집이 비활성화되어 있습니다.", 0, Instant.now());
-        }
-
-        if (!policyBriefingClient.isConfigured()) {
-            return new GovernmentBriefingSyncResult("SKIPPED_NOT_CONFIGURED", "POLICY_BRIEFING_API_KEY 설정이 필요합니다.", 0, Instant.now());
-        }
-
-        if (!syncRunning.compareAndSet(false, true)) {
-            return new GovernmentBriefingSyncResult("SKIPPED_RUNNING", "정부 브리핑 수집이 이미 진행 중입니다.", 0, Instant.now());
-        }
-
-        Instant startedAt = Instant.now();
-        Long jobId = startJob(startedAt, "latest");
-        int rows = 0;
-        try {
-            for (PolicyBriefingClient.PolicyBriefingPayload payload : policyBriefingClient.fetchLatest(1, 30)) {
-                rows += upsertRelevantBriefing(payload);
-            }
-        } catch (RuntimeException exception) {
-            Instant endedAt = Instant.now();
-            String message = "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName();
-            finishJob(jobId, "FAILED", endedAt, message);
-            return new GovernmentBriefingSyncResult(
-                "POLICY_BRIEFING_API_ERROR",
-                message,
-                rows,
-                endedAt
-            );
-        } finally {
-            syncRunning.set(false);
-        }
-
-        Instant syncedAt = Instant.now();
-        String message = "briefings=" + rows;
-        finishJob(jobId, "SUCCESS", syncedAt, message);
-        return new GovernmentBriefingSyncResult("SUCCESS", message, rows, syncedAt);
+        return syncCoordinator.run(
+            "latest",
+            isContentSyncEnabled(),
+            () -> policyBriefingClient.isConfigured(),
+            progress -> {
+                for (PolicyBriefingClient.PolicyBriefingPayload payload : policyBriefingClient.fetchLatest(1, 30)) {
+                    progress.addRows(upsertRelevantBriefing(payload));
+                }
+            },
+            progress -> "briefings=" + progress.rows(),
+            (exception, progress) -> "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName(),
+            this::startJob,
+            this::finishJob
+        );
     }
 
     @Transactional
     public GovernmentBriefingSyncResult backfill(int months) {
-        if (!isContentSyncEnabled()) {
-            return new GovernmentBriefingSyncResult("SKIPPED_DISABLED", "콘텐츠 수집이 비활성화되어 있습니다.", 0, Instant.now());
-        }
-
-        if (!policyBriefingClient.isConfigured()) {
-            return new GovernmentBriefingSyncResult("SKIPPED_NOT_CONFIGURED", "POLICY_BRIEFING_API_KEY 설정이 필요합니다.", 0, Instant.now());
-        }
-
-        if (!syncRunning.compareAndSet(false, true)) {
-            return new GovernmentBriefingSyncResult("SKIPPED_RUNNING", "정부 브리핑 수집이 이미 진행 중입니다.", 0, Instant.now());
-        }
-
         int normalizedMonths = Math.max(1, Math.min(months, MAX_BACKFILL_MONTHS));
-        Instant startedAt = Instant.now();
-        Long jobId = startJob(startedAt, "backfill months=" + normalizedMonths);
-        LocalDate endDate = LocalDate.now(SEOUL_ZONE);
-        LocalDate cursor = endDate.minusMonths(normalizedMonths).plusDays(1);
-        int fetched = 0;
-        int rows = 0;
-        int calls = 0;
-        try {
-            while (!cursor.isAfter(endDate)) {
-                LocalDate windowEnd = cursor.plusDays(2).isAfter(endDate) ? endDate : cursor.plusDays(2);
-                List<PolicyBriefingClient.PolicyBriefingPayload> payloads = policyBriefingClient.fetchRange(cursor, windowEnd);
-                fetched += payloads.size();
-                for (PolicyBriefingClient.PolicyBriefingPayload payload : payloads) {
-                    rows += upsertRelevantBriefing(payload);
+        return syncCoordinator.run(
+            "backfill months=" + normalizedMonths,
+            isContentSyncEnabled(),
+            () -> policyBriefingClient.isConfigured(),
+            progress -> {
+                LocalDate endDate = LocalDate.now(SEOUL_ZONE);
+                LocalDate cursor = endDate.minusMonths(normalizedMonths).plusDays(1);
+                while (!cursor.isAfter(endDate)) {
+                    LocalDate windowEnd = cursor.plusDays(2).isAfter(endDate) ? endDate : cursor.plusDays(2);
+                    List<PolicyBriefingClient.PolicyBriefingPayload> payloads = policyBriefingClient.fetchRange(cursor, windowEnd);
+                    progress.addFetched(payloads.size());
+                    for (PolicyBriefingClient.PolicyBriefingPayload payload : payloads) {
+                        progress.addRows(upsertRelevantBriefing(payload));
+                    }
+                    progress.incrementCalls();
+                    cursor = windowEnd.plusDays(1);
                 }
-                calls++;
-                cursor = windowEnd.plusDays(1);
-            }
-        } catch (RuntimeException exception) {
-            Instant endedAt = Instant.now();
-            String message = "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName() + ", calls=" + calls + ", fetched=" + fetched + ", rows=" + rows;
-            finishJob(jobId, "FAILED", endedAt, message);
-            return new GovernmentBriefingSyncResult(
-                "POLICY_BRIEFING_API_ERROR",
-                message,
-                rows,
-                endedAt
-            );
-        } finally {
-            syncRunning.set(false);
-        }
-
-        Instant syncedAt = Instant.now();
-        String message = "briefings=" + rows + ", fetched=" + fetched + ", calls=" + calls;
-        finishJob(jobId, "SUCCESS", syncedAt, message);
-        return new GovernmentBriefingSyncResult("SUCCESS", message, rows, syncedAt);
+            },
+            progress -> "briefings=" + progress.rows() + ", fetched=" + progress.fetched() + ", calls=" + progress.calls(),
+            (exception, progress) -> "정책브리핑 API 호출 실패: " + exception.getClass().getSimpleName()
+                + ", calls=" + progress.calls() + ", fetched=" + progress.fetched() + ", rows=" + progress.rows(),
+            this::startJob,
+            this::finishJob
+        );
     }
 
     private boolean isContentSyncEnabled() {
