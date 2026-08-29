@@ -20,7 +20,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClientResponseException;
 
 @Service
 public class NewsService {
@@ -54,6 +53,7 @@ public class NewsService {
     private final NewsFreshnessPolicy freshnessPolicy = new NewsFreshnessPolicy();
     private final NewsResponseBuilder responseBuilder = new NewsResponseBuilder();
     private final AtomicBoolean syncRunning = new AtomicBoolean(false);
+    private final NewsSyncCoordinator syncCoordinator;
 
     public NewsService(
         NaverNewsClient naverNewsClient,
@@ -68,6 +68,10 @@ public class NewsService {
         this.newsArticleMaintenance = newsArticleMaintenance;
         this.newsArticleText = newsArticleText;
         this.relatedArticleSelector = new NewsRelatedArticleSelector(newsArticleText);
+        this.syncCoordinator = new NewsSyncCoordinator(
+            syncRunning,
+            responseBody -> newsArticleText == null ? responseBody : newsArticleText.cleanText(responseBody)
+        );
     }
 
     @Scheduled(cron = "${app.sync.market-data.news-cron}", zone = "${app.sync.market-data.zone}")
@@ -113,63 +117,30 @@ public class NewsService {
     }
 
     public NewsSyncResult runSync(String mode, boolean backfill) {
-        if (!isContentSyncEnabled()) {
-            return new NewsSyncResult("SKIPPED_DISABLED", "콘텐츠 수집이 비활성화되어 있습니다.", 0, Instant.now());
-        }
+        return syncCoordinator.run(
+            mode,
+            isContentSyncEnabled(),
+            () -> naverNewsClient.isConfigured(),
+            progress -> executeSync(backfill, progress),
+            this::startJob,
+            this::finishJob
+        );
+    }
 
-        if (!naverNewsClient.isConfigured()) {
-            return new NewsSyncResult("SKIPPED_NOT_CONFIGURED", "NAVER_CLIENT_ID/NAVER_CLIENT_SECRET 설정이 필요합니다.", 0, Instant.now());
+    private void executeSync(boolean backfill, NewsSyncCoordinator.SyncProgress progress) {
+        Instant cutoff = LocalDate.now(SEOUL_ZONE)
+            .minusYears(NEWS_RETENTION_YEARS)
+            .atStartOfDay(SEOUL_ZONE)
+            .toInstant();
+        pruneNewsBefore(cutoff);
+        newsArticleMaintenance.normalizeStoredNewsArticles();
+        newsArticleMaintenance.deleteDuplicateNewsArticles();
+        for (NewsCategory category : CATEGORIES) {
+            progress.addRows(backfill ? syncCategoryBackfill(category, cutoff) : syncCategoryLatest(category));
         }
-
-        if (!syncRunning.compareAndSet(false, true)) {
-            return new NewsSyncResult("SKIPPED_RUNNING", "뉴스 수집이 이미 진행 중입니다.", 0, Instant.now());
-        }
-
-        Instant startedAt = Instant.now();
-        Long jobId = startJob(startedAt, mode);
-        int rows = 0;
-        try {
-            Instant cutoff = LocalDate.now(SEOUL_ZONE)
-                .minusYears(NEWS_RETENTION_YEARS)
-                .atStartOfDay(SEOUL_ZONE)
-                .toInstant();
-            pruneNewsBefore(cutoff);
-            newsArticleMaintenance.normalizeStoredNewsArticles();
-            newsArticleMaintenance.deleteDuplicateNewsArticles();
-            for (NewsCategory category : CATEGORIES) {
-                rows += backfill ? syncCategoryBackfill(category, cutoff) : syncCategoryLatest(category);
-            }
-            newsArticleMaintenance.normalizeStoredNewsArticles();
-            newsArticleMaintenance.deleteDuplicateNewsArticles();
-            newsArticleMaintenance.hydrateMissingLatestImages();
-        } catch (RestClientResponseException exception) {
-            Instant endedAt = Instant.now();
-            String message = "네이버 뉴스 API HTTP " + exception.getStatusCode().value() + ": " + newsArticleText.cleanText(exception.getResponseBodyAsString());
-            finishJob(jobId, "FAILED", endedAt, message);
-            return new NewsSyncResult(
-                "NAVER_API_ERROR",
-                message,
-                rows,
-                endedAt
-            );
-        } catch (RuntimeException exception) {
-            Instant endedAt = Instant.now();
-            String message = "뉴스 수집 실패: " + exception.getClass().getSimpleName();
-            finishJob(jobId, "FAILED", endedAt, message);
-            return new NewsSyncResult(
-                "NEWS_SYNC_ERROR",
-                message,
-                rows,
-                endedAt
-            );
-        } finally {
-            syncRunning.set(false);
-        }
-
-        Instant syncedAt = Instant.now();
-        String message = "mode=" + mode + ", news=" + rows;
-        finishJob(jobId, "SUCCESS", syncedAt, message);
-        return new NewsSyncResult("SUCCESS", message, rows, syncedAt);
+        newsArticleMaintenance.normalizeStoredNewsArticles();
+        newsArticleMaintenance.deleteDuplicateNewsArticles();
+        newsArticleMaintenance.hydrateMissingLatestImages();
     }
 
     private boolean isContentSyncEnabled() {
