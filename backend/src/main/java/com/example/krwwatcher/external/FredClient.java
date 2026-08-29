@@ -20,6 +20,7 @@ public class FredClient {
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
+    private final ExternalApiRequestSupport requestSupport = new ExternalApiRequestSupport();
 
     public FredClient(ExternalApiProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
@@ -80,19 +81,20 @@ public class FredClient {
             return FetchResult.failure(FetchStatus.NOT_CONFIGURED, "FRED API key is not configured");
         }
 
-        String response = restClient.get()
-            .uri(uriBuilder -> uriBuilder
-                .path("/series/observations")
-                .queryParam("api_key", properties.fred().apiKey())
-                .queryParam("file_type", "json")
-                .queryParam("series_id", seriesId)
-                .queryParam("observation_start", observationStart)
-                .queryParam("sort_order", "asc")
-                .build())
-            .retrieve()
-            .body(String.class);
-
-        return parseObservations(response);
+        return requestSupport.fetchResult(
+            () -> restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/series/observations")
+                    .queryParam("api_key", properties.fred().apiKey())
+                    .queryParam("file_type", "json")
+                    .queryParam("series_id", seriesId)
+                    .queryParam("observation_start", observationStart)
+                    .queryParam("sort_order", "asc")
+                    .build())
+                .retrieve()
+                .body(String.class),
+            FredClient::parseObservations
+        );
     }
 
     static FetchResult<FredObservationPayload> parseObservations(String response) {

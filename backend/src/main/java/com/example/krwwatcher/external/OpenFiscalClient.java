@@ -45,6 +45,7 @@ public class OpenFiscalClient {
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
+    private final ExternalApiRequestSupport requestSupport = new ExternalApiRequestSupport();
 
     public OpenFiscalClient(ExternalApiProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
@@ -87,15 +88,16 @@ public class OpenFiscalClient {
             request.put("pSize", "1000");
             request.put("OJ_YY", String.valueOf(queryYear));
 
-            String response = restClient.post()
-                .uri(uriBuilder -> uriBuilder
-                    .path("/openApi/preview/{serviceName}")
-                    .build(serviceName))
-                .body(request)
-                .retrieve()
-                .body(String.class);
-
-            FetchResult<OpenFiscalObservationPayload> result = parseObservations(response, valueKeyCandidates);
+            FetchResult<OpenFiscalObservationPayload> result = requestSupport.fetchResult(
+                () -> restClient.post()
+                    .uri(uriBuilder -> uriBuilder
+                        .path("/openApi/preview/{serviceName}")
+                        .build(serviceName))
+                    .body(request)
+                    .retrieve()
+                    .body(String.class),
+                response -> parseObservations(response, valueKeyCandidates)
+            );
             if (!result.isSuccess()) {
                 return result;
             }

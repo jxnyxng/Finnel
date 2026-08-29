@@ -26,6 +26,7 @@ public class EcosClient {
 
     private final ExternalApiProperties properties;
     private final RestClient restClient;
+    private final ExternalApiRequestSupport requestSupport = new ExternalApiRequestSupport();
 
     public EcosClient(ExternalApiProperties properties, RestClient.Builder restClientBuilder) {
         this.properties = properties;
@@ -103,21 +104,22 @@ public class EcosClient {
     }
 
     private List<EcosObservation> fetchRawObservations(String statCode, String cycle, String start, String end, String... itemCodes) {
-        String response = restClient.get()
-            .uri(uriBuilder -> uriBuilder
-                .path("/StatisticSearch/{apiKey}/json/kr/1/1000/{statCode}/{cycle}/{start}/{end}")
-                .path(itemPath(itemCodes))
-                .build(
-                    properties.ecos().apiKey(),
-                    statCode,
-                    cycle,
-                    start,
-                    end
-                ))
-            .retrieve()
-            .body(String.class);
-
-        return parseRawObservations(response).rowsOrThrow("ECOS " + statCode);
+        return requestSupport.fetchResult(
+            () -> restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                    .path("/StatisticSearch/{apiKey}/json/kr/1/1000/{statCode}/{cycle}/{start}/{end}")
+                    .path(itemPath(itemCodes))
+                    .build(
+                        properties.ecos().apiKey(),
+                        statCode,
+                        cycle,
+                        start,
+                        end
+                    ))
+                .retrieve()
+                .body(String.class),
+            EcosClient::parseRawObservations
+        ).rowsOrThrow("ECOS " + statCode);
     }
 
     static FetchResult<EcosObservation> parseRawObservations(String response) {
