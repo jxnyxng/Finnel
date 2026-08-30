@@ -1,8 +1,10 @@
 package com.example.krwwatcher;
 
+import com.example.krwwatcher.batch.market.MarketDailyBackfillJobLauncher;
 import com.example.krwwatcher.service.MarketDataSyncService;
 import com.example.krwwatcher.service.SyncPostAccessService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,10 +18,21 @@ public class SyncController {
 
     private final MarketDataSyncService marketDataSyncService;
     private final SyncPostAccessService syncPostAccessService;
+    private final MarketDailyBackfillJobLauncher dailyBackfillJobLauncher;
 
     public SyncController(MarketDataSyncService marketDataSyncService, SyncPostAccessService syncPostAccessService) {
+        this(marketDataSyncService, syncPostAccessService, null);
+    }
+
+    @Autowired
+    public SyncController(
+        MarketDataSyncService marketDataSyncService,
+        SyncPostAccessService syncPostAccessService,
+        MarketDailyBackfillJobLauncher dailyBackfillJobLauncher
+    ) {
         this.marketDataSyncService = marketDataSyncService;
         this.syncPostAccessService = syncPostAccessService;
+        this.dailyBackfillJobLauncher = dailyBackfillJobLauncher;
     }
 
     @PostMapping("/market-data")
@@ -34,7 +47,7 @@ public class SyncController {
 
     @PostMapping("/daily-exchange/backfill")
     public MarketDataSyncService.SyncResult backfillDailyExchange(HttpServletRequest request) {
-        return runAuthorizedSyncPost(request, "DAILY_EXCHANGE_BACKFILL", marketDataSyncService::requestDailyBackfill);
+        return runAuthorizedSyncPost(request, "DAILY_EXCHANGE_BACKFILL", this::requestDailyBackfill);
     }
 
     @PostMapping("/exchange-rates/history/backfill")
@@ -76,5 +89,13 @@ public class SyncController {
             syncPostAccessService.auditFailure(request, operation, caller, exception);
             throw exception;
         }
+    }
+
+    private MarketDataSyncService.SyncResult requestDailyBackfill() {
+        if (dailyBackfillJobLauncher == null) {
+            return marketDataSyncService.requestDailyBackfill();
+        }
+
+        return dailyBackfillJobLauncher.runManualDailyBackfill();
     }
 }

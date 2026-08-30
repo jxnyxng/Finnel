@@ -5,6 +5,11 @@ spring:
       - optional:file:backend/.env[.properties]
   application:
     name: krw-watcher
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/krw_watcher?serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
     username: ${DB_USERNAME:krw_watcher}

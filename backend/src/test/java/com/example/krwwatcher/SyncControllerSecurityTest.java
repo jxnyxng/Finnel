@@ -3,6 +3,7 @@ package com.example.krwwatcher;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,6 +14,7 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import com.example.krwwatcher.batch.market.MarketDailyBackfillJobLauncher;
 import com.example.krwwatcher.config.SyncProperties;
 import com.example.krwwatcher.service.MarketDataSyncService;
 import com.example.krwwatcher.service.SyncPostAccessService;
@@ -27,6 +29,7 @@ class SyncControllerSecurityTest {
 
     private JdbcTemplate jdbcTemplate;
     private MarketDataSyncService marketDataSyncService;
+    private MarketDailyBackfillJobLauncher dailyBackfillJobLauncher;
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -49,6 +52,7 @@ class SyncControllerSecurityTest {
             )
             """);
         marketDataSyncService = org.mockito.Mockito.mock(MarketDataSyncService.class);
+        dailyBackfillJobLauncher = org.mockito.Mockito.mock(MarketDailyBackfillJobLauncher.class);
         SyncPostAccessService accessService = new SyncPostAccessService(syncProperties(), jdbcTemplate);
         mockMvc = MockMvcBuilders
             .standaloneSetup(new SyncController(marketDataSyncService, accessService))
@@ -120,6 +124,27 @@ class SyncControllerSecurityTest {
         verify(marketDataSyncService).requestDailyBackfill();
         Integer auditRows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sync_post_audit_logs", Integer.class);
         assertThat(auditRows).isEqualTo(2);
+    }
+
+    @Test
+    void dailyBackfillPostUsesBatchLauncherWhenConfigured() throws Exception {
+        SyncPostAccessService accessService = new SyncPostAccessService(syncProperties(), jdbcTemplate);
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(new SyncController(marketDataSyncService, accessService, dailyBackfillJobLauncher))
+            .addPlaceholderValue("app.cors.allowed-origins", "http://localhost:5173")
+            .build();
+        when(dailyBackfillJobLauncher.runManualDailyBackfill()).thenReturn(syncResult("SUCCESS", "DAILY_BACKFILL"));
+
+        mockMvc.perform(post("/api/v1/sync/daily-exchange/backfill")
+                .header("Authorization", "Bearer secret-token")
+                .with(request -> {
+                    request.setRemoteAddr("203.0.113.10");
+                    return request;
+                }))
+            .andExpect(status().isOk());
+
+        verify(dailyBackfillJobLauncher).runManualDailyBackfill();
+        verify(marketDataSyncService, never()).requestDailyBackfill();
     }
 
     @Test
