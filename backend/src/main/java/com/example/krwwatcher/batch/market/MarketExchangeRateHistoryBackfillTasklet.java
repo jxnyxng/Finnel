@@ -4,28 +4,26 @@ import com.example.krwwatcher.service.MarketDataSyncService;
 import org.springframework.batch.core.ExitStatus;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
-import org.springframework.batch.core.scope.context.StepContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
 
-public class MarketDailyBackfillTasklet implements Tasklet {
+public class MarketExchangeRateHistoryBackfillTasklet implements Tasklet {
 
     private final MarketDataSyncService marketDataSyncService;
 
-    public MarketDailyBackfillTasklet(MarketDataSyncService marketDataSyncService) {
+    public MarketExchangeRateHistoryBackfillTasklet(MarketDataSyncService marketDataSyncService) {
         this.marketDataSyncService = marketDataSyncService;
     }
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        MarketDataSyncService.SyncResult result = marketDataSyncService.requestDailyBackfill();
+        MarketDataSyncService.SyncResult result = marketDataSyncService.requestExchangeRateHistoryBackfill();
         contribution.incrementWriteCount(result.exchangeRateRows());
         contribution.setExitStatus(new ExitStatus(result.status(), result.message()));
-        putResult(chunkContext.getStepContext(), result);
+        MarketSyncResultExecutionContextMapper.put(
+            chunkContext.getStepContext().getStepExecution().getJobExecution().getExecutionContext(),
+            result
+        );
         return RepeatStatus.FINISHED;
-    }
-
-    private void putResult(StepContext stepContext, MarketDataSyncService.SyncResult result) {
-        MarketSyncResultExecutionContextMapper.put(stepContext.getStepExecution().getJobExecution().getExecutionContext(), result);
     }
 }

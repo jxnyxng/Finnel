@@ -1,6 +1,7 @@
 package com.example.krwwatcher;
 
 import com.example.krwwatcher.batch.market.MarketDailyBackfillJobLauncher;
+import com.example.krwwatcher.batch.market.MarketExchangeRateHistoryBackfillJobLauncher;
 import com.example.krwwatcher.service.MarketDataSyncService;
 import com.example.krwwatcher.service.SyncPostAccessService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,20 +20,23 @@ public class SyncController {
     private final MarketDataSyncService marketDataSyncService;
     private final SyncPostAccessService syncPostAccessService;
     private final MarketDailyBackfillJobLauncher dailyBackfillJobLauncher;
+    private final MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher;
 
     public SyncController(MarketDataSyncService marketDataSyncService, SyncPostAccessService syncPostAccessService) {
-        this(marketDataSyncService, syncPostAccessService, null);
+        this(marketDataSyncService, syncPostAccessService, null, null);
     }
 
     @Autowired
     public SyncController(
         MarketDataSyncService marketDataSyncService,
         SyncPostAccessService syncPostAccessService,
-        MarketDailyBackfillJobLauncher dailyBackfillJobLauncher
+        MarketDailyBackfillJobLauncher dailyBackfillJobLauncher,
+        MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher
     ) {
         this.marketDataSyncService = marketDataSyncService;
         this.syncPostAccessService = syncPostAccessService;
         this.dailyBackfillJobLauncher = dailyBackfillJobLauncher;
+        this.exchangeRateHistoryBackfillJobLauncher = exchangeRateHistoryBackfillJobLauncher;
     }
 
     @PostMapping("/market-data")
@@ -52,7 +56,7 @@ public class SyncController {
 
     @PostMapping("/exchange-rates/history/backfill")
     public MarketDataSyncService.SyncResult backfillExchangeRateHistory(HttpServletRequest request) {
-        return runAuthorizedSyncPost(request, "EXCHANGE_RATE_HISTORY_BACKFILL", marketDataSyncService::requestExchangeRateHistoryBackfill);
+        return runAuthorizedSyncPost(request, "EXCHANGE_RATE_HISTORY_BACKFILL", this::requestExchangeRateHistoryBackfill);
     }
 
     @GetMapping("/market-data/status")
@@ -97,5 +101,13 @@ public class SyncController {
         }
 
         return dailyBackfillJobLauncher.runManualDailyBackfill();
+    }
+
+    private MarketDataSyncService.SyncResult requestExchangeRateHistoryBackfill() {
+        if (exchangeRateHistoryBackfillJobLauncher == null) {
+            return marketDataSyncService.requestExchangeRateHistoryBackfill();
+        }
+
+        return exchangeRateHistoryBackfillJobLauncher.runManualExchangeRateHistoryBackfill();
     }
 }

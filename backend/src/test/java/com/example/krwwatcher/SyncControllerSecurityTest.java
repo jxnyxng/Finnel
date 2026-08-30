@@ -15,6 +15,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 
 import com.example.krwwatcher.batch.market.MarketDailyBackfillJobLauncher;
+import com.example.krwwatcher.batch.market.MarketExchangeRateHistoryBackfillJobLauncher;
 import com.example.krwwatcher.config.SyncProperties;
 import com.example.krwwatcher.service.MarketDataSyncService;
 import com.example.krwwatcher.service.SyncPostAccessService;
@@ -30,6 +31,7 @@ class SyncControllerSecurityTest {
     private JdbcTemplate jdbcTemplate;
     private MarketDataSyncService marketDataSyncService;
     private MarketDailyBackfillJobLauncher dailyBackfillJobLauncher;
+    private MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher;
     private MockMvc mockMvc;
 
     @BeforeEach
@@ -53,6 +55,7 @@ class SyncControllerSecurityTest {
             """);
         marketDataSyncService = org.mockito.Mockito.mock(MarketDataSyncService.class);
         dailyBackfillJobLauncher = org.mockito.Mockito.mock(MarketDailyBackfillJobLauncher.class);
+        exchangeRateHistoryBackfillJobLauncher = org.mockito.Mockito.mock(MarketExchangeRateHistoryBackfillJobLauncher.class);
         SyncPostAccessService accessService = new SyncPostAccessService(syncProperties(), jdbcTemplate);
         mockMvc = MockMvcBuilders
             .standaloneSetup(new SyncController(marketDataSyncService, accessService))
@@ -130,7 +133,7 @@ class SyncControllerSecurityTest {
     void dailyBackfillPostUsesBatchLauncherWhenConfigured() throws Exception {
         SyncPostAccessService accessService = new SyncPostAccessService(syncProperties(), jdbcTemplate);
         mockMvc = MockMvcBuilders
-            .standaloneSetup(new SyncController(marketDataSyncService, accessService, dailyBackfillJobLauncher))
+            .standaloneSetup(new SyncController(marketDataSyncService, accessService, dailyBackfillJobLauncher, null))
             .addPlaceholderValue("app.cors.allowed-origins", "http://localhost:5173")
             .build();
         when(dailyBackfillJobLauncher.runManualDailyBackfill()).thenReturn(syncResult("SUCCESS", "DAILY_BACKFILL"));
@@ -145,6 +148,28 @@ class SyncControllerSecurityTest {
 
         verify(dailyBackfillJobLauncher).runManualDailyBackfill();
         verify(marketDataSyncService, never()).requestDailyBackfill();
+    }
+
+    @Test
+    void exchangeRateHistoryBackfillPostUsesBatchLauncherWhenConfigured() throws Exception {
+        SyncPostAccessService accessService = new SyncPostAccessService(syncProperties(), jdbcTemplate);
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(new SyncController(marketDataSyncService, accessService, null, exchangeRateHistoryBackfillJobLauncher))
+            .addPlaceholderValue("app.cors.allowed-origins", "http://localhost:5173")
+            .build();
+        when(exchangeRateHistoryBackfillJobLauncher.runManualExchangeRateHistoryBackfill())
+            .thenReturn(syncResult("SUCCESS", "EXCHANGE_RATE_HISTORY_BACKFILL"));
+
+        mockMvc.perform(post("/api/v1/sync/exchange-rates/history/backfill")
+                .header("Authorization", "Bearer secret-token")
+                .with(request -> {
+                    request.setRemoteAddr("203.0.113.10");
+                    return request;
+                }))
+            .andExpect(status().isOk());
+
+        verify(exchangeRateHistoryBackfillJobLauncher).runManualExchangeRateHistoryBackfill();
+        verify(marketDataSyncService, never()).requestExchangeRateHistoryBackfill();
     }
 
     @Test

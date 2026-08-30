@@ -17,33 +17,33 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 @Service
-public class MarketDailyBackfillJobLauncher {
+public class MarketExchangeRateHistoryBackfillJobLauncher {
 
     private final JobLauncher jobLauncher;
-    private final Job dailyBackfillJob;
+    private final Job exchangeRateHistoryBackfillJob;
 
-    public MarketDailyBackfillJobLauncher(
+    public MarketExchangeRateHistoryBackfillJobLauncher(
         JobLauncher jobLauncher,
-        @Qualifier(BatchJobNames.MARKET_DAILY_EXCHANGE_BACKFILL) Job dailyBackfillJob
+        @Qualifier(BatchJobNames.MARKET_EXCHANGE_RATE_HISTORY_BACKFILL) Job exchangeRateHistoryBackfillJob
     ) {
         this.jobLauncher = jobLauncher;
-        this.dailyBackfillJob = dailyBackfillJob;
+        this.exchangeRateHistoryBackfillJob = exchangeRateHistoryBackfillJob;
     }
 
-    public MarketDataSyncService.SyncResult runManualDailyBackfill() {
+    public MarketDataSyncService.SyncResult runManualExchangeRateHistoryBackfill() {
         try {
-            JobExecution execution = jobLauncher.run(dailyBackfillJob, manualParameters());
+            JobExecution execution = jobLauncher.run(exchangeRateHistoryBackfillJob, manualParameters());
             return toSyncResult(execution);
         } catch (JobExecutionAlreadyRunningException exception) {
-            return failedResult("SKIPPED_RUNNING", "Daily exchange backfill batch job is already running");
+            return failedResult("SKIPPED_RUNNING", "Exchange rate history backfill batch job is already running");
         } catch (JobRestartException | JobInstanceAlreadyCompleteException | JobParametersInvalidException exception) {
-            throw new IllegalStateException("Failed to launch daily exchange backfill batch job", exception);
+            throw new IllegalStateException("Failed to launch exchange rate history backfill batch job", exception);
         }
     }
 
     private JobParameters manualParameters() {
         return new JobParametersBuilder()
-            .addString("operation", "DAILY_EXCHANGE_BACKFILL")
+            .addString("operation", "EXCHANGE_RATE_HISTORY_BACKFILL")
             .addString("trigger", "MANUAL")
             .addLong("requestedAt", System.currentTimeMillis())
             .toJobParameters();
@@ -61,7 +61,7 @@ public class MarketDailyBackfillJobLauncher {
 
         return failedResult(
             execution.getStatus().name(),
-            execution.getExitStatus() == null ? "Daily exchange backfill batch job ended without result" : execution.getExitStatus().getExitDescription()
+            execution.getExitStatus() == null ? "Exchange rate history backfill batch job ended without result" : execution.getExitStatus().getExitDescription()
         );
     }
 

@@ -22,6 +22,13 @@ public class MarketDailyBackfillBatchConfig {
     }
 
     @Bean
+    public Job marketExchangeRateHistoryBackfillJob(JobRepository jobRepository, Step exchangeRateHistoryBackfillTaskletStep) {
+        return new JobBuilder(BatchJobNames.MARKET_EXCHANGE_RATE_HISTORY_BACKFILL, jobRepository)
+            .start(exchangeRateHistoryBackfillTaskletStep)
+            .build();
+    }
+
+    @Bean
     public Step dailyExchangeBackfillTaskletStep(
         JobRepository jobRepository,
         PlatformTransactionManager transactionManager,
@@ -35,5 +42,21 @@ public class MarketDailyBackfillBatchConfig {
     @Bean
     public MarketDailyBackfillTasklet marketDailyBackfillTasklet(MarketDataSyncService marketDataSyncService) {
         return new MarketDailyBackfillTasklet(marketDataSyncService);
+    }
+
+    @Bean
+    public Step exchangeRateHistoryBackfillTaskletStep(
+        JobRepository jobRepository,
+        PlatformTransactionManager transactionManager,
+        MarketExchangeRateHistoryBackfillTasklet tasklet
+    ) {
+        return new StepBuilder("exchangeRateHistoryBackfillTaskletStep", jobRepository)
+            .tasklet(tasklet, transactionManager)
+            .build();
+    }
+
+    @Bean
+    public MarketExchangeRateHistoryBackfillTasklet marketExchangeRateHistoryBackfillTasklet(MarketDataSyncService marketDataSyncService) {
+        return new MarketExchangeRateHistoryBackfillTasklet(marketDataSyncService);
     }
 }
