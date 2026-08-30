@@ -48,9 +48,12 @@ dist/
 # =========================================================================
 
 # Database & Application Secrets (Adjust paths based on your project structure)
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
 src/main/resources/application-local.properties
 src/main/resources/application-dev.properties
 src/main/resources/application-dev.yml
+src/main/resources/application-dev.yaml
 # src/main/resources/application.yml  <- 만약 이 파일에 DB 패스워드가 직접 들어있다면 주석을 해제하세요.
 
 # Java VM crash logs

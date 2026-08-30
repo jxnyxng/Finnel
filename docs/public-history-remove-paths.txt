@@ -1,0 +1,4 @@
+CODEX.md
+backend/src/main/resources/application-local.yml
+REFACTORING_PLAN.md
+backend/bin
