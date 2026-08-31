@@ -1,6 +1,7 @@
 package com.example.krwwatcher.batch.content;
 
 import com.example.krwwatcher.batch.BatchJobNames;
+import com.example.krwwatcher.batch.BatchJobLaunchSupport;
 import com.example.krwwatcher.service.NewsService;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
@@ -32,7 +33,7 @@ public class NewsBackfillJobLauncher {
 
     public NewsService.NewsSyncResult runManualBackfill() {
         try {
-            JobExecution execution = jobLauncher.run(newsBackfillJob, manualParameters());
+            JobExecution execution = BatchJobLaunchSupport.runWithLockRetry(jobLauncher, newsBackfillJob, manualParameters());
             return toSyncResult(execution);
         } catch (JobExecutionAlreadyRunningException exception) {
             return failedResult("SKIPPED_RUNNING", "News backfill batch job is already running");

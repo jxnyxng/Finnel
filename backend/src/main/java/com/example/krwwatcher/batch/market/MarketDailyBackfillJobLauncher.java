@@ -1,6 +1,7 @@
 package com.example.krwwatcher.batch.market;
 
 import com.example.krwwatcher.batch.BatchJobNames;
+import com.example.krwwatcher.batch.BatchJobLaunchSupport;
 import com.example.krwwatcher.service.MarketDataSyncService;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
@@ -32,7 +33,7 @@ public class MarketDailyBackfillJobLauncher {
 
     public MarketDataSyncService.SyncResult runManualDailyBackfill() {
         try {
-            JobExecution execution = jobLauncher.run(dailyBackfillJob, manualParameters());
+            JobExecution execution = BatchJobLaunchSupport.runWithLockRetry(jobLauncher, dailyBackfillJob, manualParameters());
             return toSyncResult(execution);
         } catch (JobExecutionAlreadyRunningException exception) {
             return failedResult("SKIPPED_RUNNING", "Daily exchange backfill batch job is already running");

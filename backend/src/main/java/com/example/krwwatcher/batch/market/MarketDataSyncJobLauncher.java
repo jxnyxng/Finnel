@@ -1,6 +1,7 @@
 package com.example.krwwatcher.batch.market;
 
 import com.example.krwwatcher.batch.BatchJobNames;
+import com.example.krwwatcher.batch.BatchJobLaunchSupport;
 import com.example.krwwatcher.service.MarketDataSyncService;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
@@ -32,7 +33,7 @@ public class MarketDataSyncJobLauncher {
 
     public MarketDataSyncService.SyncResult runManualSync() {
         try {
-            JobExecution execution = jobLauncher.run(marketDataSyncJob, manualParameters());
+            JobExecution execution = BatchJobLaunchSupport.runWithLockRetry(jobLauncher, marketDataSyncJob, manualParameters());
             return toSyncResult(execution);
         } catch (JobExecutionAlreadyRunningException exception) {
             return failedResult("SKIPPED_RUNNING", "Market data sync batch job is already running");

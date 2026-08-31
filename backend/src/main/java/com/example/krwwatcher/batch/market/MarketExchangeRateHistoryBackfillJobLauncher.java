@@ -1,6 +1,7 @@
 package com.example.krwwatcher.batch.market;
 
 import com.example.krwwatcher.batch.BatchJobNames;
+import com.example.krwwatcher.batch.BatchJobLaunchSupport;
 import com.example.krwwatcher.service.MarketDataSyncService;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.Job;
@@ -32,7 +33,7 @@ public class MarketExchangeRateHistoryBackfillJobLauncher {
 
     public MarketDataSyncService.SyncResult runManualExchangeRateHistoryBackfill() {
         try {
-            JobExecution execution = jobLauncher.run(exchangeRateHistoryBackfillJob, manualParameters());
+            JobExecution execution = BatchJobLaunchSupport.runWithLockRetry(jobLauncher, exchangeRateHistoryBackfillJob, manualParameters());
             return toSyncResult(execution);
         } catch (JobExecutionAlreadyRunningException exception) {
             return failedResult("SKIPPED_RUNNING", "Exchange rate history backfill batch job is already running");
