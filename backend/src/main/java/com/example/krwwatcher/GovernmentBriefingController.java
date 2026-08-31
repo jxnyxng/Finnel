@@ -1,6 +1,8 @@
 package com.example.krwwatcher;
 
+import com.example.krwwatcher.batch.content.GovernmentBriefingBackfillJobLauncher;
 import com.example.krwwatcher.service.GovernmentBriefingService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,9 +16,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class GovernmentBriefingController {
 
     private final GovernmentBriefingService governmentBriefingService;
+    private final GovernmentBriefingBackfillJobLauncher backfillJobLauncher;
 
     public GovernmentBriefingController(GovernmentBriefingService governmentBriefingService) {
+        this(governmentBriefingService, null);
+    }
+
+    @Autowired
+    public GovernmentBriefingController(
+        GovernmentBriefingService governmentBriefingService,
+        GovernmentBriefingBackfillJobLauncher backfillJobLauncher
+    ) {
         this.governmentBriefingService = governmentBriefingService;
+        this.backfillJobLauncher = backfillJobLauncher;
     }
 
     @GetMapping
@@ -38,6 +50,10 @@ public class GovernmentBriefingController {
 
     @PostMapping("/backfill")
     public GovernmentBriefingService.GovernmentBriefingSyncResult backfill(@RequestParam(defaultValue = "12") int months) {
+        if (backfillJobLauncher != null) {
+            return backfillJobLauncher.runManualBackfill(months);
+        }
+
         return governmentBriefingService.backfill(months);
     }
 }
