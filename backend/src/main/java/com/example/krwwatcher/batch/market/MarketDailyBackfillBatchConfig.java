@@ -15,6 +15,13 @@ import org.springframework.transaction.PlatformTransactionManager;
 public class MarketDailyBackfillBatchConfig {
 
     @Bean
+    public Job marketDataSyncJob(JobRepository jobRepository, Step marketDataSyncTaskletStep) {
+        return new JobBuilder(BatchJobNames.MARKET_DATA_SYNC, jobRepository)
+            .start(marketDataSyncTaskletStep)
+            .build();
+    }
+
+    @Bean
     public Job marketDailyExchangeBackfillJob(JobRepository jobRepository, Step dailyExchangeBackfillTaskletStep) {
         return new JobBuilder(BatchJobNames.MARKET_DAILY_EXCHANGE_BACKFILL, jobRepository)
             .start(dailyExchangeBackfillTaskletStep)
@@ -26,6 +33,22 @@ public class MarketDailyBackfillBatchConfig {
         return new JobBuilder(BatchJobNames.MARKET_EXCHANGE_RATE_HISTORY_BACKFILL, jobRepository)
             .start(exchangeRateHistoryBackfillTaskletStep)
             .build();
+    }
+
+    @Bean
+    public Step marketDataSyncTaskletStep(
+        JobRepository jobRepository,
+        PlatformTransactionManager transactionManager,
+        MarketDataSyncTasklet tasklet
+    ) {
+        return new StepBuilder("marketDataSyncTaskletStep", jobRepository)
+            .tasklet(tasklet, transactionManager)
+            .build();
+    }
+
+    @Bean
+    public MarketDataSyncTasklet marketDataSyncTasklet(MarketDataSyncService marketDataSyncService) {
+        return new MarketDataSyncTasklet(marketDataSyncService);
     }
 
     @Bean

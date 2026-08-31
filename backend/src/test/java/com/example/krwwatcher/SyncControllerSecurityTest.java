@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import com.example.krwwatcher.batch.market.MarketDataSyncJobLauncher;
 import com.example.krwwatcher.batch.market.MarketDailyBackfillJobLauncher;
 import com.example.krwwatcher.batch.market.MarketExchangeRateHistoryBackfillJobLauncher;
 import com.example.krwwatcher.config.SyncProperties;
@@ -30,6 +31,7 @@ class SyncControllerSecurityTest {
 
     private JdbcTemplate jdbcTemplate;
     private MarketDataSyncService marketDataSyncService;
+    private MarketDataSyncJobLauncher marketDataSyncJobLauncher;
     private MarketDailyBackfillJobLauncher dailyBackfillJobLauncher;
     private MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher;
     private MockMvc mockMvc;
@@ -54,6 +56,7 @@ class SyncControllerSecurityTest {
             )
             """);
         marketDataSyncService = org.mockito.Mockito.mock(MarketDataSyncService.class);
+        marketDataSyncJobLauncher = org.mockito.Mockito.mock(MarketDataSyncJobLauncher.class);
         dailyBackfillJobLauncher = org.mockito.Mockito.mock(MarketDailyBackfillJobLauncher.class);
         exchangeRateHistoryBackfillJobLauncher = org.mockito.Mockito.mock(MarketExchangeRateHistoryBackfillJobLauncher.class);
         SyncPostAccessService accessService = new SyncPostAccessService(syncProperties(), jdbcTemplate);
@@ -127,6 +130,27 @@ class SyncControllerSecurityTest {
         verify(marketDataSyncService).requestDailyBackfill();
         Integer auditRows = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sync_post_audit_logs", Integer.class);
         assertThat(auditRows).isEqualTo(2);
+    }
+
+    @Test
+    void marketDataSyncPostUsesBatchLauncherWhenConfigured() throws Exception {
+        SyncPostAccessService accessService = new SyncPostAccessService(syncProperties(), jdbcTemplate);
+        mockMvc = MockMvcBuilders
+            .standaloneSetup(new SyncController(marketDataSyncService, accessService, marketDataSyncJobLauncher, null, null))
+            .addPlaceholderValue("app.cors.allowed-origins", "http://localhost:5173")
+            .build();
+        when(marketDataSyncJobLauncher.runManualSync()).thenReturn(syncResult("SUCCESS", "MANUAL"));
+
+        mockMvc.perform(post("/api/v1/sync/market-data")
+                .header("Authorization", "Bearer secret-token")
+                .with(request -> {
+                    request.setRemoteAddr("203.0.113.10");
+                    return request;
+                }))
+            .andExpect(status().isOk());
+
+        verify(marketDataSyncJobLauncher).runManualSync();
+        verify(marketDataSyncService, never()).requestManualSync();
     }
 
     @Test

@@ -1,0 +1,64 @@
+package com.example.krwwatcher.batch.market;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.Instant;
+
+import com.example.krwwatcher.service.MarketDataSyncService;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.batch.core.BatchStatus;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.item.ExecutionContext;
+
+class MarketDataSyncJobLauncherTest {
+
+    @Test
+    void mapsBatchExecutionContextToSyncResult() throws Exception {
+        JobLauncher jobLauncher = org.mockito.Mockito.mock(JobLauncher.class);
+        Job job = org.mockito.Mockito.mock(Job.class);
+        JobExecution execution = new JobExecution(1L);
+        execution.setStatus(BatchStatus.COMPLETED);
+        ExecutionContext context = execution.getExecutionContext();
+        context.putInt("sync.exchangeRateRows", 3);
+        context.putInt("sync.intradayExchangeRateRows", 0);
+        context.putInt("sync.dollarIndexRows", 4);
+        context.putInt("sync.currencyStrengthRows", 5);
+        context.putInt("sync.usPolicyRateRows", 6);
+        context.putInt("sync.krPolicyRateRows", 7);
+        context.putInt("sync.foreignReserveRows", 8);
+        context.putInt("sync.domesticPolicyRows", 9);
+        context.putString("sync.status", "SUCCESS");
+        context.putString("sync.message", "market sync");
+        context.putString("sync.trigger", "MANUAL");
+        context.putString("sync.startedAt", "2026-08-30T00:00:00Z");
+        context.putString("sync.nextAllowedAt", "2026-08-30T00:15:00Z");
+        context.putLong("sync.remainingCooldownSeconds", 900);
+        when(jobLauncher.run(any(), any())).thenReturn(execution);
+
+        MarketDataSyncJobLauncher launcher = new MarketDataSyncJobLauncher(jobLauncher, job);
+
+        MarketDataSyncService.SyncResult result = launcher.runManualSync();
+
+        assertThat(result.exchangeRateRows()).isEqualTo(3);
+        assertThat(result.dollarIndexRows()).isEqualTo(4);
+        assertThat(result.domesticPolicyRows()).isEqualTo(9);
+        assertThat(result.status()).isEqualTo("SUCCESS");
+        assertThat(result.message()).isEqualTo("market sync");
+        assertThat(result.trigger()).isEqualTo("MANUAL");
+        assertThat(result.startedAt()).isEqualTo(Instant.parse("2026-08-30T00:00:00Z"));
+        assertThat(result.nextAllowedAt()).isEqualTo(Instant.parse("2026-08-30T00:15:00Z"));
+        assertThat(result.remainingCooldownSeconds()).isEqualTo(900);
+        ArgumentCaptor<JobParameters> parametersCaptor = ArgumentCaptor.forClass(JobParameters.class);
+        verify(jobLauncher).run(any(), parametersCaptor.capture());
+        assertThat(parametersCaptor.getValue().getString("operation")).isEqualTo("MARKET_DATA_SYNC");
+        assertThat(parametersCaptor.getValue().getString("trigger")).isEqualTo("MANUAL");
+        assertThat(parametersCaptor.getValue().getLong("requestedAt")).isPositive();
+    }
+}

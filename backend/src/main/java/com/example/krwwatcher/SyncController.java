@@ -1,6 +1,7 @@
 package com.example.krwwatcher;
 
 import com.example.krwwatcher.batch.BatchMetadataService;
+import com.example.krwwatcher.batch.market.MarketDataSyncJobLauncher;
 import com.example.krwwatcher.batch.market.MarketDailyBackfillJobLauncher;
 import com.example.krwwatcher.batch.market.MarketExchangeRateHistoryBackfillJobLauncher;
 import com.example.krwwatcher.service.MarketDataSyncService;
@@ -22,12 +23,13 @@ public class SyncController {
 
     private final MarketDataSyncService marketDataSyncService;
     private final SyncPostAccessService syncPostAccessService;
+    private final MarketDataSyncJobLauncher marketDataSyncJobLauncher;
     private final MarketDailyBackfillJobLauncher dailyBackfillJobLauncher;
     private final MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher;
     private final BatchMetadataService batchMetadataService;
 
     public SyncController(MarketDataSyncService marketDataSyncService, SyncPostAccessService syncPostAccessService) {
-        this(marketDataSyncService, syncPostAccessService, null, null, null);
+        this(marketDataSyncService, syncPostAccessService, null, null, null, null);
     }
 
     public SyncController(
@@ -36,19 +38,31 @@ public class SyncController {
         MarketDailyBackfillJobLauncher dailyBackfillJobLauncher,
         MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher
     ) {
-        this(marketDataSyncService, syncPostAccessService, dailyBackfillJobLauncher, exchangeRateHistoryBackfillJobLauncher, null);
+        this(marketDataSyncService, syncPostAccessService, null, dailyBackfillJobLauncher, exchangeRateHistoryBackfillJobLauncher, null);
+    }
+
+    public SyncController(
+        MarketDataSyncService marketDataSyncService,
+        SyncPostAccessService syncPostAccessService,
+        MarketDataSyncJobLauncher marketDataSyncJobLauncher,
+        MarketDailyBackfillJobLauncher dailyBackfillJobLauncher,
+        MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher
+    ) {
+        this(marketDataSyncService, syncPostAccessService, marketDataSyncJobLauncher, dailyBackfillJobLauncher, exchangeRateHistoryBackfillJobLauncher, null);
     }
 
     @Autowired
     public SyncController(
         MarketDataSyncService marketDataSyncService,
         SyncPostAccessService syncPostAccessService,
+        MarketDataSyncJobLauncher marketDataSyncJobLauncher,
         MarketDailyBackfillJobLauncher dailyBackfillJobLauncher,
         MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher,
         BatchMetadataService batchMetadataService
     ) {
         this.marketDataSyncService = marketDataSyncService;
         this.syncPostAccessService = syncPostAccessService;
+        this.marketDataSyncJobLauncher = marketDataSyncJobLauncher;
         this.dailyBackfillJobLauncher = dailyBackfillJobLauncher;
         this.exchangeRateHistoryBackfillJobLauncher = exchangeRateHistoryBackfillJobLauncher;
         this.batchMetadataService = batchMetadataService;
@@ -56,7 +70,7 @@ public class SyncController {
 
     @PostMapping("/market-data")
     public MarketDataSyncService.SyncResult syncMarketData(HttpServletRequest request) {
-        return runAuthorizedSyncPost(request, "MARKET_DATA_SYNC", marketDataSyncService::requestManualSync);
+        return runAuthorizedSyncPost(request, "MARKET_DATA_SYNC", this::requestMarketDataSync);
     }
 
     @PostMapping("/intraday-exchange")
@@ -134,6 +148,14 @@ public class SyncController {
         }
 
         return dailyBackfillJobLauncher.runManualDailyBackfill();
+    }
+
+    private MarketDataSyncService.SyncResult requestMarketDataSync() {
+        if (marketDataSyncJobLauncher == null) {
+            return marketDataSyncService.requestManualSync();
+        }
+
+        return marketDataSyncJobLauncher.runManualSync();
     }
 
     private MarketDataSyncService.SyncResult requestExchangeRateHistoryBackfill() {
