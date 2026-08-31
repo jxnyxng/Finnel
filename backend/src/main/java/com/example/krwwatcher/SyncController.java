@@ -1,5 +1,6 @@
 package com.example.krwwatcher;
 
+import com.example.krwwatcher.batch.BatchMetadataService;
 import com.example.krwwatcher.batch.market.MarketDailyBackfillJobLauncher;
 import com.example.krwwatcher.batch.market.MarketExchangeRateHistoryBackfillJobLauncher;
 import com.example.krwwatcher.service.MarketDataSyncService;
@@ -8,8 +9,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -21,9 +24,19 @@ public class SyncController {
     private final SyncPostAccessService syncPostAccessService;
     private final MarketDailyBackfillJobLauncher dailyBackfillJobLauncher;
     private final MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher;
+    private final BatchMetadataService batchMetadataService;
 
     public SyncController(MarketDataSyncService marketDataSyncService, SyncPostAccessService syncPostAccessService) {
-        this(marketDataSyncService, syncPostAccessService, null, null);
+        this(marketDataSyncService, syncPostAccessService, null, null, null);
+    }
+
+    public SyncController(
+        MarketDataSyncService marketDataSyncService,
+        SyncPostAccessService syncPostAccessService,
+        MarketDailyBackfillJobLauncher dailyBackfillJobLauncher,
+        MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher
+    ) {
+        this(marketDataSyncService, syncPostAccessService, dailyBackfillJobLauncher, exchangeRateHistoryBackfillJobLauncher, null);
     }
 
     @Autowired
@@ -31,12 +44,14 @@ public class SyncController {
         MarketDataSyncService marketDataSyncService,
         SyncPostAccessService syncPostAccessService,
         MarketDailyBackfillJobLauncher dailyBackfillJobLauncher,
-        MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher
+        MarketExchangeRateHistoryBackfillJobLauncher exchangeRateHistoryBackfillJobLauncher,
+        BatchMetadataService batchMetadataService
     ) {
         this.marketDataSyncService = marketDataSyncService;
         this.syncPostAccessService = syncPostAccessService;
         this.dailyBackfillJobLauncher = dailyBackfillJobLauncher;
         this.exchangeRateHistoryBackfillJobLauncher = exchangeRateHistoryBackfillJobLauncher;
+        this.batchMetadataService = batchMetadataService;
     }
 
     @PostMapping("/market-data")
@@ -77,6 +92,24 @@ public class SyncController {
     @GetMapping("/exchange-rates/history/backfill/status")
     public MarketDataSyncService.SyncStatus exchangeRateHistoryBackfillStatus() {
         return marketDataSyncService.exchangeRateHistoryBackfillStatus();
+    }
+
+    @GetMapping("/batch/jobs")
+    public BatchMetadataService.BatchJobsResponse batchJobs() {
+        return batchMetadataService.jobs();
+    }
+
+    @GetMapping("/batch/jobs/{jobName}/latest")
+    public BatchMetadataService.BatchJobLatestResponse latestBatchJobExecution(@PathVariable String jobName) {
+        return batchMetadataService.latest(jobName);
+    }
+
+    @GetMapping("/batch/jobs/{jobName}/executions")
+    public BatchMetadataService.BatchJobExecutionsResponse batchJobExecutions(
+        @PathVariable String jobName,
+        @RequestParam(defaultValue = "20") int limit
+    ) {
+        return batchMetadataService.executions(jobName, limit);
     }
 
     private MarketDataSyncService.SyncResult runAuthorizedSyncPost(
