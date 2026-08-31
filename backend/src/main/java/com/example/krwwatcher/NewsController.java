@@ -2,7 +2,9 @@ package com.example.krwwatcher;
 
 import java.time.LocalDate;
 
+import com.example.krwwatcher.batch.content.NewsBackfillJobLauncher;
 import com.example.krwwatcher.service.NewsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,9 +18,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class NewsController {
 
     private final NewsService newsService;
+    private final NewsBackfillJobLauncher backfillJobLauncher;
 
     public NewsController(NewsService newsService) {
+        this(newsService, null);
+    }
+
+    @Autowired
+    public NewsController(NewsService newsService, NewsBackfillJobLauncher backfillJobLauncher) {
         this.newsService = newsService;
+        this.backfillJobLauncher = backfillJobLauncher;
     }
 
     @GetMapping
@@ -43,6 +52,10 @@ public class NewsController {
 
     @PostMapping("/sync")
     public NewsService.NewsSyncResult sync() {
+        if (backfillJobLauncher != null) {
+            return backfillJobLauncher.runManualBackfill();
+        }
+
         return newsService.syncNews();
     }
 }
